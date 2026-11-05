@@ -674,7 +674,7 @@ def test_replay_and_exam():
         assert "다시 하기라서" in a.page.inner_text(".screen.done")
         assert not a.errors, a.errors
 
-    # 2) 실제 1장: 1-1~1-4를 끝낸 저장 → 1-5(장 평가) 첫 완료. 장 평가는 XP 30 + 실수 없음 5 + 힌트 없음 5, 엽전 10 + 5
+    # 2) 실제 1장: 1-1~1-4를 끝낸 저장 → 1-5(장 평가) 첫 완료. 장 평가는 XP 30 + 실수 없음 5 + 힌트 없음 5, 엽전 12 + 5 (v0.1.1)
     seed = {"saveVer": 1, "xp": 80, "yeopjeon": 60, "completed_lessons": ["1-1", "1-2", "1-3", "1-4"],
             "current_lesson": "1-5", "current_chapter": 1,
             "grading_results": {k: {"perfect": True, "attempts": 1} for k in ("1-1", "1-2", "1-3", "1-4")}}
@@ -694,7 +694,7 @@ def test_replay_and_exam():
             r["xp"], r["perfect"], r["hintFreeBuild"], r["lessonYeopjeon"], r["totalYeopjeon"]))
         assert r["firstTime"] and r["perfect"] and r["hintFreeBuild"], r
         assert r["xp"] == 30 + 5 + 5, r["xp"]
-        assert r["lessonYeopjeon"] == 15, r["lessonYeopjeon"]
+        assert r["lessonYeopjeon"] == 12 + 5, r["lessonYeopjeon"]
         assert a.page.inner_text(".tile.xp b") == "+40"
         assert s["xp"] == 120 and "1-5" in s["completed_lessons"], (s["xp"], s["completed_lessons"])
         assert s["yeopjeon"] - seed["yeopjeon"] == r["totalYeopjeon"], (s["yeopjeon"], r["totalYeopjeon"])

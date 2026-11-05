@@ -21,11 +21,11 @@ function fixture(over = {}) {
   };
 }
 
-test("reward: 첫 완료·실수 없음·힌트 없이 → {xp 20, yeopjeon 15}", () => {
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: true, hintFreeBuild: true, isExam: false }), { xp: 20, yeopjeon: 15 });
+test("reward(v0.1.1): 첫 완료·실수 없음·힌트 없이 → {xp 20, yeopjeon 17}", () => {
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: true, hintFreeBuild: true, isExam: false }), { xp: 20, yeopjeon: 17 });
 });
-test("reward: 평가 첫 완료 → {xp 30, yeopjeon 10}", () => {
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isExam: true }), { xp: 30, yeopjeon: 10 });
+test("reward(v0.1.1): 평가 첫 완료 → {xp 30, yeopjeon 12}", () => {
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isExam: true }), { xp: 30, yeopjeon: 12 });
 });
 test("reward(C24): 다시 하기·실수 없음·힌트 없이 → {xp 10, yeopjeon 0} (보너스 없음)", () => {
   assert.deepEqual(lessonReward({ firstTime: false, perfect: true, hintFreeBuild: true, isExam: false }), { xp: 10, yeopjeon: 0 });
@@ -35,8 +35,8 @@ test("reward(C24): 평가 다시 하기 → {xp 15, yeopjeon 0}", () => {
   assert.deepEqual(lessonReward({ firstTime: false, perfect: true, hintFreeBuild: true, isExam: true }), { xp: 15, yeopjeon: 0 });
   assert.deepEqual(lessonReward({ firstTime: false, perfect: false, hintFreeBuild: false, isExam: true }), { xp: 15, yeopjeon: 0 });
 });
-test("reward: 첫 완료 기본(보너스 없음) → {xp 10, yeopjeon 10}", () => {
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isExam: false }), { xp: 10, yeopjeon: 10 });
+test("reward(v0.1.1): 첫 완료 기본(보너스 없음) → {xp 10, yeopjeon 12} (레슨 엽전 10→12)", () => {
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isExam: false }), { xp: 10, yeopjeon: 12 });
 });
 test("reward(C24): 복습 한 판 → {xp 10, yeopjeon 0}", () => {
   assert.deepEqual(reviewReward(), { xp: 10, yeopjeon: 0 });

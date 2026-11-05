@@ -172,7 +172,7 @@ test("adv_reward: 처음 15·15 + 보통 레슨과 같은 보너스, 다시 하�
   assert.deepEqual(lessonReward({ firstTime: true, perfect: true, hintFreeBuild: true, isAdvanced: true }), { xp: 25, yeopjeon: 20 });
   assert.deepEqual(lessonReward({ firstTime: false, perfect: true, hintFreeBuild: true, isAdvanced: true }), { xp: 10, yeopjeon: 0 });
   // 보통 레슨은 그대로
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false }), { xp: 10, yeopjeon: 10 });
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false }), { xp: 10, yeopjeon: 12 });
 });
 
 const at = (h = 10) => new Date(2026, 10, 2, h, 0);

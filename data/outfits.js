@@ -4,7 +4,7 @@
 // 그림은 src/dueogi.js(OUTFIT_IDS와 같은 차례).
 export const OUTFITS = [
   { id: "basic", short: "기본 옷", name: "기본 (베 저고리·털 조끼)", price: null, unlock: "start", desc: "장터를 누비는 두억이 그대로!" },
-  { id: "merchant", short: "상인 옷", name: "장터 상인 (앞치마·주판)", price: 100, desc: "엽전 셈은 주판알처럼 착착!" },
+  { id: "merchant", short: "상인 옷", name: "장터 상인 (앞치마·주판)", price: 110, desc: "엽전 셈은 주판알처럼 착착!" },
   { id: "seonbi", short: "선비 옷", name: "선비 (갓·도포)", price: 180, desc: "장부도 글공부처럼 차근차근" },
   { id: "podol", short: "포졸 옷", name: "포졸 (전립·쾌자)", price: 180, desc: "장터 순찰, 빠진 행은 없나?" },
   { id: "detective", short: "탐정 옷", name: "탐정", price: 180, desc: "오류의 단서를 쫓아라!", voice: "detective" },

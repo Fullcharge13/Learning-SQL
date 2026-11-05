@@ -51,10 +51,13 @@ function copy(save) {
 // 다시 하기(판정 C24): 고정 XP 10(평가 15), 보너스·엽전 없음. 심화도 같은 규칙(10).
 // 15레슨을 다 끝낸 뒤에도 하루 목표 20을 다시 하기 2번으로 채울 수 있게 한 값.
 // 심화(v0.7): 처음 끝내면 XP 15·엽전 15 + 보통 레슨과 같은 보너스(실수 없음 +5 XP·+5 엽전, 힌트 없이 조립 통과 +5 XP).
+// v0.1.1: 처음 끝낸 레슨·장 평가의 엽전 10 → 12 (사용자 승인 「레슨 엽전 10→12, 상인 옷 100→110」)
+export const LESSON_YEOPJEON = 12;
+export const PERFECT_YEOPJEON = 5;
 export function lessonReward({ firstTime, perfect, hintFreeBuild, isExam, isAdvanced }) {
   if (!firstTime) return { xp: isExam ? 15 : 10, yeopjeon: 0 };
   const xp = (isExam ? 30 : isAdvanced ? ADV_XP : 10) + (perfect ? 5 : 0) + (hintFreeBuild ? 5 : 0);
-  return { xp, yeopjeon: (isAdvanced ? ADV_YEOPJEON : 10) + (perfect ? 5 : 0) };
+  return { xp, yeopjeon: (isAdvanced ? ADV_YEOPJEON : LESSON_YEOPJEON) + (perfect ? PERFECT_YEOPJEON : 0) };
 }
 
 // 복습 한 판(판정 C24): XP 10

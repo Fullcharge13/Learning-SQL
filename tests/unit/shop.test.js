@@ -26,7 +26,7 @@ const NEW_IDS = ["basic", "merchant", "seonbi", "podol", "detective", "winter", 
 test("OUTFITS table: 두억이 10벌(설계 §8-4), 값은 리아 의상 값 순서 그대로", () => {
   const price = Object.fromEntries(OUTFITS.map((o) => [o.id, o.price]));
   assert.deepEqual(OUTFITS.map((o) => o.id), NEW_IDS);
-  assert.deepEqual(price, { basic: null, merchant: 100, seonbi: 180, podol: 180, detective: 180, winter: 180,
+  assert.deepEqual(price, { basic: null, merchant: 110, seonbi: 180, podol: 180, detective: 180, winter: 180,
     gukbap: 240, seolbim: 240, hunjang: 300, graduate: null });
   assert.equal(OUTFITS.find((o) => o.id === "basic").unlock, "start");
   assert.equal(OUTFITS.find((o) => o.id === "graduate").unlock, "streak30");
@@ -42,13 +42,13 @@ test("OUTFITS table: 두억이 10벌(설계 §8-4), 값은 리아 의상 값 순
   assert.deepEqual(OUTFITS.map((o) => o.id), [...OUTFIT_IDS]);
 });
 
-test("buy: 100 yeopjeon buys merchant -> 0 yeopjeon, owned; again -> error; graduate -> error", () => {
-  const s0 = mkSave({ yeopjeon: 100 });
+test("buy(v0.1.1): 110 yeopjeon buys merchant -> 0 yeopjeon, owned; again -> error; graduate -> error", () => {
+  const s0 = mkSave({ yeopjeon: 110 });
   const s1 = buy(s0, "merchant");
   assert.ok(!(s1 instanceof Error));
   assert.equal(s1.yeopjeon, 0);
   assert.ok(s1.outfits.includes("merchant"));
-  assert.equal(s0.yeopjeon, 100);
+  assert.equal(s0.yeopjeon, 110);
   assert.deepEqual(s0.outfits, ["basic"]);
   const again = buy({ ...s1, yeopjeon: 500 }, "merchant");
   assert.ok(again instanceof Error);
@@ -58,7 +58,7 @@ test("buy: 100 yeopjeon buys merchant -> 0 yeopjeon, owned; again -> error; grad
 
 test("buy errors: insufficient yeopjeon, unknown/old id, basic not for sale", () => {
   assert.ok(buy(mkSave({ yeopjeon: 179 }), "winter") instanceof Error);
-  assert.ok(buy(mkSave({ yeopjeon: 99 }), "merchant") instanceof Error);
+  assert.ok(buy(mkSave({ yeopjeon: 109 }), "merchant") instanceof Error);
   assert.ok(buy(mkSave({ yeopjeon: 299 }), "hunjang") instanceof Error);
   assert.ok(buy(mkSave({ yeopjeon: 9999 }), "pirate") instanceof Error);
   for (const ria of ["casual", "whitecoat", "explorer", "wizard", "lab"]) assert.ok(buy(mkSave({ yeopjeon: 9999 }), ria) instanceof Error, ria);
