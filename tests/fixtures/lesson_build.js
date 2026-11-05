@@ -1,4 +1,5 @@
 // 시험용 레슨(tests/flow.py 「build」·「lesson」 장면 전용). 1-1은 build 장면, 1-2는 lesson 장면(SQL이 든 카드·결과 표 보기·쓸 표 보기). 실제 레슨이 아니다 — 실제 1장은 작업 12에서 data/lessons/ch1.js에 쓴다.
+// 주의: 이 시험용 레슨은 레슨 점검기(tests/content.js)를 통과하도록 만든 것이 아니다(화면 장치 시험용 모양만 맞춤) — 점검기로 돌리지 말 것.
 // flow.py가 이 파일을 tests/out/flow/lessons-fixture/ch1.js로 복사해 `build.py --lessons-dir`로 빌드한다(앱 코드는 그대로).
 // 장터 표(data/market.sql) 기준: items에서 price >= 200은 5행, price < 200은 35행(그래서 「<」는 틀린 결과).
 // TEMPLATES(작업 11)는 test_daily_challenge용: 1-1·1-2를 끝내면 매일 도전이 열리고 이 두 틀(객관식 + 빈자리)이 나온다.

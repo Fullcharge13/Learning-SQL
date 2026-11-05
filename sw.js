@@ -1,5 +1,5 @@
 // 두억이와 SQL! 서비스 작업자 (설계서 8장, 계획 작업 10)
-// build.py가 밑줄 두 개로 감싼 RIA 자리 표시를 채워 dist/sw.js로 내보낸다. 이 파일을 그대로 쓰지 않는다.
+// build.py가 밑줄 두 개로 감싼 DUEOGI 자리 표시를 채워 dist/sw.js로 내보낸다. 이 파일을 그대로 쓰지 않는다.
 //
 // - 게임 파일(index.html, manifest, 아이콘): 네트워크 먼저 → 끊기거나 4초 넘게 느리면 저장본. 새 판이 바로 보이게.
 //   저장본은 설치 때만 채운다(받은 새 판을 옛 저장본에 섞지 않음 → 오프라인은 언제나 한 판이 통째로).
@@ -12,13 +12,28 @@
 // - 게임 저장본 이름에 판 번호와 내용 지문이 들어 있어, 새 판을 올리면 활성화 때 옛 저장본을 지운다.
 //   지우는 것은 dueogi- 로 시작하는 저장본뿐이다(같은 주소의 리아 ria- 저장본은 건드리지 않는다).
 
-const VERSION = "__RIA_VERSION__";
-const GAME_CACHE = "dueogi-game-__RIA_VERSION__-__RIA_HASH__";
-const ENGINE_CACHE = "dueogi-engine-__RIA_SQLJS_VERSION__";
-const GAME_FILES = __RIA_GAME_FILES__;
-const ENGINE_FILES = __RIA_ENGINE_FILES__;
+const VERSION = "__DUEOGI_VERSION__";
+const GAME_CACHE = "dueogi-game-__DUEOGI_VERSION__-__DUEOGI_HASH__";
+const ENGINE_CACHE = "dueogi-engine-__DUEOGI_SQLJS_VERSION__";
+const GAME_FILES = __DUEOGI_GAME_FILES__;
+const ENGINE_FILES = __DUEOGI_ENGINE_FILES__;
 const ENGINE_RE = /\/sql-wasm\.wasm$/;
-const CHAPTER_FILES = __RIA_CHAPTER_FILES__;
+const ENGINE_BYTES = __DUEOGI_ENGINE_BYTES__; // build.py가 넣는 sql-wasm.wasm 바이트 수
+
+// 실행기 저장본에는 진짜 wasm만 넣는다(작업 17). 와이파이 로그인 화면·오류 HTML이 200으로 오면
+// 그것을 저장본에 넣는 순간 다시 받지 않아 오프라인 실행이 영영 깨진다.
+// 받아들이는 것: content-type에 application/wasm이 있거나, 바이트 수가 빌드한 wasm과 같은 것.
+async function goodWasm(res) {
+  if (!res || !res.ok) return false;
+  const type = (res.headers && res.headers.get("content-type")) || "";
+  if (type.toLowerCase().includes("application/wasm")) return true;
+  try {
+    return (await res.clone().arrayBuffer()).byteLength === ENGINE_BYTES;
+  } catch (_) {
+    return false;
+  }
+}
+const CHAPTER_FILES = __DUEOGI_CHAPTER_FILES__;
 const CHAPTER_RE = /\/lessons\/ch[1-9]\d*-[0-9a-f]{8}\.json$/;
 const NETWORK_TIMEOUT_MS = 4000; // 게임 파일: 이보다 느리면 저장본을 먼저 보여 줌
 self.addEventListener("install", (event) => {
@@ -38,7 +53,7 @@ self.addEventListener("install", (event) => {
       await Promise.all(ENGINE_FILES.map(async (f) => {
         if (await engine.match(f)) return;
         const res = await fetch(new Request(f, { cache: "reload" }));
-        if (res.ok) await engine.put(f, res);
+        if (await goodWasm(res)) await engine.put(f, res);
       }));
     } catch (_) { /* 처음 실행할 때 받는다 */ }
     await self.skipWaiting();
@@ -73,7 +88,7 @@ async function engineFirst(request) {
   const hit = await cache.match(request, { ignoreSearch: true });
   if (hit) return hit;
   const res = await fetch(request);
-  if (res.ok && res.type === "basic") {
+  if (res.ok && res.type === "basic" && (await goodWasm(res))) {
     try { await cache.put(request, res.clone()); } catch (_) { /* 저장 공간 부족 등 */ }
   }
   return res;

@@ -134,8 +134,10 @@ export function migrate(raw) {
 }
 
 // 「저장 가져오기」로 받을 수 있는 파일인지 (작업 16). 같은 주소의 리아와 파이썬! 저장은 칸 이름이 거의 같아(completed_lessons·xp·streak…)
-// 두억이 표시를 따로 본다: 엽전(yeopjeon, 숫자)과 saveVer(1 이상 정수)가 있고 리아의 bytes가 없어야 한다.
+// 두억이 표시를 따로 본다: 엽전(yeopjeon, 숫자)이 있고 리아의 bytes가 없어야 한다. saveVer는 없으면 1(migrate와 같음), 있으면 1 이상 정수.
 // 끝낸 레슨 id는 SQL 레슨 모양(장 1~17, 레슨 1~5 또는 심화 A1~)이어야 한다. 돌려줌 { ok: true } 또는 { ok: false, reason, msg }
+// IMPORT_MAX_CHAPTER와 레슨 번호 [1-5]는 커리큘럼(17장 × 5레슨)에 맞춘 값이다. 장·레슨이 늘면
+// tests/unit/import.test.js 「import lesson-id range covers the real curriculum」가 실패해 여기를 고치게 한다.
 export const IMPORT_MAX_CHAPTER = 17;
 const LESSON_ID = /^([1-9]\d*)-([1-5]|A[1-9]\d*)$/;
 const IMPORT_MSG = {
@@ -150,8 +152,11 @@ export function checkImport(raw) {
   if (Object.hasOwn(raw, "bytes")) return no("ria");
   if (!Object.hasOwn(raw, "yeopjeon")) return Object.hasOwn(raw, "completed_lessons") || Object.hasOwn(raw, "xp") ? no("ria") : no("shape");
   if (typeof raw.yeopjeon !== "number" || !Number.isFinite(raw.yeopjeon)) return no("shape");
-  if (!Number.isInteger(raw.saveVer) || raw.saveVer < 1) return no("shape");
-  if (raw.saveVer > SAVE_VER) return no("newer");
+  // saveVer가 없으면 migrate()처럼 첫 판(1)으로 본다(엽전 표시는 위에서 이미 확인). 있으면 1 이상 정수여야 한다.
+  if (Object.hasOwn(raw, "saveVer")) {
+    if (!Number.isInteger(raw.saveVer) || raw.saveVer < 1) return no("shape");
+    if (raw.saveVer > SAVE_VER) return no("newer");
+  }
   if (Object.hasOwn(raw, "completed_lessons")) {
     const ids = raw.completed_lessons;
     const okId = (id) => {

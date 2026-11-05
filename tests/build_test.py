@@ -52,8 +52,8 @@ ICON_SIZES = {"icons/icon-180.png": 180, "icons/icon-192.png": 192, "icons/icon-
 DOC_ICONS = ("icon-180.png", "icon-512.png", "icon-maskable-512.png")
 LEGACY = re.compile(r"pyodide|codemirror|lezer", re.I)
 # 같은 주소(fullcharge13.github.io)에서 도는 리아의 저장본·저장 칸 흉내
-RIA_CACHES = ("ria-game-v0.9-0123456789", "ria-pyodide-314.0.7")
-RIA_SAVE_KEY = "ria-python.save"
+DUEOGI_CACHES = ("ria-game-v0.9-0123456789", "ria-pyodide-314.0.7")
+DUEOGI_SAVE_KEY = "ria-python.save"
 
 _built = {}
 
@@ -113,14 +113,26 @@ def test_html_static():
     assert not re.search(r"<script\b[^>]*\ssrc\s*=", html, re.I), "external <script src> in index.html"
     assert 'rel="stylesheet"' not in html, "CSS must be inlined"
     assert APP_VERSION == "v0.1", APP_VERSION
-    assert '<meta name="ria-version" content="v0.1">' in html or '<meta name="dueogi-version" content="v0.1">' in html
-    assert 'window.RIA_VERSION = "v0.1";' in html
+    assert '<meta name="dueogi-version" content="v0.1">' in html
+    assert 'window.DUEOGI_VERSION = "v0.1";' in html
     assert "<title>두억이와 SQL!</title>" in html, re.search(r"<title>.*?</title>", html).group(0)
     assert "/node_modules/" not in html
     assert '<link rel="manifest" href="manifest.webmanifest">' in html
     assert 'rel="apple-touch-icon"' in html
     assert re.search(r"index\.html raw [\d.]+ KB", out) and re.search(r"sql-wasm\.wasm [\d.]+ KB", out) \
         and re.search(r"worker\.js [\d.]+ KB", out), "build.py must print the sizes (first html, wasm, worker)"
+
+
+def test_no_ria_names_in_build():
+    """build.py·배포 HTML에 리아 시절 이름(ria-no-dev-lessons, ria-stub, meta ria-version·ria-build, window.RIA_*)이 없음"""
+    src = _read(os.path.join(ROOT, "build.py"))
+    for name in ("ria-no-dev-lessons", "ria-stub", "ria-version", "ria-build", "RIA_"):
+        assert name not in src, "build.py still names %r" % name
+    assert '"dueogi-no-dev-lessons"' in src and '"dueogi-stub"' in src
+    _build()
+    html = _read(os.path.join(DIST, "index.html"))
+    assert not re.search(r'<meta name="ria-', html), "ria- meta in dist/index.html"
+    assert "window.RIA_" not in html
 
 
 def test_wasm_present():
@@ -188,21 +200,21 @@ def test_sw_deletes_only_dueogi():
         assert 'key.startsWith("dueogi-")' in cond, "caches.delete not guarded by startsWith(\"dueogi-\"): ...%s" % cond[-120:]
     assert "ria-" not in re.sub(r"//.*", "", sw), "sw.js code must not name ria- caches"
     game = re.search(r'const GAME_CACHE = "([^"]+)"', sw).group(1)
-    names = list(RIA_CACHES) + ["dueogi-game-v0.0-aaaaaaaaaa", "dueogi-engine-1.15.1", ENGINE_CACHE, game, "other-app-cache"]
+    names = list(DUEOGI_CACHES) + ["dueogi-game-v0.0-aaaaaaaaaa", "dueogi-engine-1.15.1", ENGINE_CACHE, game, "other-app-cache"]
     r = subprocess.run(["node", "--input-type=module", "-e", SW_ACTIVATE, os.path.join(DIST, "sw.js"), json.dumps(names)],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     got = json.loads(r.stdout)
     print("    activate deleted %s, kept %s" % (got["deleted"], got["left"]))
     assert got["deleted"] == sorted(["dueogi-game-v0.0-aaaaaaaaaa", "dueogi-engine-1.15.1"]), got
-    for keep in RIA_CACHES + (ENGINE_CACHE, game, "other-app-cache"):
+    for keep in DUEOGI_CACHES + (ENGINE_CACHE, game, "other-app-cache"):
         assert keep in got["left"], (keep, got)
 
 
 def test_sw_static():
     _build()
     sw = _read(os.path.join(DIST, "sw.js"))
-    assert "__RIA_" not in sw and "__DUEOGI_" not in sw, "placeholders left in sw.js"
+    assert "__DUEOGI_" not in sw and "__DUEOGI_" not in sw, "placeholders left in sw.js"
     assert 'const VERSION = "v0.1";' in sw
     assert re.search(r'const GAME_CACHE = "dueogi-game-v0\.1-[0-9a-f]{10}";', sw), sw[:600]
     assert 'const ENGINE_CACHE = "%s";' % ENGINE_CACHE in sw and ENGINE_CACHE == "dueogi-engine-1.15.2", ENGINE_CACHE
@@ -214,6 +226,77 @@ def test_sw_static():
     offline = _read(os.path.join(ROOT, "src", "offline.js"))
     assert 'export const ENGINE_CACHE_PREFIX = "dueogi-engine-";' in offline
     assert 'export const ENGINE_REQUIRED = ["sql-wasm.wasm"];' in offline
+
+
+SW_ENGINE = r"""
+const [swPath, casesJson] = process.argv.slice(1);
+const fs = await import("node:fs"); const vm = await import("node:vm");
+const out = [];
+for (const c of JSON.parse(casesJson)) {
+  const store = new Map();
+  const listeners = {};
+  const caches = {
+    keys: async () => [...store.keys()],
+    delete: async (k) => store.delete(k),
+    open: async (k) => { if (!store.has(k)) store.set(k, new Map()); const m = store.get(k);
+      return { match: async (r) => m.get(typeof r === "string" ? r : new URL(r.url).pathname.split("/").pop()),
+               put: async (r, res) => { m.set(typeof r === "string" ? r : new URL(r.url).pathname.split("/").pop(), res); },
+               addAll: async () => {}, keys: async () => [...m.keys()] }; },
+  };
+  const mkRes = () => {
+    const body = new Uint8Array(c.bytes);
+    const res = new Response(body, { status: c.status, headers: c.type ? { "content-type": c.type } : {} });
+    Object.defineProperty(res, "type", { value: "basic" });
+    return res;
+  };
+  const self = { addEventListener: (t, f) => { listeners[t] = f; }, location: { origin: "https://fullcharge13.github.io" },
+    clients: { claim: async () => {} }, skipWaiting: async () => {} };
+  vm.runInNewContext(fs.readFileSync(swPath, "utf8"), { self, caches, URL, Request: class { constructor(u) { this.url = new URL(u, "https://fullcharge13.github.io/Learning-SQL/").href; } },
+    Response, fetch: async () => mkRes(), setTimeout, clearTimeout, console });
+  // 1) 설치 때 미리 받기
+  let p = null;
+  listeners.install({ waitUntil: (x) => { p = x; } });
+  await p;
+  const engineName = [...store.keys()].find((k) => k.startsWith("dueogi-engine-"));
+  const afterInstall = engineName ? store.get(engineName).size : 0;
+  // 2) 처음 쓸 때 받기(fetch 가로채기)
+  store.clear();
+  let resp = null;
+  listeners.fetch({ request: { method: "GET", mode: "cors", url: "https://fullcharge13.github.io/Learning-SQL/sql-wasm.wasm" },
+    respondWith: (x) => { resp = x; } });
+  const r = await resp;
+  const engineName2 = [...store.keys()].find((k) => k.startsWith("dueogi-engine-"));
+  out.push({ name: c.name, afterInstall, afterFetch: engineName2 ? store.get(engineName2).size : 0, served: r.status });
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+
+def test_sw_engine_cache_rejects_bad_wasm():
+    """sw never caches a bad wasm: 로그인 화면 HTML(200)·잘린 파일은 실행기 저장본에 넣지 않고, 진짜 wasm만 넣음(설치·처음 받기 둘 다)"""
+    _build()
+    sw_path = os.path.join(DIST, "sw.js")
+    sw = _read(sw_path)
+    size = os.path.getsize(os.path.join(DIST, "sql-wasm.wasm"))
+    assert "const ENGINE_BYTES = %d;" % size in sw, "sw.js must carry the wasm byte length"
+    cases = [
+        {"name": "wasm type", "status": 200, "type": "application/wasm", "bytes": 16},
+        {"name": "right length, octet-stream", "status": 200, "type": "application/octet-stream", "bytes": size},
+        {"name": "captive portal html", "status": 200, "type": "text/html; charset=utf-8", "bytes": 512},
+        {"name": "truncated, no type", "status": 200, "type": "", "bytes": size - 1},
+        {"name": "404", "status": 404, "type": "application/wasm", "bytes": 16},
+    ]
+    r = subprocess.run(["node", "--input-type=module", "-e", SW_ENGINE, sw_path, json.dumps(cases)],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    got = {x["name"]: x for x in json.loads(r.stdout)}
+    print("    " + "; ".join("%s: install %d fetch %d" % (n, g["afterInstall"], g["afterFetch"]) for n, g in got.items()))
+    for good in ("wasm type", "right length, octet-stream"):
+        assert got[good]["afterInstall"] == 1 and got[good]["afterFetch"] == 1, got[good]
+    for bad in ("captive portal html", "truncated, no type", "404"):
+        assert got[bad]["afterInstall"] == 0 and got[bad]["afterFetch"] == 0, got[bad]
+    # 저장하지 않아도 받은 답은 그대로 돌려준다(작업자가 오류를 보고 「실행기 준비 실패」를 띄움)
+    assert got["captive portal html"]["served"] == 200
 
 
 def test_manifest_and_icons():
@@ -237,7 +320,7 @@ def test_manifest_and_icons():
 
 
 def test_third_party_notices():
-    """licenses.txt: sql.js MIT 전문(node_modules의 LICENSE 그대로)과 SQLite 퍼블릭 도메인 문구. 미리 받기·설정 링크"""
+    """licenses.txt: sql.js MIT 전문(node_modules의 LICENSE 그대로)+AUTHORS 주소, Emscripten MIT, SQLite 퍼블릭 도메인 문구. 미리 받기·설정 링크"""
     _build()
     path = os.path.join(DIST, "licenses.txt")
     assert os.path.exists(path), "dist/licenses.txt missing"
@@ -246,6 +329,9 @@ def test_third_party_notices():
     assert "== sql.js %s (MIT)" % SQLJS_VERSION in txt, txt[:400]
     assert lic in txt, "sql.js LICENSE text must be included verbatim"
     assert "Copyright (c) 2017 sql.js authors" in txt
+    assert "https://github.com/sql-js/sql.js/blob/master/AUTHORS" in txt, "AUTHORS pointer for sql.js missing"
+    assert "== Emscripten" in txt and "Emscripten authors" in txt and "Permission is hereby granted" in txt.split("== Emscripten", 1)[1], \
+        "Emscripten MIT notice missing"
     assert "SQLite" in txt and "public domain" in txt.lower(), "SQLite public-domain notice missing"
     assert "퍼블릭 도메인" in txt
     assert "esbuild" not in txt, "build tool is not shipped, keep it out"
@@ -429,12 +515,12 @@ class _Browser:
         self.page.evaluate("""async ([names, key]) => {
             for (const n of names) { const c = await caches.open(n); await c.put('/ria/' + n, new Response('ria')); }
             localStorage.setItem(key, JSON.stringify({ saveVer: 5, bytes: 120, completed_lessons: ['1-1'] }));
-        }""", [list(RIA_CACHES), RIA_SAVE_KEY])
+        }""", [list(DUEOGI_CACHES), DUEOGI_SAVE_KEY])
 
     def ria_left(self):
         return self.page.evaluate("""async ([names, key]) => ({
             caches: (await caches.keys()).filter((k) => names.includes(k)).sort(),
-            save: localStorage.getItem(key) }) """, [list(RIA_CACHES), RIA_SAVE_KEY])
+            save: localStorage.getItem(key) }) """, [list(DUEOGI_CACHES), DUEOGI_SAVE_KEY])
 
     def close(self):
         try:
@@ -523,7 +609,7 @@ def test_browser_offline():
         b.context.set_offline(False)
         # 같은 주소의 리아: 저장본·저장 칸 그대로
         left = b.ria_left()
-        assert left["caches"] == sorted(RIA_CACHES) and left["save"], left
+        assert left["caches"] == sorted(DUEOGI_CACHES) and left["save"], left
         bad = [e for e in b.errors if not re.search(r"Failed to load resource|ERR_INTERNET_DISCONNECTED", e)]
         assert not bad, bad
     finally:
@@ -639,7 +725,7 @@ def test_cache_rotation():
         print("    cache rotation: %s -> %s; all caches %s" % (old[0], new[0], keys))
         assert len(new) == 1 and new[0] != old[0], (old, new)
         assert ENGINE_CACHE in keys, "engine cache must survive a game update: %r" % keys
-        assert b.ria_left()["caches"] == sorted(RIA_CACHES), keys
+        assert b.ria_left()["caches"] == sorted(DUEOGI_CACHES), keys
     finally:
         b.close()
         shutil.rmtree(folder, ignore_errors=True)
@@ -702,8 +788,8 @@ def _split():
 
 
 def _chapter_table(html):
-    m = re.search(r"window\.RIA_CHAPTER_FILES = (\{[^}]*\});", html)
-    assert m, "RIA_CHAPTER_FILES table not in index.html"
+    m = re.search(r"window\.DUEOGI_CHAPTER_FILES = (\{[^}]*\});", html)
+    assert m, "DUEOGI_CHAPTER_FILES table not in index.html"
     return {int(k): v for k, v in json.loads(m.group(1)).items()}
 
 
@@ -734,8 +820,8 @@ def test_split_static():
 
 
 def _lesson_index(html):
-    m = re.search(r"window\.RIA_LESSON_INDEX = (.*?);\nwindow\.RIA_CHAPTER_FILES", html, re.S)
-    assert m, "RIA_LESSON_INDEX not in index.html"
+    m = re.search(r"window\.DUEOGI_LESSON_INDEX = (.*?);\nwindow\.DUEOGI_CHAPTER_FILES", html, re.S)
+    assert m, "DUEOGI_LESSON_INDEX not in index.html"
     return json.loads(m.group(1))
 
 
@@ -890,7 +976,7 @@ def test_offline_chapter_build():
         pg.goto(b.url)
         b.home()
         b.wait_controlled()
-        files = pg.evaluate("() => Object.values(window.RIA_CHAPTER_FILES)")
+        files = pg.evaluate("() => Object.values(window.DUEOGI_CHAPTER_FILES)")
         assert len(files) == 17, files
         missing = _wait_chapters_cached(b, files)
         assert not missing, "chapter files not precached: %r" % missing
@@ -972,7 +1058,7 @@ def test_chapter_cache_rotation():
         b.page.goto(b.url)
         b.home()
         b.wait_controlled()
-        old_table = b.page.evaluate("() => window.RIA_CHAPTER_FILES")
+        old_table = b.page.evaluate("() => window.DUEOGI_CHAPTER_FILES")
         assert not _wait_chapters_cached(b, list(old_table.values()))
         old_game = [k for k in b.cache_keys() if k.startswith("dueogi-game-")]
         r = _run_build("--out", folder, "--lessons-dir", _snapshot())
@@ -1000,7 +1086,7 @@ def test_chapter_cache_rotation():
 
 
 def _unique_concepts(index, count=2):
-    """레슨 목록(index.html의 RIA_LESSON_INDEX)에서 그 장에만 나오는 개념이 있는 장을 앞(2장)부터 count개: [(장, 개념)]"""
+    """레슨 목록(index.html의 DUEOGI_LESSON_INDEX)에서 그 장에만 나오는 개념이 있는 장을 앞(2장)부터 count개: [(장, 개념)]"""
     where = {}
     for ch in index:
         for l in ch["lessons"]:
@@ -1029,7 +1115,7 @@ def test_review_lazy():
         pg.on("request", lambda req: asked.append(req.url.rsplit("/", 1)[-1]) if "/lessons/" in req.url else None)
         pg.goto(b.url)
         b.home()
-        table = pg.evaluate("() => window.RIA_CHAPTER_FILES")
+        table = pg.evaluate("() => window.DUEOGI_CHAPTER_FILES")
         assert asked == [], "home must not load chapter files: %r" % asked
         pg.click("#review")
         pg.wait_for_selector("article.item", timeout=15_000)
@@ -1055,13 +1141,13 @@ def test_new_index_not_cached_without_new_sw():
         pg.goto(b.url)
         b.home()
         b.wait_controlled()
-        assert not _wait_chapters_cached(b, list(pg.evaluate("() => window.RIA_CHAPTER_FILES").values()))
+        assert not _wait_chapters_cached(b, list(pg.evaluate("() => window.DUEOGI_CHAPTER_FILES").values()))
         r = _run_build("--out", folder, "--lessons-dir", _snapshot())
         assert r.returncode == 0, r.stdout + r.stderr
         _Handler.STATE["block_sw"] = True
         pg.reload()
         b.home()
-        new_ch1 = pg.evaluate("() => window.RIA_CHAPTER_FILES['1']")
+        new_ch1 = pg.evaluate("() => window.DUEOGI_CHAPTER_FILES['1']")
         assert new_ch1.rsplit("/", 1)[-1] in _chapter_files(folder), "online reload should show the new build"
         pg.wait_for_timeout(500)
         b.context.set_offline(True)
@@ -1149,7 +1235,7 @@ def test_review_one_chapter_fails():
         }""")
         assert len(pick) == 2, pick
         (bad_ch, bad_c), (good_ch, good_c) = pick
-        table = pg.evaluate("() => window.RIA_CHAPTER_FILES")
+        table = pg.evaluate("() => window.DUEOGI_CHAPTER_FILES")
         _Handler.STATE["block_names"] = (table[str(bad_ch)].rsplit("/", 1)[-1],)
         pg.evaluate("(q) => { const ctx = window.__dueogi.ctx; ctx.commit({ ...ctx.save, review_queue: q }); ctx.show('lesson', { review: true }); }",
                     [bad_c, good_c])

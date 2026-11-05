@@ -23,8 +23,8 @@
 
 합치는 방법
 - src/app.js → esbuild로 묶고 줄임(IIFE). src/lessondev.js(개발판의 data/lessons import)는 빈 모듈로 바꿔 끼워
-  레슨 내용이 index.html에 들어가지 않는다. 대신 레슨 목록(window.RIA_LESSON_INDEX)과 장 파일 이름표
-  (window.RIA_CHAPTER_FILES)를 넣고, 앱은 레슨을 열 때 장 파일을 받는다. sw.js는 설치 때 장 파일을 모두 미리 받는다.
+  레슨 내용이 index.html에 들어가지 않는다. 대신 레슨 목록(window.DUEOGI_LESSON_INDEX)과 장 파일 이름표
+  (window.DUEOGI_CHAPTER_FILES)를 넣고, 앱은 레슨을 열 때 장 파일을 받는다. sw.js는 설치 때 장 파일을 모두 미리 받는다.
 - 장터 데이터 data/market.sql은 앱 묶음에 글자로 들어간다(loader .sql=text). 작업자 src/worker.js는 따로 묶어
   worker.js로 둔다. sql.js(UMD)도 esbuild가 이 묶음 안에 넣는다(작업 16): 실행 중 글자를 받아 new Function으로 돌리지
   않으므로 엄격한 CSP(unsafe-eval 없음)와 하위 경로(/Learning-SQL/)·서비스 작업자 저장본에서 같은 파일 하나로 돈다.
@@ -54,9 +54,9 @@ const esbuild = (await import(esbuildPath)).default;
 const a = JSON.parse(argsJson);
 const common = { bundle: true, minify: true, write: false, metafile: true, target: a.target, legalComments: "none", logLevel: "warning", charset: "utf8" };
 // 배포판에는 개발용 레슨 import(src/lessondev.js)를 빈 모듈로 (레슨 내용은 장 파일로 따로 나감)
-const noDevLessons = { name: "ria-no-dev-lessons", setup(b) {
-  b.onResolve({ filter: /(^|\/)lessondev\.js$/ }, () => ({ path: "lessondev", namespace: "ria-stub" }));
-  b.onLoad({ filter: /.*/, namespace: "ria-stub" }, () => ({ contents: "export async function loadDevChapters() { return []; }", loader: "js" }));
+const noDevLessons = { name: "dueogi-no-dev-lessons", setup(b) {
+  b.onResolve({ filter: /(^|\/)lessondev\.js$/ }, () => ({ path: "lessondev", namespace: "dueogi-stub" }));
+  b.onLoad({ filter: /.*/, namespace: "dueogi-stub" }, () => ({ contents: "export async function loadDevChapters() { return []; }", loader: "js" }));
 } };
 const app = await esbuild.build({ ...common, entryPoints: [a.app], format: "iife", plugins: [noDevLessons],
   loader: { ".sql": "text" }, define: { "import.meta.url": "location.href" } });
@@ -132,6 +132,40 @@ SQLJS_DIST = os.path.join(ROOT, "node_modules", "sql.js", "dist")
 SQLJS_FILES = ("sql-wasm.wasm",)
 ENGINE_FILES = ["sql-wasm.wasm"]   # sw.js 실행기 저장본(src/offline.js ENGINE_REQUIRED와 같게)
 
+SQLJS_AUTHORS_NOTE = ("위 「sql.js authors (see AUTHORS)」의 저작자 목록(AUTHORS)은 sql.js 저장소에 있습니다: "
+                      "https://github.com/sql-js/sql.js/blob/master/AUTHORS")
+
+# sql-wasm.wasm과 작업자 묶음의 sql.js 코드는 Emscripten으로 만든 것이라 Emscripten 실행 코드가 들어 있다.
+# Emscripten은 MIT와 University of Illinois/NCSA 두 라이선스 중 고를 수 있고, 여기서는 MIT로 고지한다.
+EMSCRIPTEN_NOTICE = """== Emscripten (sql.js {sqljs}의 sql-wasm.wasm과 실행 코드를 만든 컴파일러, MIT)
+
+sql.js는 Emscripten으로 SQLite를 WebAssembly로 옮긴 것이라 Emscripten이 넣은 실행 코드가 함께 들어 있습니다.
+Emscripten is available under 2 licenses, the MIT license and the University of Illinois/NCSA
+Open Source License. This notice uses the MIT license.
+https://github.com/emscripten-core/emscripten/blob/main/LICENSE
+
+Copyright (c) 2010-2014 Emscripten authors, see AUTHORS file.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+Emscripten AUTHORS: https://github.com/emscripten-core/emscripten/blob/main/AUTHORS
+"""
+
 SQLITE_NOTICE = """== SQLite (sql.js {sqljs} 안의 sql-wasm.wasm)
 
 SQLite는 저작권이 없는 퍼블릭 도메인(public domain) 프로그램입니다.
@@ -166,9 +200,12 @@ def third_party_notices(inputs):
             raise SystemExit("build: no LICENSE file for bundled package " + pkg)
         with open(lic, encoding="utf-8") as f:
             body = f.read().strip()
-        parts += ["== %s %s (%s)" % (pkg, meta.get("version", ""), meta.get("license", "")), "", body, "", ""]
+        parts += ["== %s %s (%s)" % (pkg, meta.get("version", ""), meta.get("license", "")), "", body, ""]
+        if pkg == "sql.js":
+            parts += [SQLJS_AUTHORS_NOTE, ""]
+        parts += [""]
     if "sql.js" in bundled_packages(inputs):
-        parts += [SQLITE_NOTICE.format(sqljs=sqljs_version()), ""]
+        parts += [EMSCRIPTEN_NOTICE.format(sqljs=sqljs_version()), "", SQLITE_NOTICE.format(sqljs=sqljs_version()), ""]
     return "\n".join(parts)
 
 
@@ -281,16 +318,16 @@ def replace_block(html, name, new):
 
 
 HEAD_LINKS = """<meta name="mobile-web-app-capable" content="yes">
-<meta name="ria-version" content="{version}">{build_meta}
+<meta name="dueogi-version" content="{version}">{build_meta}
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 """
 
 CONFIG = """<script>
-window.RIA_VERSION = {version};
-window.RIA_LESSON_INDEX = {lesson_index};
-window.RIA_CHAPTER_FILES = {chapter_files};
+window.DUEOGI_VERSION = {version};
+window.DUEOGI_LESSON_INDEX = {lesson_index};
+window.DUEOGI_CHAPTER_FILES = {chapter_files};
 (function () {{
   if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {{
     window.addEventListener("load", function () {{
@@ -313,7 +350,7 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
 
     html = replace_block(html, "STYLE", "<style>" + b["css"].replace("</", "<\\/") + "</style>")
     html = html.replace("</title>\n", "</title>\n" + HEAD_LINKS.format(
-        version=version, build_meta=('\n<meta name="ria-build" content="%s">' % html_attr(build_id)) if build_id else ""), 1)
+        version=version, build_meta=('\n<meta name="dueogi-build" content="%s">' % html_attr(build_id)) if build_id else ""), 1)
     if 'rel="manifest"' not in html:
         raise SystemExit("build: could not insert head links after <title>")
     config = CONFIG.format(version=js_string(version), lesson_index=js_value(split["index"]), chapter_files=js_value(split["files"]))
@@ -365,12 +402,13 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
             h.update(f.read())
     with open(os.path.join(ROOT, "sw.js"), encoding="utf-8") as f:
         sw = f.read()
-    sw = (sw.replace("__RIA_VERSION__", version).replace("__RIA_HASH__", h.hexdigest()[:10])
-            .replace("__RIA_GAME_FILES__", json.dumps(game_files))
-            .replace("__RIA_SQLJS_VERSION__", sqljs_version())
-            .replace("__RIA_ENGINE_FILES__", json.dumps(ENGINE_FILES))
-            .replace("__RIA_CHAPTER_FILES__", json.dumps(chapter_files)))
-    if "__RIA_" in sw:
+    sw = (sw.replace("__DUEOGI_VERSION__", version).replace("__DUEOGI_HASH__", h.hexdigest()[:10])
+            .replace("__DUEOGI_GAME_FILES__", json.dumps(game_files))
+            .replace("__DUEOGI_SQLJS_VERSION__", sqljs_version())
+            .replace("__DUEOGI_ENGINE_FILES__", json.dumps(ENGINE_FILES))
+            .replace("__DUEOGI_ENGINE_BYTES__", str(os.path.getsize(os.path.join(out, "sql-wasm.wasm"))))
+            .replace("__DUEOGI_CHAPTER_FILES__", json.dumps(chapter_files)))
+    if "__DUEOGI_" in sw:
         raise SystemExit("build: placeholder left in sw.js")
     with open(os.path.join(out, "sw.js"), "w", encoding="utf-8") as f:
         f.write(sw)
@@ -393,7 +431,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "dist"))
     ap.add_argument("--update-docs-icons", action="store_true", help="docs/img/ 아이콘 복사본도 갱신")
-    ap.add_argument("--build-id", default="", help="빌드 표시(meta ria-build). 바꾸면 게임 저장본 이름도 바뀜")
+    ap.add_argument("--build-id", default="", help="빌드 표시(meta dueogi-build). 바꾸면 게임 저장본 이름도 바뀜")
     ap.add_argument("--lessons-dir", default=None, help="장 파일(chN.js) 폴더. 기본 data/lessons (시험용)")
     a = ap.parse_args()
     build(os.path.abspath(a.out), update_docs_icons=a.update_docs_icons,

@@ -5,7 +5,7 @@
 //   심화 레슨(v0.7)은 장의 `advanced` 칸에 따로(id·title·goal·concepts·isAdvanced). ADVANCED가 없는 장은 이 칸이 없다.
 // - 매일 도전 틀(v0.9): 장 파일의 TEMPLATES. 목록에는 장의 `templates` 칸에 id·개념만(없는 장은 칸 없음).
 // - 장 파일(lessons/chN-<지문8자>.json): 장 하나의 { CHAPTER, LESSONS, ADVANCED?, TEMPLATES? } 전체. 레슨을 열 때 getChapter(n)으로 받는다.
-// - 배포판: build.py가 window.RIA_LESSON_INDEX와 window.RIA_CHAPTER_FILES를 index.html에 넣는다 → 네트워크(서비스 작업자 저장본)로.
+// - 배포판: build.py가 window.DUEOGI_LESSON_INDEX와 window.DUEOGI_CHAPTER_FILES를 index.html에 넣는다 → 네트워크(서비스 작업자 저장본)로.
 // - 개발판(tools/dev.py): 두 값이 없다 → app.js가 data/lessons/chN.js를 import해 modules로 넘긴다(네트워크 없음).
 // - 보강한 레슨(v0.7.1)은 stub에 updated("v0.7.1")를 옮긴다 → 학습 길 「새 내용」 점(newcontent.js).
 // 이 파일은 데이터 파일을 import하지 않는다(build.py도 레슨 목록·파일 이름을 이 함수로 만든다).

@@ -2,7 +2,7 @@
 // 「아는 칸이 하나라도 있으면 받기」로는 걸러지지 않는다. 두억이 표시(yeopjeon·saveVer)와 레슨 id 모양을 본다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkImport, newSave, SAVE_VER } from "../../src/save.js";
+import { checkImport, newSave, SAVE_VER, IMPORT_MAX_CHAPTER } from "../../src/save.js";
 
 // 리아 v0.9 내보내기 모양(같은 사용자의 다른 앱, 같은 주소)
 const RIA = {
@@ -51,4 +51,31 @@ test("checkImport rejects shapes that are not a dueogi save", () => {
     assert.equal(r.ok, false, JSON.stringify(bad));
     assert.equal(r.reason, "lessons", JSON.stringify(bad));
   }
+});
+
+// 작업 17(작업 16 넘김): 가져오기의 레슨 id 범위(IMPORT_MAX_CHAPTER, 레슨 번호 1~5)는 손으로 적은 값이다.
+// 커리큘럼이 커지면(18장, 장마다 6레슨 …) 이 시험이 먼저 실패해 값을 고치게 한다.
+test("import lesson-id range covers the real curriculum (fails if the course outgrows it)", async () => {
+  const { readdirSync } = await import("node:fs");
+  const dir = new URL("../../data/lessons/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => /^ch\d+\.js$/.test(f));
+  const ids = [];
+  let maxChapter = 0;
+  for (const f of files) {
+    const m = await import(new URL(f, dir).href);
+    maxChapter = Math.max(maxChapter, m.CHAPTER.id);
+    for (const l of [...m.LESSONS, ...(Array.isArray(m.ADVANCED) ? m.ADVANCED : [])]) ids.push(l.id);
+  }
+  assert.equal(IMPORT_MAX_CHAPTER, maxChapter, "IMPORT_MAX_CHAPTER must equal the last chapter number");
+  const r = checkImport({ ...newSave(), completed_lessons: ids });
+  assert.deepEqual(r, { ok: true }, "every real lesson id must be importable");
+});
+
+// migrate()는 saveVer가 없으면 첫 판(1)으로 본다. 가져오기도 같게: 엽전(yeopjeon)이 있으면 saveVer 없이도 받는다.
+test("checkImport agrees with migrate on a missing saveVer when yeopjeon is present", () => {
+  const { saveVer, ...noVer } = newSave();
+  assert.deepEqual(checkImport(noVer), { ok: true });
+  // 표시가 하나도 없으면 여전히 거절
+  const { yeopjeon, ...neither } = noVer;
+  assert.equal(checkImport(neither).ok, false);
 });

@@ -15,10 +15,10 @@ const ch = (n, concepts, tplN = 4) => ({
   ...(tplN ? { templates: Array.from({ length: tplN }, (_, i) => ({ id: `${n}-T${i + 1}`, concept: concepts[0][0] })) } : {}),
 });
 const INDEX = [
-  ch(1, [["print"], ["string"], ["arith"], ["comment"], ["print", "arith"]]),
-  ch(2, [["assign"], ["type"], ["input"], ["convert"], ["assign", "convert"]]),
-  ch(3, [["if"], ["else"], ["elif"], ["compare"], ["if", "logic"]]),
-  ch(4, [["def"], ["param"], ["return"], ["call"], ["def"]], 0),   // 틀 없는 장
+  ch(1, [["table"], ["rowcol"], ["selectall"], ["market"], ["table", "selectall"]]),
+  ch(2, [["columns"], ["alias"], ["calc"], ["where"], ["columns", "where"]]),
+  ch(3, [["compare"], ["textval"], ["andor"], ["not"], ["compare", "in"]]),
+  ch(4, [["between"], ["like"], ["orderby"], ["limit"], ["between"]], 0),   // 틀 없는 장
 ];
 const ids = (n) => [1, 2, 3, 4, 5].map((k) => `${n}-${k}`);
 const save = (over = {}) => ({ ...newSave(), ...over });
@@ -79,14 +79,14 @@ test("pickDaily: 1장 전에는 null, 틀 있는 장이 하나도 없으면 null
 });
 
 test("pickDaily: 틀이 하나뿐이면 같은 틀을 두 번 쓰지 않음 → 터치 1 + 조립 1", () => {
-  const one = [ch(1, [["print"], ["string"], ["arith"], ["comment"], ["print"]], 1)];
+  const one = [ch(1, [["table"], ["rowcol"], ["selectall"], ["market"], ["table"]], 1)];
   const p = pickDaily(one, save({ completed_lessons: ids(1) }), "2026-11-05");
   assert.equal(p.length, 2);
   assert.deepEqual(p.map((x) => x.kind), ["tpl", "build"]);
 });
 
 test("pickDaily 가중: 복습 개념이 든 장의 틀이 약 3배 더 자주", () => {
-  const s = save({ completed_lessons: [...ids(1), ...ids(2), ...ids(3)], review_queue: ["elif"] });
+  const s = save({ completed_lessons: [...ids(1), ...ids(2), ...ids(3)], review_queue: ["andor"] });
   const count = { 1: 0, 2: 0, 3: 0 };
   let writes3 = 0, writes = 0;
   for (let d = 0; d < 600; d++) {
@@ -99,7 +99,7 @@ test("pickDaily 가중: 복습 개념이 든 장의 틀이 약 3배 더 자주",
   // 첫 틀: 3장 비중 3/5 = 0.6 (1·2장은 각 0.2)
   assert.ok(count[3] / 600 > 0.5 && count[3] / 600 < 0.7, JSON.stringify(count));
   assert.ok(count[1] / 600 > 0.12 && count[1] / 600 < 0.28, JSON.stringify(count));
-  // 카드 조립: elif가 든 레슨(3-3) 하나만 ×3 → 3/17
+  // 카드 조립: andor(AND·OR)가 든 레슨(3-3) 하나만 ×3 → 3/17
   const p33 = (() => { let n = 0; for (let d = 0; d < 600; d++) { const date = new Date(Date.UTC(2026, 0, 1) + d * 86400000).toISOString().slice(0, 10); if (pickDaily(INDEX, s, date)[2].lesson === "3-3") n++; } return n / 600; })();
   assert.ok(p33 > 0.1 && p33 < 0.26, `3-3 비율 ${p33}`);
   assert.ok(writes3 > 0);
@@ -174,10 +174,10 @@ test("finishedItems: 맞힘·세 번 틀림·조립 제출 끝", () => {
 
 test("recordDaily: 푼 문제 번호를 합치고(중복 없음), 개념 점수를 바로 반영", () => {
   let s = ensureDaily(save({ completed_lessons: ids(1) }), "2026-11-05", INDEX);
-  s = recordDaily(s, "2026-11-05", [1], [["arith", "wrong"]]);
+  s = recordDaily(s, "2026-11-05", [1], [["selectall", "wrong"]]);
   assert.deepEqual(s.daily.done, [1]);
-  assert.equal(s.weak_concepts.arith, 2);
-  assert.deepEqual(s.review_queue, ["arith"]);
+  assert.equal(s.weak_concepts.selectall, 2);
+  assert.deepEqual(s.review_queue, ["selectall"]);
   s = recordDaily(s, "2026-11-05", [1, 0], []);
   assert.deepEqual(s.daily.done, [0, 1]);
   // 날짜가 다른 기록(자정을 넘긴 화면)은 진행만 무시

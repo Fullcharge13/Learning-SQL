@@ -48,8 +48,8 @@ const requestPersist = createPersist();
 // 레슨 목록과 장 가져오기(v0.3 작업 1). 배포판: build.py가 넣은 목록·장 파일 이름표 → 장은 열 때 받음.
 // 개발판: 둘 다 없음 → data/lessons/chN.js를 전부 import(lessondev.js, 배포판에서는 빈 모듈).
 async function initLessonData() {
-  if (window.RIA_CHAPTER_FILES && window.RIA_LESSON_INDEX) {
-    return createLessonData({ index: window.RIA_LESSON_INDEX, files: window.RIA_CHAPTER_FILES, base: location.href });
+  if (window.DUEOGI_CHAPTER_FILES && window.DUEOGI_LESSON_INDEX) {
+    return createLessonData({ index: window.DUEOGI_LESSON_INDEX, files: window.DUEOGI_CHAPTER_FILES, base: location.href });
   }
   return createLessonData({ modules: await loadDevChapters() });
 }

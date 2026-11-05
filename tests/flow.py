@@ -249,7 +249,11 @@ class App:
             self.page.screenshot(path=path, full_page=full)
         finally:
             if full:
-                self.js(UNPIN_FIXED_JS)   # 옮기다 멈췄어도 되돌린다
+                # 옮기다 멈췄어도 되돌린다. 되돌리기 자체가 실패해도(페이지가 닫힘 등) 원래 오류를 덮지 않게 따로 잡는다
+                try:
+                    self.js(UNPIN_FIXED_JS)
+                except Exception as unpin_err:  # noqa: BLE001
+                    print("    (shot %s: unpin failed: %s)" % (name, str(unpin_err)[:200]))
         return path
 
     def js(self, expr, arg=None):
@@ -593,7 +597,7 @@ def _to_build(a, lid="1-1"):
     raise AssertionError("build item not reached")
 
 
-RIA_EXPORT = {"saveVer": 5, "current_chapter": 3, "current_lesson": "3-2", "completed_lessons": ["1-1", "1-2", "2-1"],
+DUEOGI_EXPORT = {"saveVer": 5, "current_chapter": 3, "current_lesson": "3-2", "completed_lessons": ["1-1", "1-2", "2-1"],
               "xp": 340, "bytes": 120, "streak": {"days": 4, "best": 6}, "badges": [], "outfits": ["basic"], "outfit": "basic"}
 
 
@@ -605,7 +609,7 @@ def test_import_ria_save():
         a.page.wait_for_selector(".screen.settings")
         before = a.save()
         a.page.set_input_files("#import", files=[{"name": "ria-python-save.json", "mimeType": "application/json",
-                                                  "buffer": json.dumps(RIA_EXPORT).encode()}])
+                                                  "buffer": json.dumps(DUEOGI_EXPORT).encode()}])
         a.page.wait_for_selector(".toast.warn")
         msg = a.page.inner_text(".toast.warn")
         print("    ria save: %r" % msg)
