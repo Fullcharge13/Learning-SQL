@@ -12,13 +12,13 @@ export function openMarket(SQL, marketSql) {
   return db;
 }
 
-const WRITE_WORDS = new Set(["INSERT", "UPDATE", "DELETE", "REPLACE", "CREATE", "DROP", "ALTER", "ATTACH", "PRAGMA"]);
+const WRITE_WORDS = new Set(["INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER", "ATTACH", "PRAGMA"]);
 
 // 글자 상수·따옴표 이름·주석 바깥만 훑어 { first, words, extra } 를 돌려준다.
 //   first: 첫 낱말(대문자), words: 바깥 낱말 모음, extra: 문장 끝 ; 뒤에 더 있는지
 function scan(sql) {
   const words = [];
-  let first = null, semi = false, extra = false;
+  let first = null, semi = false, extra = false, replaceWrite = false, prevWord = null;
   let i = 0;
   const n = sql.length;
   while (i < n) {
@@ -27,6 +27,8 @@ function scan(sql) {
     if (c === "/" && d === "*") { const e = sql.indexOf("*/", i + 2); i = e < 0 ? n : e + 2; continue; }
     if (/\s/.test(c)) { i++; continue; }
     if (semi) extra = true;
+    const wasWord = prevWord;
+    prevWord = null; // 낱말이 아닌 덩어리를 만나면 이어짐이 끊긴다
     if (c === ";") { semi = true; extra = false; i++; continue; }
     if (c === "'" || c === '"' || c === "`" || c === "[") {
       const close = c === "[" ? "]" : c;
@@ -48,20 +50,23 @@ function scan(sql) {
       const w = sql.slice(i, j).toUpperCase();
       if (first === null) first = w;
       words.push(w);
+      if (wasWord === "REPLACE" && (w === "INTO" || w === "OR")) replaceWrite = true; // REPLACE INTO / REPLACE OR ...
+      prevWord = w;
       i = j;
       continue;
     }
     if (first === null) first = "";
     i++;
   }
-  return { first, words, extra };
+  return { first, words, extra, replaceWrite };
 }
 
 export function checkReadOnly(sql) {
   const s = scan(sql);
   if (s.first !== "SELECT" && s.first !== "WITH") return false;
-  if (s.extra) return false;
-  return !s.words.some((w) => WRITE_WORDS.has(w) && w !== "REPLACE");
+  if (s.extra || s.replaceWrite) return false;
+  // 함수 replace(...)는 통과해야 하므로 REPLACE 낱말은 WRITE_WORDS에 없고, INTO/OR가 뒤따를 때만 위에서 막는다
+  return !s.words.some((w) => WRITE_WORDS.has(w));
 }
 
 function msgOf(e) {

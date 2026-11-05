@@ -44,6 +44,10 @@ test("CTE-wrapped writes are read-only", () => {
   assert.equal(execOne(db, "WITH x AS (SELECT 1) DELETE FROM shops").error, "read-only");
   assert.equal(execOne(db, "WITH x AS (SELECT 1) INSERT INTO shops VALUES (99,'a','b','c','d')").error, "read-only");
   assert.equal(execOne(db, "SELECT COUNT(*) FROM shops").rows[0][0] > 0, true);
+  assert.equal(execOne(db, "WITH x AS (SELECT 1) REPLACE INTO shops VALUES (1)").error, "read-only");
+  assert.equal(execOne(db, "WITH x AS (SELECT 1) REPLACE\n  OR ROLLBACK INTO shops VALUES (1)").error, "read-only");
+  assert.equal(execOne(db, "SELECT replace(name,'a','b') FROM shops").error, null);
+  assert.equal(execOne(db, "SELECT REPLACE (name, 'a', 'b'), 'replace into x' FROM shops").error, null);
   // words inside strings are fine
   assert.equal(execOne(db, "SELECT 'delete me' AS s").error, null);
 });
