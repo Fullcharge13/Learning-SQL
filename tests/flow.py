@@ -39,6 +39,8 @@
 - test_sql_cols_fit(B1·작업 16): iPhone 17e에서 SQL_COLS(38)칸이 코드 상자·순서 조각, ORDER_COLS(33)칸이 놓은 줄, OPT_COLS(31)칸이
   코드 모양 글자 보기에서 한 줄, 글씨 13px 이상
 - test_import_ria_save(작업 16): 다른 앱(리아) 저장 가져오기는 안내만, 두억이 저장은 확인 창
+- test_shot_pin_allowlist(작업 16): 전체 캡처는 .lesson-foot·.tabbar만 옮기고, 결과 창이 열리면 안 옮기며, 실패해도 되돌림
+- test_foot_clear_safe_area(작업 16): --sab 34px + 힌트 모두 펼침 → 조립 화면 내용이 단추 줄 위에 다 보임
 - SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
 """
 
@@ -175,23 +177,28 @@ class SkipTest(Exception):
     """아직 돌릴 수 없는 시험(까닭을 출력하고 실패로 세지 않음)"""
 
 
-# 전체 캡처 동안 화면 아래에 붙은 고정 요소(레슨 단추 줄 등)를 문서 맨 아래로 옮기고 되돌린다(App.shot)
-PIN_FIXED_JS = r"""() => {
+# 전체 캡처 동안 화면 아래에 붙은 고정 줄을 문서 맨 아래로 옮기고 되돌린다(App.shot). 옮기는 것은 이름으로 정한 것만
+# (작업 16, B1 검토): 레슨 단추 줄 .lesson-foot과 홈 탭 줄 .tabbar. 결과 창이 열려 있으면(body.result-open,
+# 보이는 #result) 결과 창이 화면 아래를 덮는 것이 맞는 모습이라 아무것도 옮기지 않는다.
+PIN_SELECTORS = (".lesson-foot", ".tabbar")
+PIN_FIXED_JS = r"""(sels) => {
   const vh = innerHeight, sh = document.documentElement.scrollHeight;
-  if (sh <= vh + 1) return 0;
-  let n = 0;
-  for (const e of document.querySelectorAll('body *')) {
+  if (sh <= vh + 1) return [];
+  const res = document.querySelector('.result');
+  if (document.body.classList.contains('result-open') || (res && !res.hidden && res.getBoundingClientRect().height > 0)) return [];
+  const out = [];
+  for (const e of document.querySelectorAll(sels.join(','))) {
     const cs = getComputedStyle(e);
     if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') continue;
     const r = e.getBoundingClientRect();
-    if (r.height < 1 || Math.abs(r.bottom - vh) > 1 || r.top < vh / 3) continue;   // 아래에 붙은 줄만(덮개 창 제외)
+    if (r.height < 1) continue;
     e.dataset.flowPin = e.getAttribute('style') || '';
     e.style.setProperty('position', 'absolute', 'important');
     e.style.setProperty('top', (sh - r.height) + 'px', 'important');
     e.style.setProperty('bottom', 'auto', 'important');
-    n++;
+    out.push(sels.find((x) => e.matches(x)));
   }
-  return n;
+  return out;
 }"""
 UNPIN_FIXED_JS = r"""() => { for (const e of document.querySelectorAll('[data-flow-pin]')) {
   const s = e.dataset.flowPin; if (s) e.setAttribute('style', s); else e.removeAttribute('style'); delete e.dataset.flowPin; } }"""
@@ -236,12 +243,13 @@ class App:
         그대로 그린다(맨 위에서 찍으면 아래 단추 줄이 페이지 중간, 첫 화면 높이 자리에 찍혀 그 밑 내용을 덮는다 — 버그 B1).
         그래서 찍는 동안만 화면 아래에 붙은 고정 요소를 페이지 맨 아래로 옮긴다(끝까지 내린 화면과 같은 자리)."""
         path = os.path.join(OUT, name)
-        pinned = self.js(PIN_FIXED_JS) if full else 0
         try:
+            if full:
+                self.pinned = self.js(PIN_FIXED_JS, list(PIN_SELECTORS))
             self.page.screenshot(path=path, full_page=full)
         finally:
-            if pinned:
-                self.js(UNPIN_FIXED_JS)
+            if full:
+                self.js(UNPIN_FIXED_JS)   # 옮기다 멈췄어도 되돌린다
         return path
 
     def js(self, expr, arg=None):
@@ -1851,6 +1859,106 @@ def _foot_probe(no_has=False):
                            "the fixed bar is drawn mid-page in the shot" % (kind, band, bad * 100))
         return out
     return probe
+
+
+def test_shot_pin_allowlist():
+    """작업 16(B1 검토): App.shot(full=True)는 이름으로 정한 고정 줄(.lesson-foot, .tabbar)만 페이지 끝으로 옮기고,
+    결과 창이 열려 있으면 아무것도 옮기지 않으며, 찍다가 실패해도 늘 되돌린다."""
+    STATE = "() => ({ pins: document.querySelectorAll('[data-flow-pin]').length, decoy: document.querySelector('#decoy').getAttribute('style'),"
+    STATE += " tab: document.querySelector('.tabbar') && document.querySelector('.tabbar').getAttribute('style') })"
+    with App("iPhone 17") as a:
+        a.start()
+        # 화면 아래에 붙은 다른 고정 요소(이름 목록에 없음)와 긴 페이지
+        a.js("""() => { const d = document.createElement('div'); d.id = 'decoy';
+          d.setAttribute('style', 'position:fixed;left:0;right:0;bottom:0;height:40px;background:red');
+          document.body.appendChild(d);
+          const sp = document.createElement('div'); sp.style.height = '3000px'; document.querySelector('#app').appendChild(sp); }""")
+        before = a.js(STATE)
+        a.shot("_pin-home.png", full=True)
+        assert a.pinned == [".tabbar"], a.pinned
+        assert a.js(STATE) == before, (before, a.js(STATE))
+        # 찍다가 실패해도 되돌림
+        real = a.page.screenshot
+
+        def boom(**kw):
+            raise RuntimeError("screenshot failed")
+        a.page.screenshot = boom
+        try:
+            a.shot("_pin-fail.png", full=True)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("shot must re-raise")
+        finally:
+            a.page.screenshot = real
+        assert a.js(STATE) == before, "pins not restored after a failed shot: %s" % a.js(STATE)
+        # 결과 창이 열린 레슨 화면: 옮기지 않음
+        a.js("() => { document.querySelector('#decoy').remove(); }")
+        a.page.click('[data-go="home"]') if a.page.query_selector('[data-go="home"]') else None
+        a.page.click("#continue")
+        items = a.lesson("1-1")["items"]
+        for _ in range(20):
+            a.page.wait_for_timeout(80)
+            if a.page.query_selector(".card-view"):
+                a.page.click("#act")
+                continue
+            if a.page.query_selector("article.item:not(.build)"):
+                break
+        a.answer_touch(items[a.which_item(items)])
+        a.page.wait_for_selector("#result:not([hidden])")
+        a.js("() => { const sp = document.createElement('div'); sp.style.height = '3000px'; document.querySelector('#body').appendChild(sp); }")
+        a.shot("_pin-result.png", full=True)
+        assert a.pinned == [], "nothing is pinned while the result sheet is open: %s" % a.pinned
+        assert a.js("() => document.querySelectorAll('[data-flow-pin]').length") == 0
+    for x in ("_pin-home.png", "_pin-fail.png", "_pin-result.png"):
+        if os.path.exists(os.path.join(OUT, x)):
+            os.remove(os.path.join(OUT, x))
+
+
+SAB_JS = r"""() => {
+  window.scrollTo(0, 1e6);
+  const foot = document.querySelector('#foot').getBoundingClientRect();
+  const last = (sel) => { let b = null; for (const e of document.querySelectorAll(sel)) {
+      const r = e.getBoundingClientRect(); if (r.height && (!b || r.bottom > b.bottom)) b = r; } return b && Math.round(b.bottom * 10) / 10; };
+  return { vh: innerHeight, footTop: Math.round(foot.top * 10) / 10, footBottom: Math.round(foot.bottom * 10) / 10,
+    footPadBottom: parseFloat(getComputedStyle(document.querySelector('#foot')).paddingBottom),
+    sab: getComputedStyle(document.documentElement).getPropertyValue('--sab').trim(),
+    hints: document.querySelectorAll('#hints > li').length,
+    targets: { 'last hint': last('#hints > li'), 'last card': last('#bbank .bcard'), 'line': last('#bline'),
+               '쓸 표 보기': last('#tablesbtn'), 'hint button': last('#hint') } };
+}"""
+
+
+def test_foot_clear_safe_area():
+    """작업 16(B1 검토): 홈 표시줄이 있는 폰처럼 --sab(아래 안전 여백)를 34px로 두고, 조립 문제에서 힌트를 모두 펼친 뒤
+    끝까지 내려도 힌트·카드·「쓸 표 보기」가 고정 단추 줄 윗변보다 위에 다 보인다. 단추 줄은 화면 안, 아래 여백은 34px 이상."""
+    fails = []
+    for dev in ("iPhone 17e", "iPhone 17"):
+        with App(dev) as a:
+            a.start()
+            a.js("() => document.documentElement.style.setProperty('--sab', '34px')")
+            a.page.click("#continue")
+            _to_build(a)
+            for _ in range(4):
+                if a.page.is_enabled("#hint"):
+                    a.page.click("#hint")
+                    a.page.wait_for_timeout(120)
+            a.page.wait_for_timeout(200)
+            p = a.js(SAB_JS)
+            print("    %s sab %s: foot %s..%s (pad %s), hints %d, targets %s" % (
+                dev, p["sab"], p["footTop"], p["footBottom"], p["footPadBottom"], p["hints"], p["targets"]))
+            if p["sab"] != "34px" or p["footPadBottom"] < 34:
+                fails.append("%s: --sab not applied to the button bar (%s, padding-bottom %s)" % (dev, p["sab"], p["footPadBottom"]))
+            if p["hints"] < 1:
+                fails.append("%s: no hint expanded" % dev)
+            if p["footBottom"] > p["vh"] + 0.5:
+                fails.append("%s: button bar bottom %s below the screen %d" % (dev, p["footBottom"], p["vh"]))
+            for name, b in p["targets"].items():
+                if b is not None and b > p["footTop"] + 0.5:
+                    fails.append("%s: %s bottom %s under the button bar top %s" % (dev, name, b, p["footTop"]))
+            a.shot("sab-34-%s.png" % slug(dev), full=True)
+            assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
 
 
 def test_foot_clear_after_scroll():
