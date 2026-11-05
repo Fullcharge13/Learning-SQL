@@ -138,7 +138,7 @@ export const LESSONS = [
         tables: ["items"],
         hints: [
           "물건 값의 평균을 괄호 안 SELECT로 먼저 구하고, 그 값보다 큰 물건을 골라요.",
-          "WHERE price > 다음에 (SELECT, AVG(price), FROM, items) 차례예요.",
+          "「price >」 다음에 「(SELECT」「AVG(price)」「FROM」「items)」 차례예요.",
         ],
         explain: "12장의 대표 문제예요! 79.525엽전보다 비싼 12가지가 나왔어요. MAX면 400보다 비싼 물건이 없어 0행, <면 싼 28가지예요.",
       },
@@ -177,8 +177,8 @@ export const LESSONS = [
     ],
     cards: [
       {
-        say: "가장 비싼 물건의 이름은? 7장 MAX는 값만 알려 줘요. 그 값을 서브쿼리로 구해 = 로 견주면 이름까지! 두 번째로 비싼 값은 가장 비싼 값보다 작은 것 중 MAX예요.",
-        sql: "SELECT name, price\nFROM items\nWHERE price =\n  (SELECT MAX(price) FROM items)",
+        say: "가장 비싼 물건의 이름은 12-1처럼 서브쿼리로 MAX를 구해 = 로 견주면 나와요. 두 번째로 비싼 값은? 아래처럼 가장 비싼 값보다 작은 것만 남겨 그중 MAX! 400 다음인 350엽전이에요.",
+        sql: "SELECT MAX(price) AS second_price\nFROM items\nWHERE price <\n  (SELECT MAX(price) FROM items)",
       },
       {
         say: "조심! 5장 OFFSET은 행을 세서, 6엽전 인절미·한지처럼 값이 같은 물건이 있으면 같은 값을 두 번 세요. 값으로 세려면 DISTINCT로 겹침을 없애요. 아래는 두 번째로 싼 값 6엽전의 물건 둘이에요.",
@@ -309,7 +309,7 @@ export const LESSONS = [
         sql: "SELECT name, shop_id\nFROM items\nWHERE shop_id IN\n  (SELECT shop_id FROM shops\n   WHERE category = '공방')",
       },
       {
-        say: "「중복 찾기」예요. 괄호 안에서 8장 GROUP BY·HAVING으로 두 번 넘게 나온 값만 목록을 만들고, 바깥은 그 값의 물건을 모두 보여요. 값이 같은 짝 6쌍, 12가지가 나와요!",
+        say: "「중복 찾기」예요. 괄호 안에서 8장 GROUP BY·HAVING으로 두 번 이상 나온 값만 목록을 만들고, 바깥은 그 값의 물건을 모두 보여요. 값이 같은 짝 6쌍, 12가지가 나와요!",
         sql: "SELECT name, price\nFROM items\nWHERE price IN\n  (SELECT price FROM items\n   GROUP BY price\n   HAVING COUNT(*) > 1)\nORDER BY price, item_id",
       },
     ],
@@ -401,7 +401,7 @@ export const LESSONS = [
         tables: ["items", "shops"],
         hints: [
           "가게 표에서 공방 가게 번호 목록을 먼저 고르고, 그 번호의 물건을 골라요.",
-          "WHERE shop_id IN 다음에 (SELECT shop_id, FROM shops, WHERE, 공방 조건이에요.",
+          "「shop_id IN」 다음에 「(SELECT shop_id」「FROM shops」「WHERE」, 그리고 공방 조건 카드예요.",
         ],
         explain: "방망이와 놋그릇·쇠솥·장승, 10가지예요. 가게 이름(name)을 고르면 번호와 이름을 견줘 0행, 약재면 약방 물건이 나와요.",
       },
@@ -412,8 +412,8 @@ export const LESSONS = [
         extra: ["HAVING COUNT(*) = 1)", "(SELECT name"],
         tables: ["items"],
         hints: [
-          "괄호 안에서 값마다 묶어 두 번 넘게 나온 값만 고르고, 그 값의 물건을 보여요.",
-          "WHERE price IN 다음에 (SELECT price, FROM items), GROUP BY price, HAVING 조건이에요.",
+          "괄호 안에서 값마다 묶어 두 번 이상 나온 값만 고르고, 그 값의 물건을 보여요.",
+          "「price IN」 다음에 「(SELECT price」「FROM items」「GROUP BY price」, 그리고 HAVING 조건 카드예요.",
         ],
         explain: "인절미·한지, 도토리묵·꿀떡 같은 12가지예요. 면접에 자주 나오는 「중복 찾기」예요! = 1이면 값이 하나뿐인 물건, name을 고르면 0행이에요.",
       },
@@ -532,7 +532,7 @@ export const LESSONS = [
         tables: ["customers", "orders"],
         hints: [
           "손님마다 그 손님 번호의 주문이 하나도 없는지 괄호 안에서 물어요.",
-          "WHERE, NOT, EXISTS, (SELECT * FROM orders o, WHERE, 짝 조건 차례예요.",
+          "「WHERE」「NOT」「EXISTS」「(SELECT * FROM orders o」「WHERE」, 그리고 짝 조건 카드 차례예요.",
         ],
         need: ["EXISTS"],
         explain: "임바다·표다솜·돌쇠예요. 주문 번호와 맞대면 1~60번 주문이 모두 있어 0행이 돼요. NOT을 빼면 산 적 있는 57명이에요.",
@@ -684,7 +684,7 @@ export const LESSONS = [
         tables: ["customers", "orders"],
         hints: [
           "주문 표에서 취소 주문의 손님 번호 목록을 만들고, 그 번호의 손님을 골라요.",
-          "WHERE customer_id IN 다음에 (SELECT customer_id, FROM orders, WHERE, 취소 조건이에요.",
+          "「customer_id IN」 다음에 「(SELECT customer_id」「FROM orders」「WHERE」, 그리고 취소 조건 카드예요.",
         ],
         explain: "28명이에요. 손님마다 한 번씩 나와요. NOT IN이면 취소한 적 없는 32명, '완료'면 완료 주문이 있는 57명이에요.",
       },
@@ -696,7 +696,7 @@ export const LESSONS = [
         tables: ["items", "order_items"],
         hints: [
           "물건마다 그 물건 번호의 주문 내역이 하나도 없는지 괄호 안에서 물어요.",
-          "WHERE, NOT, EXISTS, (SELECT * FROM order_items oi, WHERE, 짝 조건 차례예요.",
+          "「WHERE」「NOT」「EXISTS」「(SELECT * FROM order_items oi」「WHERE」, 그리고 짝 조건 카드 차례예요.",
         ],
         need: ["EXISTS"],
         explain: "꿀떡과 보따리, 11장 LEFT JOIN으로 찾은 것과 같아요. 주문 번호와 맞대면 1~40번 주문이 모두 있어 0행이에요.",

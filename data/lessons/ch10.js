@@ -3,11 +3,10 @@
 // 10장 낱말은 9장까지에 JOIN·INNER·ON을 더한 것이다. 표.열(items.shop_id)과 표 별칭(FROM orders o)은 낱말이 아니라 이름이라
 // 점검기 grammar가 보지 않는다. 10-1에서 표.열, 10-2에서 표 별칭을 카드로 먼저 보여 주고 쓴다. 표 별칭에 AS는 붙이지 않는다
 // (AS를 받지 않는 데이터베이스도 있어서, 가장 널리 통하는 「표 이름 뒤에 한 칸 띄고 별칭」만 쓴다).
-// - 장터 예 「주문에 손님 이름 붙이기」(10-2-b2·10-5-b1): SELECT * FROM orders o JOIN customers c ON o.customer_id = c.customer_id
-//   WHERE o.order_id <= 10 → 10행(주문 열 4개 + 손님 열 6개, customer_id가 두 번 나와 짝이 보임).
-//   o.order_id, c.name 두 열만 고르면 카드가 11장이 되어 헷갈림 2장을 더할 수 없다(ON 조건 「ON o.customer_id = c.customer_id」가
-//   32칸이라 한 장에 안 들어가 ON과 조건을 두 장으로 둠). 그래서 *로 두 표의 열을 모두 붙인다. 손님 이름(name)은 그 안에 있다.
-//   설명 카드(10-2 첫 카드, 10-5)는 o.order_id, c.name만 골라 이름 붙이기를 보여 준다.
+// - 장터 예 「주문에 손님 이름 붙이기」(10-2-b2·10-5-b1): SELECT o.order_id, c.name FROM orders o JOIN customers c
+//   ON o.customer_id = c.customer_id WHERE o.order_id <= 10 → 10행(박서연·손지우·쇠뭉치·여름이).
+//   두 열은 구절 카드 한 장 「o.order_id, c.name」으로 둔다(10~13장 검토 I-5: 예전 *는 열 10개라 이름 붙이기가 흐려졌다).
+//   ON 조건 「ON o.customer_id = c.customer_id」가 32칸이라 ON과 조건을 두 장으로 둔다. 헷갈림 「o.order_id, c.village」는 이름 대신 마을.
 // - 7장·8장에서 미룬 「진짜 매출」을 10-4에서 갚는다(7장 머리 주석의 약속).
 //   매출 = 완료 주문(orders.status = '완료')의 수량(order_items.qty) × 값(items.price)의 합 → 57487엽전(10-4-b1).
 //   취소까지 더하면 64024, 취소된 주문만 6537(10-5-b3). 7장의 1882개는 취소까지 센 수량이고 완료만 세면 1712개, 취소는 170개(10-4-b2).
@@ -265,15 +264,15 @@ export const LESSONS = [
       },
       {
         id: "10-2-b2", type: "build", concept: "joinkey",
-        q: "주문 번호 10번까지의 주문에 손님 이름을 붙여 줘(두 표의 열을 모두)",
-        cards: ["SELECT", "*", "FROM", "orders o", "JOIN customers c", "ON", "o.customer_id = c.customer_id", "WHERE", "o.order_id <= 10"],
-        extra: ["o.order_id = c.customer_id", "o.order_id < 10", "customer_id = c.customer_id"],
+        q: "주문 번호 10번까지의 주문에 손님 이름을 붙여 줘(주문 번호와 이름)",
+        cards: ["SELECT", "o.order_id, c.name", "FROM", "orders o", "JOIN customers c", "ON", "o.customer_id = c.customer_id", "WHERE", "o.order_id <= 10"],
+        extra: ["o.order_id = c.customer_id", "o.order_id < 10", "o.order_id, c.village"],
         tables: ["orders", "customers"],
         hints: [
           "주문 표에 손님 표를 잇고 손님 번호로 짝을 지은 뒤, 주문 번호로 걸러요.",
-          "FROM orders o, JOIN customers c, ON o.customer_id = c.customer_id, WHERE o.order_id <= 10이에요.",
+          "SELECT o.order_id, c.name, FROM orders o, JOIN customers c, ON 손님 번호 짝, WHERE o.order_id <= 10이에요.",
         ],
-        explain: "10장의 대표 문제예요! 주문 열 옆에 손님 열이 붙어 name에 박서연·손지우가 보여요. customer_id가 두 번 나오고 값이 같죠? ON이 맞춘 짝이에요.",
+        explain: "10장의 대표 문제예요! 주문 번호 옆에 박서연·손지우 같은 손님 이름이 붙었어요. 손님 번호로 짝을 맞춰 제 손님이 붙었죠? c.village면 이름 대신 마을이 나와요.",
       },
       {
         type: "check", concept: "join",
@@ -437,7 +436,7 @@ export const LESSONS = [
       },
       {
         say: "8장 「가게별 매출」도 마저 해요. 가게마다 묶으면 1만 엽전 넘는 곳은 7·8번뿐! 8장의 재고 값어치로는 6·7·8번이었죠? 6번은 재고 값어치가 10525엽전이지만 실제로 판 엽전은 8738이에요.",
-        sql: "SELECT i.shop_id,\n  SUM(oi.qty * i.price) AS sales\nFROM order_items oi\nJOIN items i\n  ON oi.item_id = i.item_id\nJOIN orders o\n  ON oi.order_id = o.order_id\nWHERE o.status = '완료'\nGROUP BY i.shop_id\nORDER BY sales DESC",
+        sql: "SELECT i.shop_id,\n  SUM(oi.qty * i.price) AS sales\nFROM order_items oi\nJOIN items i\n  ON oi.item_id = i.item_id\nJOIN orders o\n  ON oi.order_id = o.order_id\nWHERE o.status = '완료'\nGROUP BY i.shop_id\nORDER BY sales DESC, i.shop_id",
       },
     ],
     items: [
@@ -655,13 +654,13 @@ export const LESSONS = [
       },
       {
         id: "10-5-b1", type: "build", concept: "joinkey",
-        q: "주문 번호 10번까지의 주문에 손님 이름을 붙여 줘(두 표의 열을 모두)",
-        cards: ["SELECT", "*", "FROM", "orders o", "JOIN customers c", "ON", "o.customer_id = c.customer_id", "WHERE", "o.order_id <= 10"],
-        extra: ["c.customer_id = o.order_id", "o.order_id >= 10", "customer_id = o.customer_id"],
+        q: "주문 번호 10번까지의 주문에 손님 이름을 붙여 줘(주문 번호와 이름)",
+        cards: ["SELECT", "o.order_id, c.name", "FROM", "orders o", "JOIN customers c", "ON", "o.customer_id = c.customer_id", "WHERE", "o.order_id <= 10"],
+        extra: ["c.customer_id = o.order_id", "o.order_id >= 10", "o.order_id, c.village"],
         tables: ["orders", "customers"],
         hints: [
           "주문 표에 손님 표를 잇고, 두 표가 함께 가진 손님 번호로 짝을 지어요.",
-          "FROM orders o, JOIN customers c, ON o.customer_id = c.customer_id, WHERE o.order_id <= 10이에요.",
+          "SELECT o.order_id, c.name, FROM orders o, JOIN customers c, ON 손님 번호 짝, WHERE o.order_id <= 10이에요.",
         ],
         explain: "10장의 대표 문제를 다시 풀었어요! 주문 10건 옆에 박서연·손지우·쇠뭉치·여름이가 붙었어요. 손님 번호끼리 맞대야 제 손님이 붙어요.",
       },

@@ -32,12 +32,17 @@
 // - 조립 카드(판정 R38·R40·R44): 바깥 SELECT·FROM·WHERE는 한 장씩. 중간 표는 「WITH shop_total AS」 한 장, 괄호는 여는 카드
 //   「(SELECT shop_id,」·「(SELECT village, COUNT(*) AS n」와 닫는 카드 「GROUP BY village)」에 붙인다(R44, 낱장 괄호 없음).
 //   FROM 안 서브쿼리는 닫는 카드에 별칭을 붙인다(「GROUP BY customer_id) t」): 별칭만 낱장으로 두면 SQLite에서 빼도 돌아 drop-one에 걸린다.
-//   카드 12장에 넣으려고 두 곳을 한 장으로 붙였다: ORDER BY 구절 「ORDER BY total DESC, shop_id」(ch12 「GROUP BY price」와 같은 절 카드),
-//   그리고 13-1-b1·13-3-b1·13-5-b1의 닫는 카드 「FROM items GROUP BY shop_id)」(R44 닫는 절 카드). 13-2-b2(FROM 안 서브쿼리)는
-//   WITH 카드가 없어 「FROM items」·「GROUP BY shop_id) t」·「ORDER BY」를 모두 따로 놓는다.
+//   카드 12장에 넣으려고 두 곳을 한 장으로 붙였다: 바깥 ORDER BY 구절 「ORDER BY total DESC, shop_id」(13-1-b1·13-2-b2·13-5-b1,
+//   판정 R45의 이름 붙은 예외 — 선례로 삼지 않음), 그리고 13-1-b1·13-5-b1의 닫는 카드 「FROM items GROUP BY shop_id)」(R44 닫는 절 카드).
+//   13-2-b2(FROM 안 서브쿼리)는 「FROM items」·「GROUP BY shop_id) t」를 따로 놓고 ORDER BY 구절은 13-1-b1과 같이 한 장이다.
+//   13-3-b1은 shop_total을 되풀이하지 않게 다른 중간 표(손님 9명 이상인 마을 big_village → 손님 표와 이어 29명)를 쓴다.
 //   UNION 조립은 양쪽이 SELECT … FROM … 한 벌씩이라 WHERE를 넣으면 12장을 넘는다. 그래서 WHERE 없는 두 표(손님 종류·가게 종류,
 //   가게 이름·물건 이름, 가게 수·물건 수)로 쌓고, WHERE가 든 UNION은 설명 카드·객관식·줄 놓기로 보인다.
-// - 헷갈림 카드: 낱말 하나뿐인 표 이름(items·customers)은 표 이름 뒤에 끼우면 별칭이 되어 R26 예외(아무 이름이나 통과)로 넘어간다.
+// - 헷갈림 카드: 낱말 하나뿐인 표 이름(items·customers)은 표 이름 뒤에 끼우면 별칭이 되어 R26 예외(아무 이름이나 통과)로 넘어가므로
+//   쓰지 않는다. 대신 점이 든 이름(shop_total.total·village_n.n·shops.owner)이나 결과가 달라지는 셈 구절('물건', COUNT(stock) → 37)을 쓴다.
+// - WITH 앞뒤 차례(판정 R36): 이 장터(SQLite)는 앞 중간 표가 뒤 중간 표를 읽어도 돈다(WITH a AS (SELECT * FROM b), b AS (…) → 1).
+//   많은 데이터베이스는 오류라 「많은 데이터베이스는 못 읽어요. 이 장터에서는 되지만 늘 쓰는 차례대로 적어요」로 쓴다.
+//   셈 안에 셈(AVG(COUNT(*)))도 Oracle 등은 받으므로 「이 장터를 비롯한 많은 데이터베이스에서는」·「이 장터에서는」을 붙인다.
 //   UNION과 UNION ALL은 결과가 같아지는 곳(가게 수·물건 수, 가게 이름·물건 이름)에서 짝으로 쓰지 않는다.
 export const CHAPTER = { id: 13, title: "중간 표 만들기" };
 
@@ -95,7 +100,7 @@ export const LESSONS = [
         q: "중간 표 village_n에서 n >= 9를 HAVING이 아니라 WHERE로 거를 수 있는 까닭은?",
         options: ["n이 중간 표의 보통 열이라서", "WHERE에는 COUNT를 바로 써도 되어서", "WITH 안에서는 HAVING을 못 써서"],
         answer: 0,
-        explain: "묶어 세는 일은 괄호 안에서 끝났어요. 본문에게 n은 그냥 열 하나라 WHERE로 걸러요. WHERE COUNT(*) >= 9처럼 셈을 바로 쓰면 여전히 단서예요.",
+        explain: "묶어 세는 일은 괄호 안에서 끝났어요. 본문에게 n은 그냥 열 하나라 WHERE로 걸러요. WHERE COUNT(*) >= 9처럼 셈을 바로 쓰면 여전히 단서가 나와요.",
       },
       {
         type: "choice", concept: "with",
@@ -129,15 +134,15 @@ export const LESSONS = [
       },
       {
         id: "13-1-b1", type: "build", concept: "with",
-        q: "가게별 합계로 다시 순위를 매겨 위 3곳을 보여 줘",
+        q: "가게별 물건 값 합계로 다시 순위를 매겨 위 3곳을 보여 줘",
         cards: ["WITH shop_total AS", "(SELECT shop_id,", "SUM(price) AS total", "FROM items GROUP BY shop_id)", "SELECT", "*", "FROM", "shop_total", "ORDER BY total DESC, shop_id", "LIMIT 3"],
-        extra: ["items", "ORDER BY total, shop_id"],
+        extra: ["shop_total.total", "ORDER BY total, shop_id"],
         tables: ["items"],
         hints: [
           "가게별 합계를 중간 표로 먼저 만들고, 본문에서 합계가 큰 차례로 줄 세워 3곳만 남겨요.",
           "WITH shop_total AS로 시작해 괄호를 닫고, SELECT * FROM shop_total 뒤에 ORDER BY와 LIMIT이에요.",
         ],
-        explain: "13장의 대표 문제예요! 7번 1330·8번 1100·6번 232엽전이에요. DESC를 빼면 가장 작은 3곳, 본문 FROM에 items를 두면 total 열이 없어 단서가 나요.",
+        explain: "13장의 대표 문제예요! 7번 1330·8번 1100·6번 232엽전이에요. DESC를 빼면 가장 작은 3곳, shop_total.total만 고르면 가게 번호 없이 합계만 나와요.",
       },
       {
         id: "13-1-b2", type: "build", concept: "with",
@@ -149,7 +154,7 @@ export const LESSONS = [
           "마을마다 손님 수를 센 중간 표를 만들고, 본문에서 그 수가 9 이상인 마을만 골라요.",
           "WITH village_n AS 다음에 중간 표 카드 셋, 그 뒤 SELECT * FROM village_n WHERE n >= 9예요.",
         ],
-        explain: "큰바위마을·솔바위골·은행나무마을이에요. 8장의 HAVING 대신 중간 표의 열을 WHERE로 걸렀어요. > 9면 큰바위마을만, 본문 WHERE에 COUNT를 쓰면 단서예요.",
+        explain: "큰바위마을·솔바위골·은행나무마을이에요. 8장의 HAVING 대신 중간 표의 열을 WHERE로 걸렀어요. > 9면 큰바위마을만, 본문 WHERE에 COUNT를 쓰면 단서가 나와요.",
       },
       {
         type: "check", concept: "with",
@@ -178,7 +183,7 @@ export const LESSONS = [
         sql: "SELECT *\nFROM (\n  SELECT shop_id, SUM(price) AS total\n  FROM items\n  GROUP BY shop_id) t\nORDER BY total DESC, shop_id\nLIMIT 3",
       },
       {
-        say: "손님 한 명이 주문을 평균 몇 번 할까요? AVG(COUNT(*))는 셈 안에 셈이라 단서가 나요. 손님별 주문 수 표를 먼저 만들고 그 n을 AVG로! 주문 없는 3명은 중간 표에 없어 57명의 평균이에요.",
+        say: "손님 한 명이 주문을 평균 몇 번 할까요? 이 장터를 비롯한 많은 데이터베이스에서는 AVG(COUNT(*))처럼 셈 안에 셈을 쓰면 단서가 나와요. 손님별 주문 수 표를 먼저 만들고 그 n을 AVG로! 주문 없는 3명은 빠져요.",
         sql: "SELECT AVG(n) AS avg_n\nFROM (\n  SELECT customer_id, COUNT(*) AS n\n  FROM orders\n  GROUP BY customer_id) t",
       },
     ],
@@ -195,7 +200,7 @@ export const LESSONS = [
         q: "FROM 안 서브쿼리에 별칭을 늘 붙이는 까닭은?",
         options: ["많은 데이터베이스에서 별칭이 없으면 오류라서", "별칭이 없으면 결과가 늘 0행이라서", "별칭이 있어야 ORDER BY를 쓸 수 있어서"],
         answer: 0,
-        explain: "이 장터에서는 별칭 없이도 돌지만, MySQL은 단서를 내요. 어디서나 통하게 늘 붙여요.",
+        explain: "이 장터에서는 별칭 없이도 돌지만, MySQL에서는 단서가 나와요. 어디서나 통하게 늘 붙여요.",
       },
       {
         type: "choice", concept: "fromsub",
@@ -210,7 +215,7 @@ export const LESSONS = [
         code: "SELECT AVG(COUNT(*)) AS avg_n\nFROM orders\nGROUP BY customer_id",
         options: ["오류가 난다", "손님별 주문 수의 평균이 나온다", "591이 나온다"],
         answer: 0,
-        explain: "AVG 안에 COUNT를 넣으면 단서가 나요. 손님별로 센 표를 먼저 만들고, 그 표에서 AVG를 내야 해요.",
+        explain: "이 장터에서는 AVG 안에 COUNT를 넣으면 단서가 나와요. 손님별로 센 표를 먼저 만들고, 그 표에서 AVG를 내야 해요.",
       },
       {
         type: "choice", concept: "fromsub",
@@ -275,9 +280,9 @@ export const LESSONS = [
       },
       {
         id: "13-2-b2", type: "build", concept: "fromsub",
-        q: "가게별 합계로 다시 순위를 매겨 위 3곳을 FROM 안 서브쿼리로 보여 줘",
-        cards: ["SELECT", "*", "FROM", "(SELECT shop_id,", "SUM(price) AS total", "FROM items", "GROUP BY shop_id) t", "ORDER BY", "total DESC, shop_id", "LIMIT 3"],
-        extra: ["total, shop_id", "MAX(price) AS total"],
+        q: "가게별 물건 값 합계로 다시 순위를 매겨 위 3곳을 FROM 안 서브쿼리로 보여 줘",
+        cards: ["SELECT", "*", "FROM", "(SELECT shop_id,", "SUM(price) AS total", "FROM items", "GROUP BY shop_id) t", "ORDER BY total DESC, shop_id", "LIMIT 3"],
+        extra: ["ORDER BY total, shop_id", "MAX(price) AS total"],
         tables: ["items"],
         hints: [
           "가게별 합계 표를 FROM 안에 바로 만들고, 바깥에서 합계가 큰 차례로 3곳만 남겨요.",
@@ -367,7 +372,7 @@ export const LESSONS = [
         q: "그 SQL에서 avg_total이 shop_total을 읽을 수 있는 까닭은?",
         options: ["앞에 만든 중간 표는 뒤 중간 표와 본문이 모두 쓸 수 있어서", "WITH 안의 표는 장부에 늘 남아서", "AVG가 알아서 표를 찾아 주어서"],
         answer: 0,
-        explain: "중간 표는 적은 차례대로 생겨요. 그래서 뒤에 적은 avg_total과 본문 둘 다 shop_total을 읽어요. 거꾸로 앞 표가 뒤 표를 읽을 수는 없어요.",
+        explain: "앞에 적은 shop_total은 뒤에 적은 avg_total과 본문이 모두 읽어요. 많은 데이터베이스는 앞 표가 뒤 표를 못 읽어요. 이 장터에서는 되지만 늘 쓰는 차례대로 적어요.",
       },
       {
         type: "blank", concept: "with",
@@ -385,27 +390,27 @@ export const LESSONS = [
       },
       {
         id: "13-3-b1", type: "build", concept: "with",
-        q: "가게 이름 옆에 그 가게 물건 값 합계를 붙여 보여 줘",
-        cards: ["WITH shop_total AS", "(SELECT shop_id,", "SUM(price) AS total", "FROM items GROUP BY shop_id)", "SELECT", "s.name, t.total", "FROM", "shop_total t", "JOIN shops s", "ON s.shop_id = t.shop_id"],
-        extra: ["ON s.shop_id = t.total", "shops t"],
-        tables: ["items", "shops"],
+        q: "손님이 9명 이상인 마을에 사는 손님의 이름과 마을을 보여 줘",
+        cards: ["WITH big_village AS", "(SELECT village FROM customers", "GROUP BY village", "HAVING COUNT(*) >= 9)", "SELECT", "c.name, c.village", "FROM", "customers c", "JOIN big_village t", "ON c.village = t.village"],
+        extra: ["HAVING COUNT(*) > 9)", "ON c.name = t.village"],
+        tables: ["customers"],
         hints: [
-          "가게별 합계를 중간 표로 만들고, 본문에서 그 표를 가게 표와 가게 번호로 이어요.",
-          "본문은 SELECT s.name, t.total FROM shop_total t JOIN shops s ON 짝 조건이에요.",
+          "손님이 9명 이상인 마을 목록을 중간 표로 만들고, 본문에서 손님 표와 마을로 이어요.",
+          "「WITH big_village AS」 다음에 중간 표 카드 셋, 본문은 「JOIN big_village t」와 마을 짝 조건이에요.",
         ],
-        explain: "가게 8곳의 이름과 합계예요. 중간 표도 JOIN할 수 있어요! 번호를 합계와 맞대면 짝이 없어 0행, 가게 표를 t로 부르면 total 열이 없어 단서예요.",
+        explain: "큰바위마을·솔바위골·은행나무마을 손님 29명이에요. 중간 표도 다른 표와 JOIN할 수 있어요! > 9면 큰바위마을 11명만, 이름과 마을을 맞대면 짝이 없어 0행이에요.",
       },
       {
         id: "13-3-b2", type: "build", concept: "with",
         q: "손님이 가장 많은 마을의 손님 수를 max_n으로 보여 줘",
         cards: ["WITH village_n AS", "(SELECT village, COUNT(*) AS n", "FROM customers", "GROUP BY village)", "SELECT", "MAX(n) AS max_n", "FROM", "village_n"],
-        extra: ["village", "customers"],
+        extra: ["village", "village_n.n"],
         tables: ["customers"],
         hints: [
           "마을마다 손님 수를 센 중간 표를 만들고, 본문에서 그 수 중 가장 큰 값을 골라요.",
           "WITH village_n AS 다음에 중간 표 카드 셋, 그 뒤 SELECT MAX(n) AS max_n FROM village_n이에요.",
         ],
-        explain: "큰바위마을의 11명이에요. 13-2의 「셈의 셈」을 WITH로 풀었어요. MAX 자리에 village를 놓으면 마을 이름 8개만 나와요.",
+        explain: "큰바위마을의 11명이에요. 13-2의 「셈의 셈」을 WITH로 풀었어요. MAX 자리에 village를 놓으면 마을 이름 8개만, village_n.n이면 마을마다의 수 8개가 나와요.",
       },
       {
         type: "check", concept: "with",
@@ -434,8 +439,8 @@ export const LESSONS = [
         sql: "SELECT kind FROM customers\nUNION\nSELECT category FROM shops",
       },
       {
-        say: "겹침을 지우지 않고 그대로 쌓으면 UNION ALL이에요. 두 SELECT의 열 개수는 같아야 하고, ORDER BY는 맨 끝에 한 번만 써서 합친 결과 전체를 줄 세워요. 가장 비싼 셋과 가장 싼 셋이에요.",
-        sql: "SELECT name, price FROM items\nWHERE price >= 300\nUNION ALL\nSELECT name, price FROM items\nWHERE price <= 6\nORDER BY price DESC, name",
+        say: "겹침을 지우지 않고 쌓으면 UNION ALL! 열 개수는 같아야 하고 ORDER BY는 맨 끝에 한 번만 써요. 「비싼」 같은 글자 값도 한 열이 되고, 별칭 band는 첫 SELECT에만 붙이면 돼요.",
+        sql: "SELECT '비싼' AS band,\n  name, price FROM items\nWHERE price >= 300\nUNION ALL\nSELECT '싼', name, price\nFROM items\nWHERE price <= 6\nORDER BY price DESC, name",
       },
     ],
     items: [
@@ -509,7 +514,7 @@ export const LESSONS = [
         code: "SELECT kind FROM customers\n___\nSELECT category FROM shops",
         chips: ["UNION ALL", "UNION", "JOIN"],
         answer: 0,
-        explain: "UNION ALL이면 68행이 그대로 남아요. UNION은 겹침을 지워 7행, JOIN은 이 자리에 올 수 없어 단서예요.",
+        explain: "UNION ALL이면 68행이 그대로 남아요. UNION은 겹침을 지워 7행, JOIN은 이 자리에 올 수 없어 단서가 나와요.",
       },
       {
         type: "order", concept: "union",
@@ -528,19 +533,19 @@ export const LESSONS = [
           "손님 표의 종류 열과 가게 표의 종류 열을 위아래로 쌓고, 겹친 행은 하나만 남겨요.",
           "SELECT kind FROM customers 다음에 UNION, 그 뒤 SELECT category FROM shops예요.",
         ],
-        explain: "도깨비·사람·여우와 먹거리·약재·잡화·공방, 7행이에요. UNION ALL이면 겹침이 남아 68행, kind, name이면 열 개수가 달라 단서가 나요.",
+        explain: "도깨비·사람·여우와 먹거리·약재·잡화·공방, 7행이에요. UNION ALL이면 겹침이 남아 68행, kind, name이면 열 개수가 달라 단서가 나와요.",
       },
       {
         id: "13-4-b2", type: "build", concept: "union",
         q: "가게 수와 물건 수를 label과 n 두 열로 한 표에 쌓아 줘",
         cards: ["SELECT", "'가게' AS label,", "COUNT(*) AS n", "FROM", "shops", "UNION ALL", "SELECT", "'물건', COUNT(*)", "FROM", "items"],
-        extra: ["COUNT(*)", "customers"],
+        extra: ["COUNT(*)", "'물건', COUNT(stock)"],
         tables: ["shops", "items"],
         hints: [
           "가게 표를 센 한 행과 물건 표를 센 한 행을 아래로 쌓아요. 열 이름은 첫 SELECT에서만 붙여요.",
           "SELECT '가게' AS label, COUNT(*) AS n FROM shops 다음에 UNION ALL과 둘째 SELECT예요.",
         ],
-        explain: "가게 8, 물건 40, 두 행이에요. 둘째 SELECT는 별칭이 없어도 첫 SELECT의 label·n 아래에 쌓여요. COUNT(*)만 놓으면 열이 하나라 단서예요.",
+        explain: "가게 8, 물건 40, 두 행이에요. 둘째 SELECT는 별칭이 없어도 첫 SELECT의 label·n 아래에 쌓여요. COUNT(*)만 놓으면 열이 하나라 단서가 나와요. COUNT(stock)이면 재고 빈칸 3개를 빼 37이에요.",
       },
       {
         type: "check", concept: "union",
@@ -594,7 +599,8 @@ export const LESSONS = [
       },
       {
         type: "choice", concept: "with",
-        q: "가게별 완료 매출 중간 표를 가게 표와 이어 매출 1위 가게의 이름을 보면?",
+        q: "가게별 완료 매출 중간 표를 가게 표와 이은 이 SQL의 결과 값은?",
+        code: "WITH shop_sales AS (\n  SELECT i.shop_id,\n    SUM(oi.qty * i.price) AS sales\n  FROM order_items oi\n  JOIN items i\n    ON oi.item_id = i.item_id\n  JOIN orders o\n    ON o.order_id = oi.order_id\n  WHERE o.status = '완료'\n  GROUP BY i.shop_id)\nSELECT s.name\nFROM shop_sales t\nJOIN shops s ON s.shop_id = t.shop_id\nORDER BY t.sales DESC, t.shop_id\nLIMIT 1",
         options: ["방망이 대장간", "뚝딱 공방", "바람 보따리"],
         answer: 0,
         explain: "방망이 대장간이 13440엽전으로 1위, 뚝딱 공방이 11030엽전으로 2위예요. 1만 엽전을 넘는 곳은 이 둘뿐이에요.",
@@ -619,7 +625,7 @@ export const LESSONS = [
         q: "손님별 주문 수의 평균을 내려면?",
         options: ["손님별 주문 수 표를 FROM 안에서 만들고 바깥에서 AVG", "AVG(COUNT(*))를 쓴다", "WHERE에 AVG를 쓴다"],
         answer: 0,
-        explain: "셈 안에 셈은 단서가 나요. 먼저 센 표를 만들고 한 번 더 세요. 결과는 10.3684번이에요.",
+        explain: "이 장터에서는 셈 안에 셈을 쓰면 단서가 나와요. 먼저 센 표를 만들고 한 번 더 세요. 결과는 10.3684번이에요.",
       },
       {
         type: "choice", concept: "union",
@@ -653,11 +659,11 @@ export const LESSONS = [
         code: "SELECT kind FROM customers\n___\nSELECT category FROM shops",
         chips: ["UNION", "UNION ALL", "JOIN"],
         answer: 0,
-        explain: "UNION은 겹침을 지워 7행이에요. UNION ALL은 68행이 그대로, JOIN은 이 자리에 올 수 없어 단서예요.",
+        explain: "UNION은 겹침을 지워 7행이에요. UNION ALL은 68행이 그대로, JOIN은 이 자리에 올 수 없어 단서가 나와요.",
       },
       {
         id: "13-5-b1", type: "build", concept: "with",
-        q: "가게별 합계로 다시 순위를 매겨 위 3곳을 보여 줘",
+        q: "가게별 물건 값 합계로 다시 순위를 매겨 위 3곳을 보여 줘",
         cards: ["WITH shop_total AS", "(SELECT shop_id,", "SUM(price) AS total", "FROM items GROUP BY shop_id)", "SELECT", "*", "FROM", "shop_total", "ORDER BY total DESC, shop_id", "LIMIT 3"],
         extra: ["LIMIT 5", "AVG(price) AS total"],
         tables: ["items"],
@@ -677,19 +683,19 @@ export const LESSONS = [
           "손님마다 주문 수를 센 표를 FROM 안에 만들고, 바깥에서 그 수가 20 이상인 행을 세요.",
           "SELECT COUNT(*) AS cnt FROM 다음에 FROM 안 서브쿼리, 그 뒤 WHERE n >= 20이에요.",
         ],
-        explain: "12명이에요. 딱 20번인 손님이 있어 > 20이면 11명, 바깥 WHERE에 COUNT를 쓰면 단서가 나요.",
+        explain: "12명이에요. 딱 20번인 손님이 있어 > 20이면 11명, 바깥 WHERE에 COUNT를 쓰면 단서가 나와요.",
       },
       {
         id: "13-5-b3", type: "build", concept: "union",
         q: "가게 이름과 물건 이름을 한 열로 모아 줘",
         cards: ["SELECT", "name", "FROM", "shops", "UNION", "SELECT", "name", "FROM", "items"],
-        extra: ["name, price", "customers"],
+        extra: ["name, price", "shops.owner"],
         tables: ["shops", "items"],
         hints: [
           "가게 표의 이름 열과 물건 표의 이름 열을 위아래로 쌓아요.",
           "SELECT name FROM shops 다음에 UNION, 그 뒤 SELECT name FROM items예요.",
         ],
-        explain: "가게 8곳과 물건 40가지, 48행이에요. 겹치는 이름이 없어 UNION ALL이어도 같아요. name, price를 놓으면 열 개수가 달라 단서예요.",
+        explain: "가게 8곳과 물건 40가지, 48행이에요. 겹치는 이름이 없어 UNION ALL이어도 같아요. name, price면 열 개수가 달라 단서가 나와요. shops.owner면 가게 이름 대신 주인 이름이 나와요.",
       },
       {
         type: "check", concept: "union",

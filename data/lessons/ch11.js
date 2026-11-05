@@ -17,8 +17,10 @@
 //   2번 가게 물건 팔린 수량 SUM(oi.qty): 인절미 108·송편 67·약과 70·식혜 46·꿀떡 NULL(COALESCE면 0). 팔린 횟수(내역 행) 66·45·46·29·0.
 //   취소한 적 없는 손님 32명(60 − 취소한 적 있는 28, 주문 없는 3명 포함). 완료 주문이 없는 손님은 주문 없는 3명과 같다.
 //   한 번에 3개씩(qty = 3) 주문된 적 없는 물건 12가지: 꿀떡·보따리와 공방(7·8번) 물건 10가지.
-//   물건 이름 40개, 손님 이름 60개는 모두 서로 달라 GROUP BY i.name·c.name이 물건·손님마다 한 묶음이다
-//   (여러 열 GROUP BY는 아직 가르치지 않았고, 묶지 않은 열을 SELECT에 놓는 모양은 7·8장대로 쓰지 않는다).
+//   물건·손님마다 묶을 때는 번호와 이름으로 함께 묶는다(판정 R46: GROUP BY c.customer_id, c.name / i.item_id, i.name).
+//   지금 데이터는 이름이 모두 달라 이름만으로도 결과가 같지만, 이름이 같은 손님이 있을 수 있어 이름만으로 묶는 버릇을 들이지 않는다.
+//   여러 열 GROUP BY는 11-3 첫 카드에서 처음 보여 준다. 조립은 「i.item_id, i.name」 구절 카드 한 장.
+//   묶지 않은 열을 SELECT에 놓는 모양은 7·8장대로 쓰지 않는다.
 // - 엔진마다 다른 것(판정 R36): RIGHT JOIN·FULL OUTER JOIN은 낱말 목록 밖(UNTAUGHT)이라 SQL에 쓰지 않고 해설 글로만 말한다.
 //   이 장터의 실행기(sql.js 1.15.2)는 SQLite 3.54.0(SELECT sqlite_version()으로 확인)이라 둘 다 돌지만, SQLite는 3.39.0 전에는
 //   RIGHT·FULL JOIN이 없었고 MySQL에는 FULL OUTER JOIN이 없다. 그래서 「옛 SQLite처럼 못 쓰는 곳이 있어 표 차례를 바꾼 LEFT JOIN을
@@ -133,15 +135,15 @@ export const LESSONS = [
       },
       {
         id: "11-1-b1", type: "build", concept: "leftjoin",
-        q: "9월에 처음 온 손님마다 주문을 붙여 줘. 주문 없는 손님도 빠짐없이(두 표의 열을 모두)",
-        cards: ["SELECT", "*", "FROM", "customers c", "LEFT", "JOIN orders o", "ON", "c.customer_id = o.customer_id", "WHERE", "c.first_visit LIKE '2026-09%'"],
+        q: "9월에 처음 온 손님의 이름과 주문 번호를 보여 줘. 주문 없는 손님도 빠짐없이",
+        cards: ["SELECT", "c.name, o.order_id", "FROM", "customers c", "LEFT", "JOIN orders o", "ON", "c.customer_id = o.customer_id", "WHERE", "c.first_visit LIKE '2026-09%'"],
         extra: ["INNER", "o.ordered_on LIKE '2026-09%'"],
         tables: ["customers", "orders"],
         hints: [
           "손님 표를 왼쪽에 두고 주문 표를 이어요. 짝 없는 손님도 남기는 JOIN이 필요해요.",
-          "FROM customers c, LEFT, JOIN orders o, ON 짝 조건, WHERE c.first_visit LIKE '2026-09%'예요.",
+          "SELECT c.name, o.order_id 다음에 FROM customers c, LEFT, JOIN orders o, ON 짝 조건, WHERE 첫 방문 조건이에요.",
         ],
-        explain: "9월 첫 손님 5명이 모두 남아 18행이에요. 돌쇠는 주문이 없어 주문 쪽 열 4개가 빈칸이에요. INNER면 돌쇠가 빠지고, 주문 날짜로 거르면 9월 주문만 남아요.",
+        explain: "9월 첫 손님 5명이 모두 남아 18행이에요. 돌쇠는 주문이 없어 order_id가 빈칸이에요. INNER면 돌쇠가 빠지고, 주문 날짜로 거르면 9월 주문만 남아요.",
       },
       {
         id: "11-1-b2", type: "build", concept: "leftjoin",
@@ -306,19 +308,19 @@ export const LESSONS = [
     ],
     cards: [
       {
-        say: "손님마다 주문 수를 셀 때 조심! 짝 없는 손님도 빈칸 행 하나가 남아 COUNT(*)는 1이에요. 7장에서 COUNT(열)은 빈칸을 안 센다고 했죠? n_orders처럼 COUNT(o.order_id)면 0! 주문 1건인 백설과도 구별돼요.",
-        sql: "SELECT c.name,\n  COUNT(*) AS n_rows,\n  COUNT(o.order_id) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        say: "손님마다 주문 수를 셀 때 조심! 짝 없는 손님도 빈칸 행이 남아 COUNT(*)는 1, 빈칸을 안 세는 COUNT(o.order_id)는 0! 이름이 같은 손님이 있을 수 있어 번호와 이름으로 함께 묶어요.",
+        sql: "SELECT c.name,\n  COUNT(*) AS n_rows,\n  COUNT(o.order_id) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name\nORDER BY n_orders, c.customer_id",
       },
       {
         say: "더하기도 조심! 7장에서 더할 값이 하나도 없으면 SUM도 빈칸(NULL)이었죠? 아래 꿀떡의 sold가 빈칸이에요. 6장 COALESCE로 감싸면 sold_or_zero처럼 0으로 보여요.",
-        sql: "SELECT i.name,\n  SUM(oi.qty) AS sold,\n  COALESCE(SUM(oi.qty), 0)\n    AS sold_or_zero\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.name",
+        sql: "SELECT i.name,\n  SUM(oi.qty) AS sold,\n  COALESCE(SUM(oi.qty), 0)\n    AS sold_or_zero\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name",
       },
     ],
     items: [
       {
         type: "choice", concept: "leftjoin",
         q: "이 SQL 결과에서 표다솜의 n_rows와 n_orders는?",
-        code: "SELECT c.name,\n  COUNT(*) AS n_rows,\n  COUNT(o.order_id) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COUNT(*) AS n_rows,\n  COUNT(o.order_id) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         options: ["1과 0", "0과 0", "1과 1"],
         answer: 0,
         explain: "표다솜 묶음에는 빈칸 행이 하나 있어요. COUNT(*)는 그 행을 세어 1, COUNT(o.order_id)는 빈칸이라 안 세어 0이에요.",
@@ -356,7 +358,7 @@ export const LESSONS = [
       {
         type: "blank", concept: "leftjoin",
         q: "주문 없는 손님의 주문 수가 0으로 나오게 빈자리를 채워 보세요.",
-        code: "SELECT c.name,\n  COUNT(___) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COUNT(___) AS n_orders\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         chips: ["o.order_id", "*", "c.name"],
         answer: 0,
         explain: "오른쪽 표의 o.order_id를 세면 빈칸 행은 0이에요. *와 c.name은 빈칸 행도 세어 표다솜·돌쇠가 1로 나와요.",
@@ -364,7 +366,7 @@ export const LESSONS = [
       {
         type: "blank", concept: "leftjoin",
         q: "안 팔린 물건의 수량 합이 0으로 보이게 빈자리를 채워 보세요.",
-        code: "SELECT i.name,\n  COALESCE(SUM(oi.qty), ___)\n    AS sold_or_zero\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.name",
+        code: "SELECT i.name,\n  COALESCE(SUM(oi.qty), ___)\n    AS sold_or_zero\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name",
         chips: ["0", "1", "NULL"],
         answer: 0,
         explain: "COALESCE는 앞 값이 빈칸이면 뒤 값을 내요. 0을 두면 꿀떡이 0, 1이면 1, NULL이면 그대로 빈칸이에요.",
@@ -372,16 +374,16 @@ export const LESSONS = [
       {
         type: "order", concept: "leftjoin",
         q: "물건마다 팔린 수량을, 안 팔린 물건은 0으로 보게 줄을 놓아 보세요.",
-        lines: ["SELECT i.name,", "COALESCE(SUM(oi.qty), 0) AS sold", "FROM items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY i.name"],
+        lines: ["SELECT i.name,", "COALESCE(SUM(oi.qty), 0) AS sold", "FROM items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY i.item_id, i.name"],
         explain: "LEFT JOIN으로 물건 40가지를 모두 남기고 이름마다 묶어 더해요. 꿀떡과 보따리는 COALESCE 덕에 0이에요.",
       },
       {
         type: "choice", concept: "leftjoin",
         q: "2번 가게 물건마다 팔린 횟수를, 안 팔린 물건은 0으로 보인 결과는?",
         options: [
-          { sql: "SELECT i.name,\n  COUNT(oi.order_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.name" },
-          { sql: "SELECT i.name, COUNT(*) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.name" },
-          { sql: "SELECT i.name,\n  COUNT(oi.order_id) AS n\nFROM items i\nJOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.name" },
+          { sql: "SELECT i.name,\n  COUNT(oi.order_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name" },
+          { sql: "SELECT i.name, COUNT(*) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name" },
+          { sql: "SELECT i.name,\n  COUNT(oi.order_id) AS n\nFROM items i\nJOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name" },
         ],
         answer: 0, tables: ["items", "order_items"],
         explain: "꿀떡이 0인 5행이 정답이에요. COUNT(*)면 꿀떡의 빈칸 행을 세어 1, JOIN이면 꿀떡이 아예 빠져 4행이에요.",
@@ -389,24 +391,24 @@ export const LESSONS = [
       {
         id: "11-3-b1", type: "build", concept: "leftjoin",
         q: "물건마다 이름과 팔린 횟수(주문 내역 행 수)를 n이라는 이름으로, 안 팔린 물건은 0으로 보여 줘",
-        cards: ["SELECT", "i.name", ",", "COUNT(oi.order_id) AS n", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY", "i.name"],
+        cards: ["SELECT", "i.name", ",", "COUNT(oi.order_id) AS n", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY", "i.item_id, i.name"],
         extra: ["COUNT(*) AS n", "JOIN order_items oi"],
         tables: ["items", "order_items"],
         hints: [
           "물건을 모두 남기게 잇고 이름마다 묶어요. 빈칸 행은 세지 않는 셈이 필요해요.",
-          "COUNT(oi.order_id) AS n, LEFT JOIN order_items oi, ON 조건 다음에 GROUP BY i.name이에요.",
+          "COUNT(oi.order_id) AS n, LEFT JOIN order_items oi, ON 조건 다음에 GROUP BY i.item_id, i.name이에요.",
         ],
         explain: "물건 40가지가 모두 나오고 꿀떡·보따리는 0이에요. COUNT(*)면 그 둘이 1로, JOIN이면 그 둘이 빠진 38행이 돼요.",
       },
       {
         id: "11-3-b2", type: "build", concept: "unmatched",
         q: "팔린 횟수가 0인 물건의 이름을, 묶어 세는 방법으로 보여 줘",
-        cards: ["SELECT", "i.name", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY", "i.name", "HAVING", "COUNT(oi.order_id) = 0"],
+        cards: ["SELECT", "i.name", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY", "i.item_id, i.name", "HAVING", "COUNT(oi.order_id) = 0"],
         extra: ["COUNT(*) = 0", "JOIN order_items oi"],
         tables: ["items", "order_items"],
         hints: [
           "물건마다 묶어 팔린 횟수를 세고, 그 수가 0인 묶음만 남겨요.",
-          "GROUP BY i.name 다음에 HAVING COUNT(oi.order_id) = 0이에요.",
+          "GROUP BY i.item_id, i.name 다음에 HAVING COUNT(oi.order_id) = 0이에요.",
         ],
         explain: "꿀떡과 보따리, IS NULL로 찾은 것과 같아요! LEFT JOIN 뒤 COUNT(*)는 늘 1 이상이라 = 0이면 0행이 돼요.",
       },
@@ -434,11 +436,11 @@ export const LESSONS = [
     cards: [
       {
         say: "LEFT JOIN도 이어 붙여요. 손님 → 주문 → 주문 내역, 세 표! 표다솜·돌쇠는 주문도 내역도 없어 빈칸으로 남아 0개예요. 둘째를 그냥 JOIN으로 쓰면 빈칸 행이 짝을 못 찾아 다시 빠져요.",
-        sql: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nLEFT JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        sql: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nLEFT JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
       },
       {
         say: "함정 하나! 오른쪽 표 조건을 WHERE에 두면 빈칸 행이 그 조건에 걸려 빠져서 INNER JOIN처럼 돼요. 손님마다 취소 수를 0까지 보려면 그 조건을 ON에 AND로 붙여요. 아래는 9명 모두 나와요.",
-        sql: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        sql: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
       },
     ],
     items: [
@@ -452,7 +454,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "multijoin",
         q: "이 SQL 결과에서 돌쇠의 qty는?",
-        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nLEFT JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nLEFT JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         options: ["0", "NULL", "1"],
         answer: 0,
         explain: "돌쇠는 주문도 내역도 없어 qty가 빈칸인 행 하나뿐이에요. SUM은 빈칸이지만 COALESCE가 0으로 바꿔요.",
@@ -460,7 +462,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "multijoin",
         q: "둘째를 JOIN으로 쓴 이 SQL의 결과는 몇 행일까요?",
-        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         options: ["7행", "9행", "2행"],
         answer: 0,
         explain: "표다솜·돌쇠 행은 o.order_id가 빈칸이라 주문 내역과 짝이 없어요. 둘째가 INNER라 빠져서 9명 중 7행이에요.",
@@ -475,7 +477,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "leftjoin",
         q: "오른쪽 표 조건을 WHERE에 둔 이 SQL의 결과는 몇 행일까요?",
-        code: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\n  AND o.status = '취소'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\n  AND o.status = '취소'\nGROUP BY c.customer_id, c.name",
         options: ["3행", "9행", "6행"],
         answer: 0,
         explain: "취소한 적 있는 박서연·소란이·오이든만 남아 3행이에요. 취소가 0인 6명은 행이 걸러져 아예 안 보여요.",
@@ -497,7 +499,7 @@ export const LESSONS = [
       {
         type: "blank", concept: "leftjoin",
         q: "손님마다 취소 수를 0까지 세게 빈자리를 채워 보세요.",
-        code: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  ___ o.status = '취소'\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COUNT(o.order_id) AS n_cancel\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  ___ o.status = '취소'\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         chips: ["AND", "WHERE", "OR"],
         answer: 0,
         explain: "ON 조건에 AND로 붙여 「같은 손님이면서 취소인 주문」만 짝지어요. WHERE는 두 번 쓸 수 없어 단서, OR면 엉뚱한 짝이 붙어요.",
@@ -599,11 +601,11 @@ export const LESSONS = [
       },
       {
         type: "choice", concept: "leftjoin",
-        q: "은행나무마을 손님마다 주문 수를, 주문 없는 손님은 0으로 보인 결과는?",
+        q: "은행나무마을 손님마다 주문 수를 적은 차례로, 주문 없는 손님은 0으로 보인 결과는?",
         options: [
-          { sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name" },
-          { sql: "SELECT c.name, COUNT(*) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name" },
-          { sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name" },
+          { sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name\nORDER BY n, c.customer_id" },
+          { sql: "SELECT c.name, COUNT(*) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name\nORDER BY n, c.customer_id" },
+          { sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name\nORDER BY n, c.customer_id" },
         ],
         answer: 0,
         explain: "돌쇠·표다솜이 0인 9행이 정답이에요. COUNT(*)면 그 둘이 1로 보이고, JOIN이면 그 둘이 빠져 7행이에요.",
@@ -640,7 +642,7 @@ export const LESSONS = [
       {
         type: "blank", concept: "multijoin",
         q: "주문 없는 손님도 끝까지 남게 빈자리를 채워 보세요.",
-        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n___ JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.name",
+        code: "SELECT c.name,\n  COALESCE(SUM(oi.qty), 0) AS qty\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n___ JOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE c.village = '은행나무마을'\nGROUP BY c.customer_id, c.name",
         chips: ["LEFT", "INNER", "ON"],
         answer: 0,
         explain: "둘째도 LEFT JOIN이라야 표다솜·돌쇠가 0으로 남아요. INNER면 둘이 빠지고, ON은 그 자리에 올 수 없어 단서가 나와요.",
@@ -705,10 +707,10 @@ export const TEMPLATES = [
   {
     id: "11-T1", concept: "leftjoin", type: "choice",
     q: "이 SQL의 결과로 알맞은 표는?",
-    sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '{V}'\nGROUP BY c.name",
+    sql: "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '{V}'\nGROUP BY c.customer_id, c.name",
     wrong: [
-      "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '{V}'\n  AND o.status = '취소'\nGROUP BY c.name",
-      "SELECT c.name, COUNT(*) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '{V}'\nGROUP BY c.name",
+      "SELECT c.name,\n  COUNT(o.order_id) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '{V}'\n  AND o.status = '취소'\nGROUP BY c.customer_id, c.name",
+      "SELECT c.name, COUNT(*) AS n\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\n  AND o.status = '취소'\nWHERE c.village = '{V}'\nGROUP BY c.customer_id, c.name",
     ],
     vars: { V: ["개울마을", "느티나무골", "달빛마을", "버드나무고개", "솔바위골", "은행나무마을", "큰바위마을"] },
     explain: "취소 조건이 ON에 있어 {V} 손님이 모두 남고, 취소 안 한 손님은 0이에요. WHERE에 두면 그 손님이 빠지고, COUNT(*)면 0이 1로 보여요.",
