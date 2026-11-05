@@ -468,7 +468,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "datefunc",
         q: "PostgreSQL의 TO_CHAR(ordered_on, 'YYYY-MM')과 같은 일을 하는 이 장터의 SQL은?",
-        options: ["strftime('%Y-%m', ordered_on)", "strftime('%d', ordered_on)", "date(ordered_on, 'start of month')"],
+        options: ["strftime('%Y-%m',\n  ordered_on)", "strftime('%d',\n  ordered_on)", "date(ordered_on,\n  'start of month')"],
         answer: 0,
         explain: "연-월 글자를 뽑는 일이에요. PostgreSQL은 무늬를 YYYY·MM으로, 이 장터는 %Y·%m으로 적어요. 그달 1일은 날짜라 '2026-02-01'처럼 일까지 나와요.",
       },
@@ -496,7 +496,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "datefunc",
         q: "PostgreSQL의 DATE_TRUNC('month', ordered_on)과 비슷한 일을 하는 이 장터의 SQL은?",
-        options: ["date(ordered_on, 'start of month')", "strftime('%m', ordered_on)", "date(ordered_on, '+1 month')"],
+        options: ["date(ordered_on,\n  'start of month')", "strftime('%m',\n  ordered_on)", "date(ordered_on,\n  '+1 month')"],
         answer: 0,
         explain: "둘 다 그달 첫날로 잘라요. strftime('%m')은 달 번호 글자만, '+1 month'는 한 달 뒤 날짜예요.",
       },

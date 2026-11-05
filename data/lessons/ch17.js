@@ -696,7 +696,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "partition",
         q: "가게마다 가장 비싼 물건을 뽑을 때 RANK() OVER 괄호 안에 둘 것은?",
-        options: ["PARTITION BY shop_id ORDER BY price DESC", "ORDER BY shop_id", "PARTITION BY price ORDER BY shop_id"],
+        options: ["PARTITION BY shop_id\nORDER BY price DESC", "ORDER BY shop_id", "PARTITION BY price\nORDER BY shop_id"],
         answer: 0,
         explain: "가게마다 따로 순위를 매기려면 PARTITION BY shop_id, 비싼 차례는 ORDER BY price DESC예요(14장).",
       },

@@ -457,9 +457,9 @@ export const LESSONS = [
         type: "choice", concept: "distinct",
         q: "오류 없이 도는 SQL은?",
         options: [
-          "SELECT DISTINCT village FROM customers",
-          "SELECT village DISTINCT FROM customers",
-          "SELECT village FROM customers DISTINCT",
+          "SELECT DISTINCT village\nFROM customers",
+          "SELECT village DISTINCT\nFROM customers",
+          "SELECT village\nFROM customers DISTINCT",
         ],
         answer: 0,
         explain: "DISTINCT는 SELECT 바로 뒤, 열 이름 앞에 와요. 다른 자리에 두면 오류가 나요.",

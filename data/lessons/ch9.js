@@ -128,8 +128,8 @@ export const LESSONS = [
       {
         type: "order", concept: "case",
         q: "물건마다 '비싼'·'싼'을 붙여 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name,", "CASE WHEN price >= 100 THEN '비싼'", "ELSE '싼' END AS band", "FROM items"],
-        explain: "CASE … END 덩어리는 SELECT 안의 열 하나예요. 그래서 SELECT name, 뒤, FROM 앞에 놓아요.",
+        lines: ["SELECT name, CASE", "WHEN price >= 100 THEN '비싼'", "ELSE '싼' END AS band", "FROM items"],
+        explain: "CASE … END 덩어리는 SELECT 안의 열 하나예요. 그래서 SELECT name, CASE 다음에 갈래가, END AS band 다음에 FROM이 와요.",
       },
       {
         id: "9-1-b1", type: "build", concept: "case",
@@ -251,7 +251,7 @@ export const LESSONS = [
       {
         type: "order", concept: "case",
         q: "값으로 싼·보통·비싼을 나누는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name,", "CASE WHEN price >= 100 THEN '비싼'", "WHEN price >= 20 THEN '보통'", "ELSE '싼' END AS band", "FROM items"],
+        lines: ["SELECT name, CASE", "WHEN price >= 100 THEN '비싼'", "WHEN price >= 20 THEN '보통'", "ELSE '싼' END AS band", "FROM items"],
         explain: "100 이상 갈래가 20 이상 갈래보다 위에 와야 해요. 둘을 바꾸면 SQL은 돌지만 '비싼'이 하나도 안 나와요.",
       },
       {
@@ -697,7 +697,7 @@ export const LESSONS = [
       {
         type: "order", concept: "case",
         q: "재고가 빈칸이면 '모름', 아니면 '있음'을 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name,", "CASE WHEN stock IS NULL THEN '모름'", "ELSE '있음' END AS stock_note", "FROM items"],
+        lines: ["SELECT name, CASE", "WHEN stock IS NULL THEN '모름'", "ELSE '있음' END AS stock_note", "FROM items"],
         explain: "CASE … END가 SELECT의 열 하나예요. 메밀전·한지·장승이 '모름', 나머지 37가지가 '있음'이에요.",
       },
       {

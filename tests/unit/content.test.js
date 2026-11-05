@@ -259,3 +259,27 @@ test("show card: dialect outside the list and show together with sql are shape i
   const bad2 = withShowCard({ show: "SELECT 1", dialect: "MySQL", sql: "SELECT 1" });
   assert.ok(checkChapter(bad2.mod, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && /show/.test(i.msg)));
 });
+
+// 작업 16(버그 B1 넘김): iPhone 17e에서 순서 문제의 놓은 줄은 33칸, 코드 모양 글자 보기는 31칸까지 한 줄(flow.py가 잼)
+test("phone widths: placed order lines ≤ ORDER_COLS, code-like text options ≤ OPT_COLS, prose options free", async () => {
+  const { ORDER_COLS, OPT_COLS } = await import("../content.js");
+  assert.equal(ORDER_COLS, 33);
+  assert.equal(OPT_COLS, 31);
+  const mod = structuredClone({ CHAPTER: good.CHAPTER, LESSONS: good.LESSONS, TEMPLATES: good.TEMPLATES });
+  const items = mod.LESSONS.flatMap((l) => l.items);
+  const ord = items.find((it) => it.type === "order");
+  const ch = items.find((it) => it.type === "choice" && it.options.every((o) => typeof o === "string"));
+  assert.ok(ord && ch, "good fixture needs an order item and a text choice item");
+  const longLine = "SELECT name, price " + "x".repeat(ORDER_COLS - 18);       // 34칸
+  ord.lines = [...ord.lines.slice(0, -1), ord.lines[ord.lines.length - 1].padEnd(ORDER_COLS, " ")];  // 33칸 끝 공백은 통과
+  const fine = checkChapter(mod, 5, engine, { concepts: good.CONCEPTS }).filter((i) => /놓은 줄|코드 보기/.test(i.msg));
+  assert.deepEqual(fine, [], show(fine));
+  ord.lines = [...ord.lines.slice(0, -1), longLine];
+  ch.options = ["SELECT name FROM shops WHERE x = 1", "가게 이름을 고르고 값이 큰 차례로 줄 세워 셋만 보여 주는 한국어 문장 보기", ...ch.options.slice(2)];
+  const issues = checkChapter(mod, 5, engine, { concepts: good.CONCEPTS }).filter((i) => /놓은 줄|코드 보기/.test(i.msg));
+  const msgs = issues.map((i) => i.msg).join("\n");
+  assert.match(msgs, new RegExp(`놓은 줄 ${ORDER_COLS + 1}칸 > ${ORDER_COLS}칸`));
+  assert.match(msgs, new RegExp(`코드 보기 34칸 > ${OPT_COLS}칸`));
+  // 시험용 장은 같은 문제를 여러 레슨이 함께 쓰므로 같은 글이 여러 번 나올 수 있다. 다른 글은 둘뿐(한국어 문장 보기는 걸리지 않음)
+  assert.equal(new Set(issues.map((i) => i.msg)).size, 2, show(issues));
+});

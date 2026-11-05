@@ -661,7 +661,7 @@ export const LESSONS = [
       {
         type: "order", concept: "having",
         q: "값 합이 200엽전 넘는 가게를 합이 큰 차례로 보게 줄을 놓아 보세요.",
-        lines: ["SELECT shop_id, SUM(price) AS total", "FROM items", "GROUP BY shop_id", "HAVING SUM(price) > 200", "ORDER BY total DESC, shop_id"],
+        lines: ["SELECT shop_id,", "SUM(price) AS total", "FROM items", "GROUP BY shop_id", "HAVING SUM(price) > 200", "ORDER BY total DESC, shop_id"],
         expect: "shop_id | total\n7 | 1330\n8 | 1100\n6 | 232\n3 | 209",
         explain: "묶고(GROUP BY), 묶음을 거르고(HAVING), 줄 세워요(ORDER BY). 둘째 기준 shop_id까지 붙여 차례를 하나로 정했어요.",
       },

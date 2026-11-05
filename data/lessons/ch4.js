@@ -65,9 +65,9 @@ export const LESSONS = [
         type: "choice", concept: "andor",
         q: "두 조건을 WHERE 하나에 바르게 이은 것은?",
         options: [
-          "WHERE price < 10 AND shop_id = 1",
-          "WHERE price < 10, shop_id = 1",
-          "WHERE price < 10 WHERE shop_id = 1",
+          "WHERE price < 10\n  AND shop_id = 1",
+          "WHERE price < 10,\n  shop_id = 1",
+          "WHERE price < 10\nWHERE shop_id = 1",
         ],
         answer: 0,
         explain: "WHERE는 한 번만 쓰고, 조건과 조건 사이는 AND로 이어요. 쉼표로 잇거나 WHERE를 두 번 쓰면 오류가 나요.",
@@ -518,9 +518,9 @@ export const LESSONS = [
       {
         type: "order", concept: "andor",
         q: "1·2번 가게 물건 중 8엽전 이하인 것을 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name, price", "FROM items", "WHERE (shop_id = 1 OR shop_id = 2)", "AND price <= 8"],
+        lines: ["SELECT name, price", "FROM items", "WHERE price <= 8", "AND (shop_id = 1 OR shop_id = 2)"],
         expect: "name | price\n도토리묵 | 8\n인절미 | 6\n송편 | 7\n식혜 | 5\n꿀떡 | 8",
-        explain: "괄호로 두 가게를 먼저 묶고 AND로 값 조건을 걸어요. 먹거리 가게의 싼 물건 5가지가 나와요.",
+        explain: "값 조건 뒤에 AND로 두 가게를 괄호로 묶어 걸어요. 괄호가 없으면 2번 가게 물건은 값과 상관없이 나와요. 먹거리 가게의 싼 물건 5가지예요.",
       },
       {
         type: "choice", concept: "not",
@@ -577,9 +577,9 @@ export const LESSONS = [
         type: "choice", concept: "andor",
         q: "「여우 손님이면서 개울마을에 사는 손님」을 고르는 조건은?",
         options: [
-          "kind = '여우' AND village = '개울마을'",
-          "kind = '여우' OR village = '개울마을'",
-          "kind = '여우', village = '개울마을'",
+          "kind = '여우'\n  AND village = '개울마을'",
+          "kind = '여우'\n  OR village = '개울마을'",
+          "kind = '여우',\n  village = '개울마을'",
         ],
         answer: 0,
         explain: "두 조건이 모두 맞아야 하니 AND예요. 여름이·은호, 2명이에요. OR는 여우 손님과 개울마을 손님을 모두 합쳐요.",
@@ -683,9 +683,9 @@ export const LESSONS = [
       {
         type: "order", concept: "not",
         q: "7번 가게 물건 중 값이 10~300엽전 범위 밖인 것을 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name, price", "FROM items", "WHERE price NOT BETWEEN 10 AND 300", "AND shop_id = 7"],
+        lines: ["SELECT name, price", "FROM items", "WHERE shop_id = 7", "AND price NOT BETWEEN 10 AND 300"],
         expect: "name | price\n도깨비방망이 | 320\n금방망이 | 400",
-        explain: "NOT BETWEEN으로 범위 바깥을 고르고 AND로 가게를 더 걸었어요. 도깨비방망이(320)·금방망이(400)가 나와요.",
+        explain: "WHERE로 7번 가게를 고르고 AND 뒤 NOT BETWEEN으로 범위 바깥만 남겼어요. 도깨비방망이(320)·금방망이(400)가 나와요.",
       },
       {
         id: "4-5-b1", type: "build", concept: "like",

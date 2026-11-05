@@ -36,7 +36,9 @@
 - test_card_table_above_button(작업 10): 7·8장 장 평가 카드·7-1의 결과 표가 「문제 풀기」 단추 줄에 가리지 않음(처음·끝까지 내림)
 - test_foot_clear_after_scroll(버그 B1): 실제 12-1·12-5·13-1·13-5를 폰 3종으로(12-1은 :has 규칙을 지운 판도) 풀며 화면마다 끝까지 내려
   마지막 카드·보기·빈칸·줄·「쓸 표 보기」가 고정 단추 줄 위에 다 보임 + 전체 캡처 맨 아래가 내린 화면의 단추 줄과 같음(App.shot이 고정 줄을 페이지 끝으로 옮겨 찍음)
-- test_sql_cols_fit(B1 관련): SQL_COLS(38)칸 한 줄이 iPhone 17e 코드 상자·순서 줄에서 줄바꿈 없음, 글씨 13px 이상
+- test_sql_cols_fit(B1·작업 16): iPhone 17e에서 SQL_COLS(38)칸이 코드 상자·순서 조각, ORDER_COLS(33)칸이 놓은 줄, OPT_COLS(31)칸이
+  코드 모양 글자 보기에서 한 줄, 글씨 13px 이상
+- test_import_ria_save(작업 16): 다른 앱(리아) 저장 가져오기는 안내만, 두억이 저장은 확인 창
 - SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
 """
 
@@ -1870,29 +1872,40 @@ def test_foot_clear_after_scroll():
     assert not fails, "\n".join(fails[:40]) + ("\n… %d more" % (len(fails) - 40) if len(fails) > 40 else "")
 
 
-SQL_COLS_JS = r"""(n) => {
+SQL_COLS_JS = r"""() => {
   const body = document.querySelector('#body');
   body.innerHTML = `<article class="item"><pre class="code" id="c1"><code></code></pre>
-    <div class="order-pool"><button class="line mono" id="c2"></button></div></article>`;
-  const lines = (el, t, k) => { t.textContent = 'S'; const one = el.getBoundingClientRect().height;
-    t.textContent = 'S'.repeat(k); return el.getBoundingClientRect().height > one + 0.5 ? 2 : 1; };
-  const pre = document.querySelector('#c1'), ln = document.querySelector('#c2');
-  return { code: lines(pre, pre.querySelector('code'), n), line: lines(ln, ln, n),
-           codePx: parseFloat(getComputedStyle(pre).fontSize), linePx: parseFloat(getComputedStyle(ln).fontSize) };
+    <ol class="order-answer"><li><button class="line mono placed" id="c3"></button></li></ol>
+    <div class="order-pool"><button class="line mono" id="c2"></button></div>
+    <div class="options"><button class="opt mono"><span class="opt-key">1</span><span class="opt-text" id="c4"></span></button></div></article>`;
+  // 한 줄에 드는 가장 긴 글자 수(고정폭이라 'S'로 잼)
+  const fit = (box, t) => { t.textContent = 'S'; const one = box.getBoundingClientRect().height; let k = 1;
+    while (k < 80) { t.textContent = 'S'.repeat(k + 1); if (box.getBoundingClientRect().height > one + 0.5) break; k++; }
+    t.textContent = ''; return k; };
+  const g = (id) => document.querySelector(id), px = (id) => parseFloat(getComputedStyle(g(id)).fontSize);
+  return { code: fit(g('#c1'), g('#c1 code')), pool: fit(g('#c2'), g('#c2')), placed: fit(g('#c3'), g('#c3')),
+           opt: fit(g('#c4').closest('.opt'), g('#c4')),
+           codePx: px('#c1'), linePx: px('#c2'), placedPx: px('#c3'), optPx: px('#c4'), vw: innerWidth };
 }"""
 
 
 def test_sql_cols_fit():
-    """B1 관련: 점검기 SQL_COLS(tests/content.js) 칸의 SQL 한 줄이 가장 좁은 휴대폰(iPhone 17e, 390px)의
-    코드 상자(pre.code)와 순서 문제 줄 단추(.line)에서 줄바꿈 없이 한 줄에 들어간다. 글씨는 13px 이상."""
-    cols = int(re.search(r"const SQL_COLS = (\d+);", open(os.path.join(ROOT, "tests", "content.js"), encoding="utf-8").read()).group(1))
+    """B1·작업 16: 점검기(tests/content.js) 한도가 가장 좁은 휴대폰(iPhone 17e, 390px)에서 줄바꿈 없이 한 줄에 든다.
+    SQL_COLS(38): 코드 상자(pre.code)·순서 문제 조각(.line). ORDER_COLS(33): 놓은 줄(.line.placed, 앞에 번호).
+    OPT_COLS(31): 코드 모양 글자 보기(.opt.mono). 글씨는 13px 이상."""
+    src = open(os.path.join(ROOT, "tests", "content.js"), encoding="utf-8").read()
+    lim = {k: int(re.search(r"const %s = (\d+);" % k, src).group(1)) for k in ("SQL_COLS", "ORDER_COLS", "OPT_COLS")}
     with App("iPhone 17e") as a:
         a.start()
         a.page.click("#continue")
         a.page.wait_for_selector("#body")
-        r = a.js(SQL_COLS_JS, cols)
-    assert r["code"] == 1 and r["line"] == 1, "%d columns wrap on iPhone 17e: %s" % (cols, r)
-    assert r["codePx"] >= 13 and r["linePx"] >= 13, r
+        r = a.js(SQL_COLS_JS)
+    print("    iPhone 17e fits: code %d, pool line %d, placed line %d, code option %d cols (limits %s)" % (
+        r["code"], r["pool"], r["placed"], r["opt"], lim))
+    assert r["code"] >= lim["SQL_COLS"] and r["pool"] >= lim["SQL_COLS"], (lim, r)
+    assert r["placed"] >= lim["ORDER_COLS"], "placed order line wraps below ORDER_COLS: %s %s" % (lim, r)
+    assert r["opt"] >= lim["OPT_COLS"], "code option wraps below OPT_COLS: %s %s" % (lim, r)
+    assert min(r["codePx"], r["linePx"], r["placedPx"], r["optPx"]) >= 13, r
 
 
 SHOW_CARD_JS = r"""() => {

@@ -26,6 +26,7 @@ import { GRAMMAR, UNTAUGHT, SQL_WORDS, WORD_CHAPTER, FORMS } from "../data/gramm
 import { newBuild } from "../src/build.js";
 import { instantiate, runList, judgeInstance, placeholders, TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, BLANK, OPT_ROWS } from "../src/template.js";
 import { CONCEPTS as DATA_CONCEPTS } from "../data/concepts.js";
+import { isCodey } from "../src/textkind.js";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 
@@ -51,6 +52,8 @@ export const RULES = [
 // ── 한도 (아이폰 세로, 리아 content.py와 같은 값) ─────────────────────────
 export const LESSONS_PER_CHAPTER = 5;
 const SQL_COLS = 38;          // SQL 한 줄 표시 폭(한글 등 넓은 글자는 2칸)
+export const ORDER_COLS = 33; // 순서 문제(order)에서 놓은 줄(번호가 붙는 .line.placed)이 iPhone 17e에서 한 줄에 드는 폭(작업 16, flow.py가 잼)
+export const OPT_COLS = 31;   // 코드 모양 글자 보기(.opt.mono)가 iPhone 17e에서 한 줄에 드는 폭(작업 16, flow.py가 잼)
 const CARD_COLS = 30;         // 조립 카드 하나의 글자 폭
 const TITLE_MAX = 16, GOAL_MAX = 40, SUMMARY_MAX = 32, SAY_MAX = 140, Q_MAX = 80, EXPLAIN_MAX = 160, HINT_MAX = 120;
 const BANK_MAX = 12, EXTRA_MIN = 2, EXTRA_MAX = 4;
@@ -347,9 +350,9 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     if (tokens.includes("==")) add(where, "grammar", "== 대신 = 를 씀(SQLite에서만 되는 모양)");
     if (strings.some((x) => /^\s*now\s*$/i.test(x))) add(where, "grammar", "'now'는 날마다 결과가 바뀜 — 날짜를 글자로 적음");
   }
-  function sqlLines(where, text) {
+  function sqlLines(where, text, cols = SQL_COLS, what = "") {
     String(text).split("\n").forEach((line, k) => {
-      if (width(line) > SQL_COLS) add(where, "shape", `${k + 1}번째 줄이 휴대폰 화면보다 넓음(${width(line)}칸 > ${SQL_COLS}칸): ${line}`);
+      if (width(line) > cols) add(where, "shape", `${k + 1}번째 줄이 휴대폰 화면보다 넓음(${what}${width(line)}칸 > ${cols}칸): ${line}`);
       if (line.includes("\t")) add(where, "shape", "탭 문자 대신 공백(스페이스)을 씀");
     });
   }
@@ -533,6 +536,8 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     const textOpts = opts.length > 0 && opts.every((o) => typeof o === "string");
     if (textOpts) {
       opts.forEach((o, i) => { if (!o.trim()) add(w, "shape", `보기 ${i + 1}이 비어 있음`); words(`${w} options[${i}]`, o, { prose: true }); });
+      // 코드 모양 보기는 고정폭 글꼴·줄바꿈 그대로라 좁다(OPT_COLS). 길면 SQL 낱말 앞에서 줄을 나눈다
+      opts.forEach((o, i) => { if (isCodey(o)) sqlLines(`${w} options[${i}]`, o, OPT_COLS, "코드 보기 "); });
       if (new Set(opts).size !== opts.length) add(w, "shape", "같은 보기가 두 번 있음");
     }
     let code = null;
@@ -637,7 +642,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     if (lines.some((l) => typeof l !== "string" || !l.trim() || l.includes("\n"))) { add(w, "shape", "lines의 각 줄은 비어 있지 않은 한 줄 글자"); return; }
     if (new Set(lines).size !== lines.length) { add(w, "shape", "같은 줄이 두 번 있음(터치로 구분할 수 없음)"); return; }
     const sql = lines.join("\n");
-    sqlLines(`${w} lines`, sql);
+    sqlLines(`${w} lines`, sql, ORDER_COLS, "놓은 줄 ");
     words(`${w} lines`, sql);
     if (!guard(`${w} lines`, sql)) return;
     const good = run(sql);

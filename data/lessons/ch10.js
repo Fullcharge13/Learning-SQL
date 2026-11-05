@@ -457,7 +457,7 @@ export const LESSONS = [
       {
         type: "order", concept: "join",
         q: "1번 주문의 물건마다 수량 × 값을 보게 줄을 놓아 보세요.",
-        lines: ["SELECT i.name, qty * price AS amount", "FROM order_items oi", "JOIN items i", "ON oi.item_id = i.item_id", "WHERE oi.order_id = 1"],
+        lines: ["SELECT i.name,", "qty * price AS amount", "FROM order_items oi", "JOIN items i", "ON oi.item_id = i.item_id", "WHERE oi.order_id = 1"],
         expect: "name | amount\n인절미 | 6\n노리개 | 45\n등불 | 48",
         explain: "등불은 2개 × 24엽전이라 48이에요. qty와 price는 한 표에만 있어 표를 안 밝혀도 돼요. 이 값들을 모두 더한 게 매출이에요.",
       },
@@ -512,7 +512,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "join",
         q: "가게별 매출에서 1만 엽전 넘는 가게만 남기려면 GROUP BY i.shop_id 뒤에?",
-        options: ["HAVING SUM(oi.qty * i.price) > 10000", "WHERE SUM(oi.qty * i.price) > 10000", "ORDER BY sales DESC"],
+        options: ["HAVING SUM(qty * price) > 10000", "WHERE SUM(qty * price) > 10000", "ORDER BY sales DESC"],
         answer: 0,
         explain: "묶은 뒤의 셈으로 거르는 건 8장의 HAVING이에요. WHERE에는 모아 세기를 못 쓰고, ORDER BY는 줄만 세워요.",
       },

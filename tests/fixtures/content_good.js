@@ -28,9 +28,9 @@ const T = {
     { sql: "SELECT name FROM shops\nORDER BY shop_id DESC LIMIT 3" },
   ], 0, "가게 번호가 작은 가게부터 3곳의 이름이에요.", { code: "SELECT name FROM shops\nORDER BY shop_id LIMIT 3", tables: ["shops"] }),
   broken: choice("orderby", "오류가 나는 SQL은?", [
-    "SELECT name FROM shops ORDER BY name",
-    "SELECT name FROM shops BY name ORDER",
-    "SELECT name FROM shops LIMIT 2",
+    "SELECT name FROM shops\nORDER BY name",
+    "SELECT name FROM shops\nBY name ORDER",
+    "SELECT name FROM shops\nLIMIT 2",
   ], 1, "ORDER와 BY는 붙어서 ORDER BY로 써요."),
   blankDesc: {
     type: "blank", concept: "orderby", q: "비싼 물건부터 보이게 빈자리를 채워 보세요",

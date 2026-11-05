@@ -326,7 +326,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "alias",
         q: "다음 중 오류가 나는 SQL은 무엇일까요?",
-        options: ["SELECT name AS FROM items", "SELECT name AS item_name FROM items", "SELECT price * 2 AS double_price FROM items"],
+        options: ["SELECT name AS\nFROM items", "SELECT name AS item_name\nFROM items", "SELECT name,\n  price * 2 AS double_price\nFROM items"],
         answer: 0,
         explain: "AS 뒤에 새 이름이 빠졌어요. AS를 썼으면 바로 뒤에 별칭을 꼭 붙여요.",
       },
@@ -446,7 +446,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "calc",
         q: "다음 중 오류가 나는 SQL은 무엇일까요?",
-        options: ["SELECT name, price * FROM items", "SELECT name, price * stock FROM items", "SELECT * FROM items"],
+        options: ["SELECT name, price *\nFROM items", "SELECT name, price * stock\nFROM items", "SELECT *\nFROM items"],
         answer: 0,
         explain: "price * 뒤에 곱할 것이 빠졌어요. 값 사이의 * 는 양쪽에 셈할 것이 있어야 해요. SELECT * 는 모든 열이라 괜찮아요.",
       },
@@ -566,7 +566,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "alias",
         q: "다음 중 오류가 나는 SQL은 무엇일까요?",
-        options: ["SELECT name, price AS FROM items", "SELECT name price FROM items", "SELECT price, name FROM items"],
+        options: ["SELECT name, price AS\nFROM items", "SELECT name price\nFROM items", "SELECT price, name\nFROM items"],
         answer: 0,
         explain: "AS 뒤에 별칭이 빠져서 오류예요. 쉼표가 빠진 SQL은 오류 없이 돌지만, price가 name의 별칭이 돼요.",
       },

@@ -347,7 +347,7 @@ export const LESSONS = [
       {
         type: "choice", concept: "with",
         q: "중간 표를 두 개 만들 때 쓰는 모양은?",
-        options: ["WITH a AS (…), b AS (…) SELECT …", "WITH a AS (…) WITH b AS (…) SELECT …", "WITH a, b AS (…) SELECT …"],
+        options: ["WITH a AS (…), b AS (…)\nSELECT …", "WITH a AS (…) WITH b AS (…)\nSELECT …", "WITH a, b AS (…)\nSELECT …"],
         answer: 0,
         explain: "WITH는 맨 앞에 한 번, 중간 표끼리는 쉼표로 이어요. 이름마다 AS (SELECT …)가 하나씩 붙어요.",
       },
@@ -385,7 +385,7 @@ export const LESSONS = [
       {
         type: "order", concept: "with",
         q: "가게 이름 옆에 물건 값 합계를 붙여 보게 줄을 놓아 보세요.",
-        lines: ["WITH shop_total AS (SELECT shop_id,", "SUM(price) AS total FROM items", "GROUP BY shop_id)", "SELECT s.name, t.total", "FROM shop_total t", "JOIN shops s ON s.shop_id = t.shop_id"],
+        lines: ["WITH shop_total AS (SELECT", "shop_id, SUM(price) AS total", "FROM items GROUP BY shop_id)", "SELECT s.name, t.total", "FROM shop_total t JOIN shops s", "ON s.shop_id = t.shop_id"],
         explain: "중간 표를 먼저 만들고, 본문이 그 표를 t로 불러 가게 표와 번호로 이어요. 가게 8곳 모두 이름과 합계가 나와요.",
       },
       {

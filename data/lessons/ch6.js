@@ -549,7 +549,7 @@ export const LESSONS = [
       {
         type: "order", concept: "coalesce",
         q: "구름 잡화점(5번 가게) 물건의 재고를 빈칸 없이 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name,", "COALESCE(stock, 0) AS stock_or_zero", "FROM items", "WHERE shop_id = 5"],
+        lines: ["SELECT name,", "COALESCE(stock, 0)", "AS stock_or_zero", "FROM items", "WHERE shop_id = 5"],
         expect: "name | stock_or_zero\n짚신 | 0\n부채 | 12\n비단 주머니 | 16\n한지 | 0\n등불 | 47",
         explain: "COALESCE는 SELECT 줄의 열 자리에 와요. 한지의 빈칸이 0으로 채워졌어요. 짚신의 0은 원래 적힌 값이에요.",
       },
