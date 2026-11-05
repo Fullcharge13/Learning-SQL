@@ -2,17 +2,6 @@
 // 이 파일은 결과 표를 비교하고 오류를 설명할 뿐이다.
 import { ERRORS, FALLBACK, DETECTIVE_ID } from "../data/errors.js";
 
-// 줄마다 오른쪽 공백 제거, \r\n → \n, 끝 줄바꿈 제거. (template.js가 아직 쓴다)
-export function normalize(text) {
-  if (text == null) return "";
-  return String(text)
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .map((l) => l.replace(/\s+$/, ""))
-    .join("\n")
-    .replace(/\n+$/, "");
-}
-
 export function cardsToSql(cards) {
   return (cards || []).join(" ");
 }

@@ -249,9 +249,7 @@ const ctx = {
   get chapterFiles() { return app.data ? app.data.fileList() : []; },
   lessonState, currentLessonId,
   today: () => localDate(),
-  sql,
-  // 매일 도전의 틀 실행은 작업 11에서 sql로 옮긴다. 그때까지 runner는 없음(틀 문제는 「준비 안 됨」)
-  runner: null,
+  sql,   // SqlRun: 설명 카드·보기 표·카드 조립·매일 도전 틀이 함께 씀
   dayStart,
   takeGreeting() { const g = app.greetOverride; app.greetOverride = null; return g; },
   // 의상 교체로 돌려준 바이트 안내(판정 C42): 처음 한 번만. 깃발을 내린 저장을 바로 남긴다

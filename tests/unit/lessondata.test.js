@@ -26,10 +26,18 @@ test("index_build: 장·레슨 목록만 담고 문제·카드는 뺀다", () =>
   assert.deepEqual(idx.map((c) => c.id), [1, 2], "장 번호 순서");
   assert.equal(idx[0].title, "1장 제목");
   const l = idx[0].lessons[1];
-  assert.deepEqual(l, { id: "1-2", chapter: 1, title: "레슨 1-2", goal: "목표 1-2", summary: ["요약 1-2"], isExam: true, concepts: ["c1a", "c1b"] });
+  assert.deepEqual(l, { id: "1-2", chapter: 1, title: "레슨 1-2", goal: "목표 1-2", summary: ["요약 1-2"], isExam: true, concepts: ["c1a", "c1b"], hasBuild: true });
   assert.equal(idx[0].lessons[0].isExam, false);
   const text = JSON.stringify(idx);
   assert.ok(!text.includes("카드 1-1") && !text.includes("작성 1-1") && !text.includes("문제 1-1"), text);
+});
+
+test("index_build: hasBuild only on lessons with a build item (daily challenge picks those, task 11)", () => {
+  const m = mod(1);
+  m.LESSONS[0].items = m.LESSONS[0].items.filter((it) => it.type !== "build");
+  const idx = buildLessonIndex([m]);
+  assert.equal("hasBuild" in idx[0].lessons[0], false);
+  assert.equal(idx[0].lessons[1].hasBuild, true);
 });
 
 test("index_build: CHAPTER가 없으면 첫 레슨의 chapter로, LESSONS가 없는 모듈은 건너뜀", () => {

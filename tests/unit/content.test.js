@@ -36,7 +36,7 @@ test("bad chapter: every planted fault is reported under its rule", () => {
 
 test("bad chapter covers every rule name at least once", () => {
   const want = ["answer-runs", "drop-one", "swap-extra", "bank-size", "table-truth", "grammar", "readonly", "shape",
-    "stable-order", "engine-guard", "blank-unique", "order-unique", "exam-coverage"];
+    "stable-order", "engine-guard", "blank-unique", "order-unique", "exam-coverage", "templates"];
   const planted = new Set(bad.BAD.map(([r]) => r));
   for (const r of want) assert.ok(planted.has(r), `content_bad.js에 ${r}를 어긴 곳이 없음`);
   const issues = checkChapter(bad, 5, engine, { concepts: bad.CONCEPTS });
@@ -86,7 +86,7 @@ function cli(...args) {
 test("cli: good lessons dir prints OK and exits 0", () => {
   const r = cli("--lessons-dir", "tests/fixtures/content_good");
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 52\)/);
+  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 52, 틀 3: 씨앗 300개 중 다시 만든 것 \d+\)/);
 });
 
 test("cli: bad lessons dir lists issues and exits 1", () => {
@@ -159,4 +159,62 @@ test("drop-one: a variant that times out counts as wrong, not an issue (R24)", (
     const drop = issues.filter((i) => i.rule === "drop-one");
     assert.deepEqual(drop, [], show(drop));
   } finally { e.close(); }
+});
+
+// ---- 작업 11: 매일 도전 틀(templates) ----
+const tplMod = (templates) => ({ ...good, TEMPLATES: templates });
+const tplIssues = (templates, chapter = 5) => checkChapter(tplMod(templates), chapter, engine, { concepts: good.CONCEPTS })
+  .filter((i) => i.where.startsWith("틀"));   // 틀 문제점의 where는 「틀 5-T1」·「틀 5-T1 씨앗 3」 모양
+const T1 = good.TEMPLATES[0];
+
+test("templates: every seed 0..99 of the good templates becomes an item (stats count retries)", () => {
+  const stats = {};
+  const issues = checkChapter(good, 5, engine, { concepts: good.CONCEPTS, stats });
+  assert.deepEqual(issues, [], show(issues));
+  assert.equal(stats.templates, 3);
+  assert.equal(stats.seeds, 300);
+  assert.ok(stats.retried >= 0 && stats.retried < 300, JSON.stringify(stats));
+});
+
+test("templates: template SQL must pass the engine guard and the chapter grammar", () => {
+  const guard = tplIssues([{ ...T1, id: "5-T4", sql: "SELECT name FROM items LIMIT {N}; SELECT 1" }]);
+  assert.ok(guard.some((i) => i.rule === "engine-guard" && i.where.includes("5-T4")), show(guard));
+  const late = tplIssues([{ ...T1, id: "5-T5", wrong: [T1.wrong[0], "SELECT name, COUNT(*) FROM items\nLIMIT {N}"] }]);
+  assert.ok(late.some((i) => i.rule === "grammar" && i.where.includes("5-T5") && /COUNT/.test(i.msg)), show(late));
+  // 같은 문제점은 씨앗마다 되풀이하지 않고 한 번만
+  assert.equal(late.filter((i) => i.rule === "grammar").length, 1, show(late));
+  const write = tplIssues([{ ...T1, id: "5-T6", wrong: [T1.wrong[0], "DELETE FROM items"] }]);
+  assert.ok(write.some((i) => i.rule === "readonly" && i.where.includes("5-T6")), show(write));
+});
+
+test("templates: shape mistakes are reported under templates", () => {
+  const cases = [
+    [{ ...T1, id: "6-T1" }, /id/],
+    [{ ...T1, id: "5-T1", vars: { N: { min: 2, max: 5 }, M: [1, 2] } }, /M/],              // 쓰지 않는 값
+    [{ ...T1, id: "5-T1", q: "{Q} 표는?" }, /\{Q\}/],                                    // 모르는 자리 표시
+    [{ ...T1, id: "5-T1", wrong: [T1.wrong[0]] }, /wrong/],                               // 오답 1개
+    [{ ...T1, id: "5-T1", code: "SELECT 1" }, /code/],                                    // 리아 시절 칸
+    [{ ...T1, id: "5-T1", concept: "nope" }, /개념/],
+    [{ ...T1, id: "5-T1", vars: { N: ["a'b", "c"] } }, /따옴표/],
+    [{ ...T1, id: "5-T1", tables: ["nope"] }, /nope/],
+  ];
+  for (const [t, re] of cases) {
+    const issues = tplIssues([t]);
+    assert.ok(issues.some((i) => i.rule === "templates" && re.test(`${i.where} ${i.msg}`)), `${re}\n${show(issues)}`);
+  }
+  const dup = tplIssues([T1, { ...T1 }]);
+  assert.ok(dup.some((i) => i.rule === "templates" && /겹침/.test(i.msg)), show(dup));
+  const blank = tplIssues([{ ...good.TEMPLATES[2], id: "5-T3", sql: "SELECT name FROM items LIMIT {N}" }]);
+  assert.ok(blank.some((i) => i.rule === "templates" && /___/.test(i.msg)), show(blank));
+});
+
+test("templates: a broken answer or a seed that always collides is reported with the seed", () => {
+  const broken = tplIssues([{ ...T1, sql: "SELECT nam FROM items\nLIMIT {N}" }]);
+  assert.ok(broken.some((i) => i.rule === "templates" && /씨앗 0/.test(i.where) && /정답 SQL/.test(i.msg)), show(broken));
+  const empty = tplIssues([{ ...T1, sql: "SELECT name FROM items\nWHERE price < 0\nLIMIT {N}" }]);
+  assert.ok(empty.some((i) => i.rule === "templates" && /0행/.test(i.msg)), show(empty));
+  const same = tplIssues([{ ...T1, wrong: [T1.sql.replace("DESC, item_id", "DESC, item_id ASC"), T1.wrong[1]] }]);
+  assert.ok(same.some((i) => i.rule === "templates" && /다섯|5번/.test(i.msg)), show(same));
+  // 씨앗마다 같은 말을 되풀이하지 않음
+  assert.ok(same.filter((i) => i.rule === "templates").length <= 2, show(same));
 });

@@ -1,11 +1,12 @@
 // 레슨 점검기 시험용 「나쁜 장」 (tests/unit/content.test.js). 실제 레슨이 아니다.
 // content_good.js(문제점 0개)를 복사한 뒤 규칙마다 일부러 어긴 곳을 하나 이상 심는다. 심은 곳은 BAD에 적어 두고,
 // 시험은 그 자리(where에 든 글자)에서 그 규칙이 나오는지 본다. 한 곳이 다른 규칙도 함께 어길 수 있다(시험은 「포함」만 봄).
-import { CONCEPTS as GOOD_CONCEPTS, CHAPTER as GOOD_CHAPTER, LESSONS as GOOD_LESSONS } from "./content_good.js";
+import { CONCEPTS as GOOD_CONCEPTS, CHAPTER as GOOD_CHAPTER, LESSONS as GOOD_LESSONS, TEMPLATES as GOOD_TEMPLATES } from "./content_good.js";
 
 export const CONCEPTS = structuredClone(GOOD_CONCEPTS);
 export const CHAPTER = structuredClone(GOOD_CHAPTER);
 export const LESSONS = structuredClone(GOOD_LESSONS);
+export const TEMPLATES = structuredClone(GOOD_TEMPLATES);
 
 const L = (k) => LESSONS[k - 1];
 const hints = ["무엇을 볼지 먼저 생각해요.", "필요한 카드를 골라요."];
@@ -191,3 +192,22 @@ L(5).items.splice(4, 0, {
   lines: ["SELECT name", "FROM shops", "WHERE shop_id = 3"], expect: "name\n달빛 약초방", explain: "3번 가게는 산삼 약방이에요.",
 });
 plant("shape", "bad-expect");
+
+// ---- 작업 11: 매일 도전 틀 ----
+// templates: 오답 SQL이 모두 정답과 같은 표(쓰는 모양만 다름) → 어느 씨앗도 다섯 번 안에 보기를 못 만듦
+TEMPLATES.push({
+  id: "5-T7", concept: "where", type: "choice", q: "번호가 {N} 이하인 가게를 보는 SQL이에요. 결과로 알맞은 표는?",
+  sql: "SELECT name FROM shops\nWHERE shop_id <= {N}\nORDER BY shop_id",
+  wrong: ["SELECT name FROM shops\nWHERE shop_id < {N} + 1\nORDER BY shop_id", "SELECT name FROM shops\nWHERE NOT shop_id > {N}\nORDER BY shop_id"],
+  vars: { N: { min: 2, max: 6 } }, explain: "세 SQL은 모두 같은 가게를 골라요.",
+});
+plant("templates", "5-T7");
+
+// grammar: 5장 틀에 7장 낱말 COUNT
+TEMPLATES.push({
+  id: "5-T8", concept: "limit", type: "blank", q: "물건 수를 세는 SQL의 빈칸을 채워 보세요({N}은 쓰이지 않는 값)",
+  sql: "SELECT COUNT(*) FROM items\nWHERE price > {N}\n___ 1",
+  chips: ["LIMIT", "OFFSET", "DESC"], answer: 0,
+  vars: { N: { min: 10, max: 90 } }, explain: "LIMIT 1은 한 행만 남겨요.",
+});
+plant("grammar", "5-T8");

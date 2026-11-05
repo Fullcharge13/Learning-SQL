@@ -1,15 +1,16 @@
-// 매일 도전 (v0.9 작업 2, 설계 docs/specs/2026-10-31-심화학습-설계.md §2, 판정 C53·C54). 순수 함수만.
+// 매일 도전 (리아 v0.9 작업 2, 판정 C53·C54 → 두억이 v0.1 작업 11, 설계 §7). 순수 함수만.
 //
 // - 열림: 1장 본 과정 레슨을 모두 끝낸 뒤.
-// - 하루 3문제: 터치 2(본 과정을 다 끝낸 장의 「틀」 TEMPLATES에서, 씨앗 0~99) + 카드 조립 1(끝낸 본 과정 레슨의
-//   build 문제 그대로, C53). (작업 11에서 틀을 SQL로 바꾼다) 복습 목록(review_queue) 개념이 든 장·레슨은 3배 자주.
+// - 하루 3문제: 터치 2(본 과정을 다 끝낸 장의 「틀」 TEMPLATES에서, 씨앗 0~99, 문제는 src/template.js가 SQL을 돌려 만듦)
+//   + 카드 조립 1(끝낸 본 과정 레슨 중 build 문제가 있는 레슨(목록의 hasBuild)의 build 문제 그대로, dailyBuildItem).
+//   복습 목록(review_queue) 개념이 든 장·레슨은 3배 자주.
 // - 같은 날·같은 학습 기록 → 같은 3문제(날짜 + 끝낸 레슨 목록으로 정하는 난수). 고른 문제는 저장 daily에 고정해
 //   그날 레슨을 더 끝내도 바뀌지 않는다.
-// - 저장 칸 daily = { date, picks, done, streak, best, last_done_date } (saveVer 2 그대로, 없으면 newDaily()).
+// - 저장 칸 daily = { date, picks, done, streak, best, last_done_date } (없으면 newDaily()).
 //   picks: [{ kind: "tpl", id: "1-T2", chapter: 1, seed }, …, { kind: "build", lesson: "2-3", chapter: 2 }]
 //   done: 푼 문제 번호(picks의 자리). 문제마다 바로 기록 → 그날 안에는 남은 문제부터 이어서.
-// - 보상(3문제 끝): XP 15(하루 목표·연속 기록·이정표·XP 퀘스트에 그대로) · 바이트 10. 도전 연속(따로 셈)이
-//   7의 배수인 날 +20바이트. 레슨 퀘스트·진도·레슨 수에는 세지 않는다.
+// - 보상(3문제 끝): XP 15(하루 목표·연속 기록·이정표·XP 퀘스트에 그대로) · 엽전 10. 도전 연속(따로 셈)이
+//   7의 배수인 날 +20엽전. 레슨 퀘스트·진도·레슨 수에는 세지 않는다.
 import { earnXp, markConcept, isDate } from "./rules.js";
 import { ensureQuests, tick } from "./quests.js";
 import { checkBadges } from "./badges.js";
@@ -17,9 +18,9 @@ import { localDate } from "./today.js";
 import { hashStr, mulberry32, TEMPLATE_SEEDS } from "./template.js";
 
 export const DAILY_XP = 15;
-export const DAILY_BYTES = 10;
+export const DAILY_YEOPJEON = 10;
 export const DAILY_BONUS_EVERY = 7;
-export const DAILY_BONUS_BYTES = 20;
+export const DAILY_BONUS_YEOPJEON = 20;
 export const DAILY_TOUCH = 2;
 export const WEAK_WEIGHT = 3;
 
@@ -100,8 +101,8 @@ export function pickDaily(index, save, today) {
     picks.push({ kind: "tpl", id, chapter: e.c.id, seed: Math.floor(rng() * TEMPLATE_SEEDS) });
     chapters = chapters.filter((x) => x.left.length);
   }
-  // 카드 조립: 끝낸 본 과정 레슨(C53), 복습 개념이 든 레슨은 3배
-  const lessons = (index || []).flatMap((c) => (c.lessons || []).filter((l) => doneSet.has(l.id))
+  // 카드 조립: 끝낸 본 과정 레슨 중 build 문제가 있는 레슨(C53), 복습 개념이 든 레슨은 3배
+  const lessons = (index || []).flatMap((c) => (c.lessons || []).filter((l) => doneSet.has(l.id) && l.hasBuild)
     .map((l) => ({ l, c, w: hasWeak(l) ? WEAK_WEIGHT : 1 })));
   if (lessons.length) {
     const e = weightedPick(rng, lessons);
@@ -110,13 +111,20 @@ export function pickDaily(index, save, today) {
   return picks;
 }
 
+/** 오늘의 카드 조립 문제: 레슨의 build 문제 중 하나(날짜·레슨 id로 정함 → 그날은 같은 문제). 없으면 null */
+export function dailyBuildItem(lesson, date) {
+  const builds = ((lesson && lesson.items) || []).filter((x) => x && x.type === "build");
+  if (!builds.length) return null;
+  return builds[hashStr(`${date}|${lesson.id}`) % builds.length];
+}
+
 /** 저장의 문제가 지금 레슨 목록에 다 있나 */
 function picksValid(picks, index) {
   if (!Array.isArray(picks) || !picks.length) return false;
   return picks.every((p) => {
     const c = (index || []).find((x) => x.id === p.chapter);
     if (!c) return false;
-    return p.kind === "tpl" ? (c.templates || []).some((t) => t.id === p.id) : c.lessons.some((l) => l.id === p.lesson);
+    return p.kind === "tpl" ? (c.templates || []).some((t) => t.id === p.id) : c.lessons.some((l) => l.id === p.lesson && l.hasBuild);
   });
 }
 
@@ -190,8 +198,8 @@ export function finishDaily(save, info = {}, now = new Date()) {
   const streakUp = s.streak.lastGoalDate === today && goalBefore !== today;
 
   const streak = d0.last_done_date && isDate(day) && d0.last_done_date === prevDay(day) ? d0.streak + 1 : 1;
-  const bonusBytes = streak % DAILY_BONUS_EVERY === 0 ? DAILY_BONUS_BYTES : 0;
-  s.yeopjeon = num(s.yeopjeon) + DAILY_BYTES + bonusBytes;
+  const bonusBytes = streak % DAILY_BONUS_EVERY === 0 ? DAILY_BONUS_YEOPJEON : 0;
+  s.yeopjeon = num(s.yeopjeon) + DAILY_YEOPJEON + bonusBytes;
   s.daily = { ...d0, done: d0.picks.map((_, i) => i), streak, best: Math.max(d0.best || 0, streak), last_done_date: day };
 
   s = ensureQuests(s, today);
@@ -205,7 +213,7 @@ export function finishDaily(save, info = {}, now = new Date()) {
   const had = new Set(save.badges || []);
   return {
     save: s,
-    result: { ...empty, xp: DAILY_XP, lessonBytes: DAILY_BYTES, bonusBytes, questBytes, milestoneBytes,
+    result: { ...empty, xp: DAILY_XP, lessonBytes: DAILY_YEOPJEON, bonusBytes, questBytes, milestoneBytes,
       totalBytes: num(s.yeopjeon) - num(save.yeopjeon), finished: q.finished, chest: q.chest,
       newBadges: s.badges.filter((b) => !had.has(b)), milestone: earned.milestone, streakUp, streak: s.streak.days,
       dailyStreak: streak, firstTime: true },

@@ -1,16 +1,17 @@
-// v0.9 작업 2: 매일 도전 — 문제 고르기·진행 기록·보상·연속 기록 (판정 C53, C54)
+// 매일 도전 — 문제 고르기·진행 기록·보상·연속 기록 (리아 v0.9 판정 C53·C54, 두억이 v0.1 작업 11: 터치 틀 2 + 끝낸 레슨의 카드 조립 1)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   dailyOpen, pickDaily, ensureDaily, dailyStatus, recordDaily, finishDaily, finishedItems, cleanDaily,
-  DAILY_XP, DAILY_BYTES, DAILY_BONUS_BYTES, newDaily,
+  DAILY_XP, DAILY_YEOPJEON, DAILY_BONUS_YEOPJEON, newDaily, dailyBuildItem,
 } from "../../src/daily.js";
 import { newSave } from "../../src/save.js";
 import { TEMPLATE_SEEDS } from "../../src/template.js";
+import * as dailyMod from "../../src/daily.js";
 
 const ch = (n, concepts, tplN = 4) => ({
   id: n, title: `${n}장`,
-  lessons: [1, 2, 3, 4, 5].map((k) => ({ id: `${n}-${k}`, chapter: n, concepts: concepts[k - 1] || concepts[0], isExam: k === 5 })),
+  lessons: [1, 2, 3, 4, 5].map((k) => ({ id: `${n}-${k}`, chapter: n, concepts: concepts[k - 1] || concepts[0], isExam: k === 5, hasBuild: true })),
   ...(tplN ? { templates: Array.from({ length: tplN }, (_, i) => ({ id: `${n}-T${i + 1}`, concept: concepts[0][0] })) } : {}),
 });
 const INDEX = [
@@ -22,10 +23,12 @@ const INDEX = [
 const ids = (n) => [1, 2, 3, 4, 5].map((k) => `${n}-${k}`);
 const save = (over = {}) => ({ ...newSave(), ...over });
 
-test("상수: XP 15, 바이트 10, 7일마다 +20", () => {
+test("상수: XP 15, 엽전 10, 7일마다 +20 (바이트 이름은 없음)", () => {
   assert.equal(DAILY_XP, 15);
-  assert.equal(DAILY_BYTES, 10);
-  assert.equal(DAILY_BONUS_BYTES, 20);
+  assert.equal(DAILY_YEOPJEON, 10);
+  assert.equal(DAILY_BONUS_YEOPJEON, 20);
+  assert.equal("DAILY_BYTES" in dailyMod, false);
+  assert.equal("DAILY_BONUS_BYTES" in dailyMod, false);
 });
 
 test("열림: 1장 본 과정 5레슨을 모두 끝내야", () => {
@@ -58,8 +61,8 @@ test("pickDaily: 같은 날·같은 기록 → 같은 3문제, 날짜가 바뀌�
   assert.deepEqual(pickDaily(INDEX, r, "2026-11-05"), pickDaily(INDEX, s, "2026-11-05"));
 });
 
-test("pickDaily: 틀은 본 과정을 다 끝낸 장에서만, 직접 작성은 끝낸 레슨에서만", () => {
-  // 1장 전부 + 2장 일부(2-1, 2-2) + 3장 전부를 끝냄 → 틀은 1·3장, 쓰기는 끝낸 레슨
+test("pickDaily: 틀은 본 과정을 다 끝낸 장에서만, 카드 조립은 끝낸 레슨에서만", () => {
+  // 1장 전부 + 2장 일부(2-1, 2-2) + 3장 전부를 끝냄 → 틀은 1·3장, 조립은 끝낸 레슨
   const done = [...ids(1), "2-1", "2-2", ...ids(3)];
   const s = save({ completed_lessons: done });
   for (let d = 1; d <= 28; d++) {
@@ -75,7 +78,7 @@ test("pickDaily: 1장 전에는 null, 틀 있는 장이 하나도 없으면 null
   assert.equal(pickDaily(noTpl, save({ completed_lessons: ids(1) }), "2026-11-05"), null);
 });
 
-test("pickDaily: 틀이 하나뿐이면 같은 틀을 두 번 쓰지 않음 → 터치 1 + 작성 1", () => {
+test("pickDaily: 틀이 하나뿐이면 같은 틀을 두 번 쓰지 않음 → 터치 1 + 조립 1", () => {
   const one = [ch(1, [["print"], ["string"], ["arith"], ["comment"], ["print"]], 1)];
   const p = pickDaily(one, save({ completed_lessons: ids(1) }), "2026-11-05");
   assert.equal(p.length, 2);
@@ -96,10 +99,45 @@ test("pickDaily 가중: 복습 개념이 든 장의 틀이 약 3배 더 자주",
   // 첫 틀: 3장 비중 3/5 = 0.6 (1·2장은 각 0.2)
   assert.ok(count[3] / 600 > 0.5 && count[3] / 600 < 0.7, JSON.stringify(count));
   assert.ok(count[1] / 600 > 0.12 && count[1] / 600 < 0.28, JSON.stringify(count));
-  // 직접 작성: elif가 든 레슨(3-3) 하나만 ×3 → 3/17
+  // 카드 조립: elif가 든 레슨(3-3) 하나만 ×3 → 3/17
   const p33 = (() => { let n = 0; for (let d = 0; d < 600; d++) { const date = new Date(Date.UTC(2026, 0, 1) + d * 86400000).toISOString().slice(0, 10); if (pickDaily(INDEX, s, date)[2].lesson === "3-3") n++; } return n / 600; })();
   assert.ok(p33 > 0.1 && p33 < 0.26, `3-3 비율 ${p33}`);
   assert.ok(writes3 > 0);
+});
+
+test("daily picks build from finished lesson", () => {
+  // 끝낸 레슨 중 조립 문제가 있는 레슨(hasBuild)만 고른다. 끝내지 않은 레슨·조립 없는 레슨은 나오지 않는다.
+  const noBuild = new Set(["1-1", "1-2", "1-4", "2-1", "2-3", "2-5"]);
+  const idx = INDEX.map((c) => ({ ...c, lessons: c.lessons.map((l) => (noBuild.has(l.id) ? { ...l, hasBuild: undefined } : l)) }));
+  const done = [...ids(1), "2-1", "2-2", "2-3"];
+  const s = save({ completed_lessons: done });
+  const seen = new Set();
+  for (let d = 0; d < 200; d++) {
+    const date = new Date(Date.UTC(2026, 0, 1) + d * 86400000).toISOString().slice(0, 10);
+    const p = pickDaily(idx, s, date);
+    const b = p.filter((x) => x.kind === "build");
+    assert.equal(b.length, 1, JSON.stringify(p));
+    assert.ok(done.includes(b[0].lesson) && !noBuild.has(b[0].lesson), b[0].lesson);
+    assert.equal(b[0].chapter, Number(b[0].lesson.split("-")[0]));
+    seen.add(b[0].lesson);
+  }
+  assert.deepEqual([...seen].sort(), ["1-3", "1-5", "2-2"]);
+  // 끝낸 레슨에 조립 문제가 하나도 없으면 터치 2문제만
+  const none = INDEX.map((c) => ({ ...c, lessons: c.lessons.map((l) => ({ ...l, hasBuild: undefined })) }));
+  const p = pickDaily(none, save({ completed_lessons: ids(1) }), "2026-11-05");
+  assert.deepEqual(p.map((x) => x.kind), ["tpl", "tpl"]);
+});
+
+test("dailyBuildItem: one of the lesson's build items, fixed for the day", () => {
+  const b = (id) => ({ type: "build", id, concept: "c", q: id, cards: ["SELECT"], extra: [] });
+  const lesson = { id: "6-2", items: [{ type: "choice" }, b("b1"), { type: "blank" }, b("b2"), b("b3"), { type: "check" }] };
+  assert.equal(dailyBuildItem(lesson, "2026-11-05"), dailyBuildItem(lesson, "2026-11-05"));
+  const got = new Set();
+  for (let d = 1; d <= 30; d++) got.add(dailyBuildItem(lesson, `2026-11-${String(d).padStart(2, "0")}`).id);
+  assert.deepEqual([...got].sort(), ["b1", "b2", "b3"], "every build of the lesson can come up");
+  assert.equal(dailyBuildItem({ id: "1-1", items: [b("only")] }, "2026-11-05").id, "only");
+  assert.equal(dailyBuildItem({ id: "1-1", items: [{ type: "choice" }] }, "2026-11-05"), null);
+  assert.equal(dailyBuildItem(null, "2026-11-05"), null);
 });
 
 test("ensureDaily: 열리기 전에는 저장 그대로, 열리면 오늘 문제를 저장에 고정", () => {
@@ -162,7 +200,7 @@ test("dailyStatus: 잠김 / 새로 / 하는 중 / 완료, 도전 n일째", () =>
 
 const NOW = (d, h = 20) => new Date(`${d}T${String(h).padStart(2, "0")}:00:00`);
 
-test("finishDaily: XP 15·바이트 10, 도전 1일째, 하루 목표·연속 기록·XP 퀘스트에 반영", () => {
+test("finishDaily: XP 15·엽전 10, 도전 1일째, 하루 목표·연속 기록·XP 퀘스트에 반영", () => {
   let s = ensureDaily(save({ completed_lessons: ids(1) }), "2026-11-05", INDEX);
   s = { ...s, settings: { ...s.settings, dailyGoal: 10 } };
   s = recordDaily(s, "2026-11-05", [0, 1, 2], []);
@@ -181,7 +219,7 @@ test("finishDaily: XP 15·바이트 10, 도전 1일째, 하루 목표·연속 �
   assert.equal(out.daily.last_done_date, "2026-11-05");
   assert.deepEqual(out.daily.done, [0, 1, 2]);
   assert.equal(out.stats.items, 3);
-  // 바이트 = 도전 10 + 퀘스트(있으면)
+  // 엽전 = 도전 10 + 퀘스트(있으면)
   assert.equal(out.yeopjeon, 10 + result.questBytes);
   assert.equal(result.totalBytes, out.yeopjeon);
   if (out.quests.ids.includes("q_xp20")) assert.equal(out.quests.progress.q_xp20, 15);
@@ -218,13 +256,13 @@ test("도전 연속: 이어진 날 +1, 하루라도 빠지면 1부터, best는 �
   assert.equal(s.daily.best, 3);
 });
 
-test("도전 7일째마다 +20바이트(7, 14일째)", () => {
+test("도전 7일째마다 +20엽전(7, 14일째)", () => {
   const dates = Array.from({ length: 15 }, (_, i) => new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10));
   const { results } = playDays(dates);
   results.forEach((r, i) => {
     const day = i + 1;
-    assert.equal(r.bonusBytes, day % 7 === 0 ? DAILY_BONUS_BYTES : 0, `day ${day}`);
-    assert.ok(r.totalBytes >= DAILY_BYTES + r.bonusBytes);
+    assert.equal(r.bonusBytes, day % 7 === 0 ? DAILY_BONUS_YEOPJEON : 0, `day ${day}`);
+    assert.ok(r.totalBytes >= DAILY_YEOPJEON + r.bonusBytes);
   });
 });
 

@@ -4,11 +4,12 @@ import { current, nextCard, answer, skip, summary } from "../lessonflow.js";
 import { newSession, mark as markConcept, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../session.js";
 import { packResume, restoreSession, hasProgress } from "../resume.js";
 import { riaSVG } from "../ria.js";
-import { esc, icon, bar, codeBlock, dialog, riaSays, filesNote, stdinNote, cardExample } from "./dom.js";
+import { esc, icon, bar, codeBlock, dialog, riaSays, cardExample } from "./dom.js";
 import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
 import { isCodey } from "../textkind.js";
 import { reviewPool } from "../lessondata.js";
 import { makeTemplateItem } from "../template.js";
+import { dailyBuildItem } from "../daily.js";
 import { mountBuild } from "./build.js";
 import { fillResults } from "./sqlview.js";
 import { openTables } from "./tables.js";
@@ -16,7 +17,7 @@ import { openTables } from "./tables.js";
 const GUARD_MS = 400;
 const WAIT_MS = 300;    // 장 파일이 이보다 늦으면 「준비 중」 (v0.3 작업 1)
 const LOAD_TIMEOUT_MS = 12000;  // 이보다 오래 걸리면 「준비 중」을 그만두고 안내
-const DAILY_TIMEOUT_MS = 60000; // 매일 도전: Python으로 보기를 만들므로 첫 불러오기까지 기다림
+const DAILY_TIMEOUT_MS = 60000; // 매일 도전: SQL 실행기를 처음 불러와 보기 표를 만들 때까지 기다림
 export const OFFLINE_LINE = "이 장은 인터넷이 될 때 한 번 열어 주세요";
 export const STALE_LINE = "새 판이 나왔어요. 눌러서 새로 고쳐요";
 
@@ -41,11 +42,11 @@ async function buildReview(ctx) {
 }
 
 
-// 실행기가 아예 돌지 못한 결과(문제 탓이 아님) → 「다시 시도」 화면으로
-const INFRA_ERRORS = new Set(["WorkerError", "LoadError", "Timeout"]);
+// 실행기가 아예 돌지 못한 결과(문제 탓이 아님, SqlRun의 error) → 「다시 시도」 화면으로
+const INFRA_ERRORS = new Set(["worker", "load"]);
 
-/** 매일 도전(v0.9): 저장에 고정된 오늘 문제 중 아직 안 푼 것만. 틀은 실행해 보기를 만들고(작업 11에서 SQL로),
- *  카드 조립은 끝낸 레슨의 build 문제 그대로(C53). 만들지 못한 틀은 건너뜀(skipped → 푼 것으로 기록) */
+/** 매일 도전: 저장에 고정된 오늘 문제 중 아직 안 푼 것만. 틀은 장터 데이터베이스에서 SQL을 돌려 보기 표를 만들고(작업 11),
+ *  카드 조립은 끝낸 레슨의 build 문제(dailyBuildItem, C53). 만들지 못한 틀은 건너뜀(skipped → 푼 것으로 기록) */
 async function buildDaily(ctx) {
   const d = ctx.save.daily;
   const done = new Set(d.done || []);
@@ -55,11 +56,9 @@ async function buildDaily(ctx) {
   const chs = new Map();
   for (const n of nums) chs.set(n, await ctx.getChapter(n));
   let infra = null;
-  const run = async (code, stdin) => {
-    // 실행기(sql.js)는 작업 3에서 붙는다. 그 전에는 실행할 수 없으니 「준비 안 됨」으로 본다
-    if (!ctx.runner) { infra = { type: "LoadError" }; throw new Error("LoadError"); }
-    const r = await ctx.runner.run(code, stdin, [], {});
-    if (r && r.error && INFRA_ERRORS.has(r.error.type)) { infra = r.error; throw new Error(r.error.type); }
+  const run = async (sql) => {
+    const r = ctx.sql ? await ctx.sql.run(sql) : { error: "load" };
+    if (r && INFRA_ERRORS.has(r.error)) { infra = r.error; throw new Error(r.error); }
     return r;
   };
   const items = [], skipped = [];
@@ -68,12 +67,12 @@ async function buildDaily(ctx) {
     if (p.kind === "tpl") {
       const t = (ch.TEMPLATES || []).find((x) => x.id === p.id);
       const it = t ? await makeTemplateItem(t, p.seed, run) : null;
-      if (infra) throw Object.assign(new Error("python not ready"), { python: true });
+      if (infra) throw Object.assign(new Error(`sql engine not ready: ${infra}`), { engine: true });
       if (it) items.push({ ...it, tag: `${p.chapter}장 새 문제`, dailyIndex: i });
       else skipped.push(i);
     } else {
       const l = (ch.LESSONS || []).find((x) => x.id === p.lesson);
-      const b = l && (l.items || []).find((x) => x && x.type === "build");
+      const b = dailyBuildItem(l, d.date);
       if (b) items.push({ ...b, tag: `${l.id} 다시 조립`, dailyIndex: i });
       else skipped.push(i);
     }
@@ -106,7 +105,7 @@ const ERROR_LINES = {
   offline: { say: OFFLINE_LINE, note: "인터넷에 연결된 뒤 「다시 시도」를 눌러 주세요. 지금까지의 진행은 그대로예요.", btn: "다시 시도" },
   stale: { say: STALE_LINE, note: "새로 고쳐도 지금까지의 진행은 그대로예요.", btn: "새로 고치기" },
   broken: { say: "레슨을 펼치다가 문제가 생겼어요", note: "「다시 시도」를 눌러 주세요. 지금까지의 진행은 그대로예요.", btn: "다시 시도" },
-  python: { say: "Python을 깨우는 중에 문제가 생겼어요", note: "잠시 뒤 「다시 시도」를 눌러 주세요. 오늘 푼 문제는 그대로예요.", btn: "다시 시도" },
+  engine: { say: "SQL 실행기를 깨우는 중에 문제가 생겼어요", note: "잠시 뒤 「다시 시도」를 눌러 주세요. 오늘 푼 문제는 그대로예요.", btn: "다시 시도" },
 };
 
 export const RESUME_ASK = "하던 곳부터 이어서 할까요?";
@@ -172,7 +171,7 @@ export function render(root, ctx, params = {}) {
       start(lesson, live);
     }, (err) => {
       if (!live()) return;
-      if (err && err.python) { fail("python", err); return; }
+      if (err && err.engine) { fail("engine", err); return; }
       const stale = (err && err.stale) || (ctx.swChanged && ctx.swChanged());
       fail(stale ? "stale" : "offline", err);
     });
@@ -341,7 +340,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       : review && it.from ? `<span class="tag">${esc(it.from)} 복습</span>`
       : daily && it.tag ? `<span class="tag daily">${icon("flame")}${esc(it.tag)}</span>` : "";
     return `${tag}<h1 class="q">${esc(it.q || (it.type === "order" ? "줄을 차례대로 눌러 코드를 완성해 보세요." : "답을 골라 보세요."))}</h1>
-      ${filesNote(it.files)}${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}${stdinNote(it.stdin)}`;
+      ${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}`;
   }
 
   const optSql = (o) => (o && typeof o === "object" ? o.sql : null);

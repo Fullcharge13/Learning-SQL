@@ -8,7 +8,7 @@
 //   node tests/content.js --lessons-dir DIR    다른 레슨 폴더(DIR/concepts.js가 있으면 data/concepts.js 대신 씀)
 //   → 장마다 「chN: OK (레슨 5, 문제 n)」 또는 문제점 목록. 문제점이 하나라도 있으면 끝 상태 1.
 //
-// 시험(tests/unit/content.test.js)은 checkChapter(mod, chapter, engine, { concepts })를 바로 부른다.
+// 시험(tests/unit/content.test.js)은 checkChapter(mod, chapter, engine, { concepts, stats })를 바로 부른다.
 // Issue = { where, rule, msg }. rule은 RULES 중 하나(뜻은 RULES 아래 주석, 자세한 정의는 작업 8 보고서).
 //
 // 실행기: openEngine()이 작업자 스레드(tests/content_worker.js)에 장터 데이터베이스 두 벌을 올린다. 주 스레드는
@@ -25,6 +25,7 @@ import { OPT_ROWS } from "../src/ui/sqlview.js";
 import { SCHEMA } from "../data/schema.js";
 import { GRAMMAR, UNTAUGHT, SQL_WORDS, WORD_CHAPTER, FORMS } from "../data/grammar.js";
 import { newBuild } from "../src/build.js";
+import { instantiate, runList, judgeInstance, placeholders, TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, BLANK } from "../src/template.js";
 import { CONCEPTS as DATA_CONCEPTS } from "../data/concepts.js";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -43,7 +44,8 @@ export const RULES = [
   "blank-unique",  // blank의 오답 칩은 모두 오류이거나 정답과 다른 결과
   "order-unique",  // order의 다른 모든 줄 순서는 오류이거나 정답과 다른 결과(화면은 저장된 순서만 정답으로 침)
   "exam-coverage", // 장 평가(N-5)가 1~4 레슨의 조립 문제 개념을 모두 다룸
-  // 작업 11: "templates" (매일 도전 틀) 규칙을 여기에 더한다.
+  "templates",     // 매일 도전 틀(작업 11): 칸·값·자리 표시 모양, 씨앗 0~99가 모두 TEMPLATE_ATTEMPTS번 안에 문제가 됨(정답 SQL이 오류 없이
+                   // 1행 이상, 보기 표끼리 화면에서 다름, 느리지 않음). 틀 SQL은 grammar·readonly·engine-guard 규칙도 받는다
 ];
 
 // ── 한도 (아이폰 세로, 리아 content.py와 같은 값) ─────────────────────────
@@ -61,6 +63,14 @@ export const SLOW_MS = 500;
 const ALIAS_PROBE = "zz_alias_probe";   // swap-extra 끼워 넣기에서 「별칭 자리」인지 알아보는 이름(표·열·낱말이 아님)       // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
 
 export const EXAM_BUILD_MAX = 3;   // 판정 R25
+
+// 매일 도전 틀(작업 11). 형식은 src/template.js 머리 주석
+const TEMPLATE_KEYS = {
+  choice: [["id", "concept", "type", "q", "sql", "wrong", "vars", "explain"], ["tables"]],
+  blank: [["id", "concept", "type", "q", "sql", "chips", "answer", "vars", "explain"], []],
+};
+const TPL_VAR_KEY = /^[A-Z][A-Z0-9_]*$/;
+const TPL_VALUE_BAD = /['"\\\n{}]/;   // 값은 SQL 글자 상수 '{NAME}' 안에 들어간다 — 따옴표·역슬래시·중괄호·줄바꿈 금지
 /** 장마다 조립 문제 수 [최소, 최대] (계획 작업 12~15 쓰기 규칙). 장 평가는 최대 +1, 단 EXAM_BUILD_MAX까지 */
 export function buildRange(chapter, exam = false) {
   const [lo, hi] = chapter <= 5 ? [1, 1] : chapter <= 13 ? [2, 2] : [2, 3];
@@ -292,9 +302,10 @@ function* permutations(arr) {
  * @param chapter  장 번호(파일 이름의 N)
  * @param engine   openEngine()의 실행기
  * @param o.concepts  개념 목록 [{ id, name, chapter, advanced? }] (없으면 data/concepts.js)
+ * @param o.stats     (선택) 객체를 주면 틀 수를 채움: { templates, seeds(문제가 된 씨앗 수), retried(다시 만든 씨앗 수) }
  * @returns Issue[] = [{ where, rule, msg }]
  */
-export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } = {}) {
+export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, stats = null } = {}) {
   const issues = [];
   const add = (where, rule, msg) => issues.push({ where, rule, msg });
   const conceptMap = new Map((Array.isArray(concepts) ? concepts : []).filter((c) => c && c.id).map((c) => [c.id, c]));
@@ -384,7 +395,14 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
   if (lessons.length === LESSONS_PER_CHAPTER) {
     try { examCoverage(); } catch (e) { add(`ch${chapter}`, "shape", `장 평가 점검 실패(${e && e.message})`); }
   }
-  // 작업 11: if (mod.TEMPLATES) issues.push(...checkTemplates(mod.TEMPLATES, chapter, engine, conceptMap));
+  if (mod && mod.TEMPLATES !== undefined) {
+    const start = issues.length;
+    try { checkTemplates(mod.TEMPLATES); } catch (e) { add("틀", "templates", `틀 점검을 마치지 못함(${e && e.name}: ${e && e.message})`); }
+    // 씨앗마다 같은 문제점(같은 낱말·같은 줄)이 되풀이되면 한 번만
+    const seenMsg = new Set();
+    const kept = issues.splice(start).filter((i) => { const k = `${i.rule}|${i.where}|${i.msg}`; if (seenMsg.has(k)) return false; seenMsg.add(k); return true; });
+    issues.push(...kept);
+  }
   return issues;
 
   // ================================================================
@@ -745,6 +763,126 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
     }
   }
 
+  // ---- templates: 매일 도전 틀 (작업 11, 리아 content.py check_templates를 SQL로) ----
+  // 문제점의 where는 「틀 5-T1」(틀 모양·낱말) 또는 「틀 5-T1 씨앗 3」(그 씨앗에서 문제를 못 만듦).
+  function checkTemplates(list) {
+    const st = stats || {};
+    st.templates = Array.isArray(list) ? list.length : 0;
+    st.seeds = 0;
+    st.retried = 0;
+    if (!Array.isArray(list)) { add("틀 TEMPLATES", "templates", "TEMPLATES는 목록 [...]"); return; }
+    const ids = new Set();
+    list.forEach((t, i) => {
+      const label = t && typeof t === "object" && typeof t.id === "string" && t.id ? t.id : `#${i + 1}`;
+      const w = `틀 ${label}`;
+      if (!t || typeof t !== "object" || Array.isArray(t)) { add(w, "templates", "틀이 객체가 아님"); return; }
+      if (ids.has(label)) { add(w, "templates", `틀 id ${label}가 앞의 틀과 겹침`); return; }
+      ids.add(label);
+      if (templateShape(t, w)) templateSeeds(t, w, st);
+    });
+  }
+
+  /** 틀 하나의 모양. 돌려 볼 만하면 true */
+  function templateShape(t, w) {
+    const bad = (msg) => { add(w, "templates", msg); return false; };
+    const spec = TEMPLATE_KEYS[t.type];
+    if (!spec) return bad(`틀의 type은 choice 또는 blank(지금 ${JSON.stringify(t.type)})`);
+    const [need, opt] = spec;
+    const missing = need.filter((k) => !(k in t));
+    const unknown = Object.keys(t).filter((k) => !need.includes(k) && !opt.includes(k));
+    if (missing.length) add(w, "templates", `빠진 칸: ${missing.join(", ")}`);
+    if (unknown.length) add(w, "templates", `모르는 칸: ${unknown.join(", ")}${unknown.includes("code") ? " (SQL 틀은 code 대신 sql)" : ""}`);
+    if (missing.length) return false;
+    let ok = !unknown.length;
+    if (!new RegExp(`^${chapter}-T[1-9]\\d*$`).test(t.id)) ok = bad(`틀 id ${JSON.stringify(t.id)}는 ${chapter}-T1, ${chapter}-T2 … 모양(학습자 저장에 남으니 한 번 정하면 바꾸지 않음)`);
+    const c = conceptMap.get(t.concept);
+    if (!c) ok = bad(`개념 ${JSON.stringify(t.concept)}이 개념 목록(concepts.js)에 없음`);
+    else if (c.advanced) ok = bad(`심화 개념 ${t.concept}은 틀에 쓰지 않음(틀은 본 과정 수준)`);
+    else if (Number(c.chapter) > chapter) ok = bad(`개념 ${t.concept}은 ${c.chapter}장 개념이라 ${chapter}장 틀에서 쓸 수 없음`);
+    for (const k of ["q", "sql", "explain"]) if (typeof t[k] !== "string" || !t[k].trim()) ok = bad(`${k}는 비어 있지 않은 글자`);
+    if (!ok) return false;
+    const vars = t.vars;
+    if (!vars || typeof vars !== "object" || Array.isArray(vars) || Object.keys(vars).length < 1 || Object.keys(vars).length > 6) {
+      return bad("vars는 { 이름: 값들 } 1~6개");
+    }
+    for (const [k, v] of Object.entries(vars)) {
+      if (!TPL_VAR_KEY.test(k)) { ok = bad(`값 이름 ${JSON.stringify(k)}은 대문자로(예: N, KIND) — SQL의 표·열 이름과 헷갈리지 않게`); continue; }
+      if (Array.isArray(v)) {
+        if (v.length < 2 || v.length > 40) ok = bad(`vars.${k} 목록은 값 2~40개`);
+        else if (v.some((x) => !(Number.isInteger(x) || (typeof x === "string" && x.trim() && !TPL_VALUE_BAD.test(x))))) {
+          ok = bad(`vars.${k}의 값은 정수 또는 글자(따옴표·역슬래시·중괄호·줄바꿈 없음): ${JSON.stringify(v)}`);
+        } else if (new Set(v.map(String)).size !== v.length) ok = bad(`vars.${k} 목록에 같은 값이 두 번 있음`);
+      } else if (v && typeof v === "object" && Object.keys(v).sort().join() === "max,min") {
+        if (!Number.isInteger(v.min) || !Number.isInteger(v.max) || v.min >= v.max || Math.abs(v.min) > 1e6 || Math.abs(v.max) > 1e6) {
+          ok = bad(`vars.${k}는 { min, max } 정수이고 min < max(절댓값 100만 이하)`);
+        }
+      } else ok = bad(`vars.${k}는 값 목록 [..] 또는 { min, max }`);
+    }
+    if (t.type === "choice") {
+      const wr = t.wrong;
+      if (!Array.isArray(wr) || wr.length < 2 || wr.length > 3 || !wr.every((x) => typeof x === "string" && x.trim())) return bad("wrong은 오답 SQL 2~3개(글자)");
+      if ([t.sql, ...wr].some((x) => x.includes(BLANK))) ok = bad(`choice 틀의 sql·wrong에는 빈칸 ${BLANK}을 쓰지 않음`);
+      if ("tables" in t) {
+        if (!Array.isArray(t.tables) || !t.tables.length) ok = bad("tables는 「쓸 표 보기」에 보일 표 이름 목록");
+        else for (const n of t.tables) if (!TABLE_NAMES.has(n)) ok = bad(`tables의 표 ${JSON.stringify(n)}가 장터에 없음`);
+      }
+    } else {
+      if (t.sql.split(BLANK).length !== 2) ok = bad(`blank 틀 sql에 빈칸 ${BLANK}이 정확히 하나여야 함`);
+      const ch = t.chips;
+      if (!Array.isArray(ch) || ch.length < 3 || ch.length > 4 || !ch.every((x) => typeof x === "string" && x.trim())) return bad("chips는 칩 3~4개(글자)");
+      if (new Set(ch).size !== ch.length) ok = bad("같은 칩이 두 번 있음");
+      if (ch.some((x) => x.includes(BLANK))) ok = bad(`칩에 ${BLANK}가 들어 있음`);
+      if (!Number.isInteger(t.answer) || t.answer < 0 || t.answer >= ch.length) ok = bad("answer가 칩 범위 밖");
+    }
+    // 자리 표시: 선언한 값만, 선언한 값은 어딘가에 씀
+    const texts = [t.q, t.sql, t.explain, ...(t.wrong || []), ...(t.chips || [])];
+    const used = new Set(texts.flatMap(placeholders));
+    for (const n of used) if (!Object.hasOwn(vars, n)) ok = bad(`모르는 자리 표시 {${n}} — vars에 없음`);
+    for (const n of Object.keys(vars)) if (!used.has(n)) ok = bad(`쓰지 않는 값 ${n}(어디에도 {${n}}가 없음)`);
+    return ok;
+  }
+
+  /** 씨앗 0~99를 앱과 같은 규칙(template.js)으로 만들어 본다. 처음 실패한 씨앗에서 멈춤 */
+  function templateSeeds(t, w, st) {
+    const shown = (inst, list) => (inst.type === "blank" ? list[inst.answer] : inst.sql);   // 화면에 보이는 SQL(blank는 정답 화면)
+    for (let seed = 0; seed < TEMPLATE_SEEDS; seed++) {
+      const ws = `${w} 씨앗 ${seed}`;
+      let made = false, inst = null;
+      for (let attempt = 0; attempt < TEMPLATE_ATTEMPTS; attempt++) {
+        inst = instantiate(t, seed, attempt);
+        const list = runList(inst);
+        sqlLines(w, shown(inst, list));
+        let blocked = false;
+        for (const sql of list) { words(w, sql); if (!guard(w, sql)) blocked = true; }
+        if (blocked) return;
+        const results = list.map((sql) => run(sql));
+        results.forEach((r, k) => { if (!r.timeout && r.ms > SLOW_MS) slow(w, "templates", r, list[k]); });
+        const j = judgeInstance(inst, results);
+        if (j.ok) {
+          made = true;
+          if (attempt) st.retried++;
+          text(`${w}.q`, inst.q, Q_MAX);
+          text(`${w}.explain`, inst.explain, EXPLAIN_MAX, { oneLine: false });
+          break;
+        }
+        if (j.why === "dup") continue;
+        const ai = inst.type === "blank" ? inst.answer : 0;
+        const detail = {
+          "answer-error": `정답 SQL이 ${brief(results[ai])}`,
+          empty: "정답 SQL 결과가 0행 — 보기 표로 쓸 수 없음",
+          slow: `실행 시간 초과(${TIMEOUT_MS}ms)`,
+        }[j.why] || j.why;
+        add(ws, "templates", `${detail}: ${oneLine(list[ai])}`);
+        return;
+      }
+      if (!made) {
+        add(ws, "templates", `${TEMPLATE_ATTEMPTS}번(다섯 번) 다시 뽑아도 보기 표가 겹침 — 오답 SQL·칩이 정답과 같은 표를 냄(결과 표가 같거나 앞 ${OPT_ROWS}행·행 수가 같음): ${oneLine(inst.sql)}`);
+        return;
+      }
+      st.seeds++;
+    }
+  }
+
   // ---- exam-coverage: 장 평가는 1~4 레슨의 조립 문제 개념을 모두 다룬다 (리아 check_exam_coverage) ----
   function examCoverage() {
     const core = [];
@@ -807,7 +945,8 @@ export async function main(argv) {
       } catch (e) {
         console.log(`ch${n}: 파일을 읽지 못함 — ${e && e.message}`); failed++; continue;
       }
-      const issues = checkChapter(mod, n, engine, { concepts });
+      const tst = {};
+      const issues = checkChapter(mod, n, engine, { concepts, stats: tst });
       // 장을 넘어 문제 id가 겹치는지(장 안은 checkChapter가 봄)
       for (const l of mod.LESSONS || []) {
         for (const it of (l && l.items) || []) {
@@ -819,9 +958,11 @@ export async function main(argv) {
       }
       const lc = Array.isArray(mod.LESSONS) ? mod.LESSONS.length : 0, ic = countItems(mod);
       nLessons += lc; nItems += ic;
-      if (!issues.length) { console.log(`ch${n}: OK (레슨 ${lc}, 문제 ${ic})`); continue; }
+      // 틀이 있으면 「틀 3: 씨앗 300개 중 다시 만든 것 n」(다시 만든 것이 많으면 값 범위를 고친다)
+      const tl = tst.templates ? `, 틀 ${tst.templates}: 씨앗 ${tst.seeds}개 중 다시 만든 것 ${tst.retried}` : "";
+      if (!issues.length) { console.log(`ch${n}: OK (레슨 ${lc}, 문제 ${ic}${tl})`); continue; }
       failed += issues.length;
-      console.log(`ch${n}: 문제점 ${issues.length}개 (레슨 ${lc}, 문제 ${ic})`);
+      console.log(`ch${n}: 문제점 ${issues.length}개 (레슨 ${lc}, 문제 ${ic}${tl})`);
       for (const i of issues) console.log(`  [${i.rule}] ${i.where}: ${i.msg}`);
     }
   } finally {

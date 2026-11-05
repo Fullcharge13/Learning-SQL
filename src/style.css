@@ -129,9 +129,6 @@ button { cursor: pointer; }
 .out.bad { border-color: var(--coral); background: var(--coral-soft); }
 .ex-label { font-size: .85rem; font-weight: 700; color: var(--ink-2); margin: 4px 0 6px; }
 .ex-label.bad { color: var(--coral-ink); }
-.stdin-note { display: flex; gap: 6px; align-items: center; font-size: .9rem; color: var(--ink-2); margin-top: -4px; }
-.stdin-note .ic { width: 18px; height: 18px; }
-.stdin-note code { background: var(--sun-soft); color: var(--ink); padding: 1px 6px; border-radius: 6px; }
 
 /* ---------- 차트 (v0.5 E3, src/chart.js가 그린 SVG) ---------- */
 .chart-note { margin: 0 0 12px; }

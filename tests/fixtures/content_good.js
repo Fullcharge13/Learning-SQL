@@ -128,3 +128,38 @@ export const LESSONS = [
     [T.kwOrder, T.kwLimit, T.kwDistinct, T.table, T.orderTop, T.blankDistinct, T.rows, B.categories, { ...B.top5, id: "g5-exam-top5" }, checkDistinct],
     { isExam: true }),
 ];
+
+// ---- 매일 도전 틀 (작업 11) ----
+// 씨앗 0~99가 모두 TEMPLATE_ATTEMPTS번 안에 문제가 되어야 한다(점검기 templates 규칙).
+export const TEMPLATES = [
+  {
+    id: "5-T1", concept: "orderby", type: "choice",
+    q: "비싼 물건 {N}개를 보는 SQL이에요. 결과로 알맞은 표는?",
+    sql: "SELECT name, price FROM items\nORDER BY price DESC, item_id\nLIMIT {N}",
+    wrong: [
+      "SELECT name, price FROM items\nORDER BY price, item_id\nLIMIT {N}",
+      "SELECT name, price FROM items\nORDER BY price DESC, item_id\nLIMIT {N} OFFSET 1",
+    ],
+    vars: { N: { min: 2, max: 5 } }, tables: ["items"],
+    explain: "DESC는 큰 값부터 줄 세워요. LIMIT로 앞의 {N}행만 남겨요.",
+  },
+  {
+    id: "5-T2", concept: "distinct", type: "choice",
+    q: "{KIND} 손님이 사는 마을을 겹치지 않게 보는 SQL이에요. 결과로 알맞은 표는?",
+    sql: "SELECT DISTINCT village FROM customers\nWHERE kind = '{KIND}'\nORDER BY village",
+    wrong: [
+      "SELECT village FROM customers\nWHERE kind = '{KIND}'\nORDER BY village",
+      "SELECT DISTINCT village FROM customers\nWHERE kind = '{KIND}'\nORDER BY village DESC",
+    ],
+    vars: { KIND: ["도깨비", "사람", "여우"] }, tables: ["customers"],
+    explain: "DISTINCT는 같은 마을을 한 번만 보여 주고, ORDER BY village는 가나다순으로 줄 세워요.",
+  },
+  {
+    id: "5-T3", concept: "limit", type: "blank",
+    q: "값이 싼 물건 {N}개만 보이게 빈칸을 채워 보세요",
+    sql: "SELECT name, price FROM items\nORDER BY price, item_id\n___ {N}",
+    chips: ["LIMIT", "OFFSET", "DESC"], answer: 0,
+    vars: { N: { min: 2, max: 6 } },
+    explain: "LIMIT 뒤의 수만큼 앞에서부터 행을 남겨요.",
+  },
+];

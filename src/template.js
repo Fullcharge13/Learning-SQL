@@ -1,23 +1,25 @@
-// 매일 도전 「틀」 엔진 (v0.9 작업 2, 판정 C54). 순수 함수 + 실행기를 받아 쓰는 async 하나.
+// 매일 도전 「틀」 엔진 (리아 v0.9 작업 2 → 두억이 v0.1 작업 11에서 SQL로). 순수 함수 + 실행기를 받아 쓰는 async 하나.
 //
 // 틀(장 파일의 TEMPLATES) 하나:
-//   { id: "N-T1", concept, type: "choice" | "blank", q, code, vars, explain, stdin?,
-//     wrong: [오답 코드 2~3개] (choice),  chips: [칩 3~4개], answer: 정답 칩 번호 (blank) }
-//   vars: { 대문자이름: [값, …] | { min, max } }  — q·code·wrong·chips·stdin·explain의 {이름}을 바꿔 끼움.
-//   {OUT}은 예약 이름: 정답 코드를 실행한 화면 출력(q·explain에서만).
+//   choice: { id: "N-T1", concept, type: "choice", q, sql, wrong: [오답 SQL 2~3개], vars, explain, tables? }
+//   blank:  { id: "N-T2", concept, type: "blank",  q, sql(빈칸 ___ 하나), chips: [칩 3~4개], answer: 정답 칩 번호, vars, explain }
+//   vars: { 대문자이름: [값, …] | { min, max } } — q·sql·wrong·chips·explain의 {이름}을 바꿔 끼움.
 //
-// 정답·오답 보기는 실제 실행 결과로 정한다(학습자 기기의 Pyodide 작업자). 같은 틀·씨앗·시도 번호면
-// 언제나 같은 문제가 나온다. 보기가 겹치면(dup) 다음 시도 번호로 다시 만든다(최대 TEMPLATE_ATTEMPTS번).
-// 점검기(tests/content.py)는 씨앗 0~99를 이 파일의 instantiate로 만들어 CPython으로 돌려 보고,
-// 아래 judgeInstance와 같은 규칙으로 모든 씨앗이 TEMPLATE_ATTEMPTS번 안에 문제가 되는지 확인한다.
-// 앱은 씨앗을 0~99에서만 고르므로 학습자가 받는 문제는 모두 점검기가 미리 돌려 본 것이다.
-import { normalize } from "./grade.js";
+// choice 문제: 화면에 정답 SQL(sql)을 보여 주고 「결과로 알맞은 표는?」을 묻는다. 보기는 정답 SQL과 오답 SQL을 장터 데이터베이스에서
+// 실제로 돌린 결과 표({ sql } 보기 → 화면이 sqlview.fillResults로 작은 표를 그림). 오답 SQL이 오류를 내면 「오류가 나요」 보기.
+// blank 문제: 칩을 넣은 SQL을 돌려, 정답 칩만 정답 결과 표가 나와야 한다(오답 칩은 오류이거나 다른 표).
+//
+// 같은 틀·씨앗·시도 번호면 언제나 같은 문제가 나온다. 보기가 겹치면(dup) 다음 시도 번호로 값을 다시 뽑는다(최대 TEMPLATE_ATTEMPTS번).
+// 레슨 점검기(tests/content.js 규칙 templates)는 씨앗 0~99를 이 파일의 instantiate·runList·judgeInstance로 장터 데이터베이스에서
+// 돌려 보고 모든 씨앗이 TEMPLATE_ATTEMPTS번 안에 문제가 되는지 확인한다. 앱은 씨앗을 0~99에서만 고르므로 학습자가 받는 문제는
+// 모두 점검기가 미리 돌려 본 것이다.
+import { sameTable, hasOrderBy } from "./grade.js";
+import { OPT_ROWS } from "./ui/sqlview.js";
 
 export const TEMPLATE_SEEDS = 100;
 export const TEMPLATE_ATTEMPTS = 5;
-export const OPTION_COLS = 30;               // 보기 한 줄 폭(한글 2칸) — 점검기와 같은 값
-export const ERROR_OPTION = "오류가 나요";   // 오답 코드가 오류를 내면 이 보기
-export const OUT_KEY = "OUT";
+export const ERROR_OPTION = "오류가 나요";   // 오답 SQL이 오류를 내면 이 보기
+export const BLANK = "___";
 const VAR_RE = /\{([A-Z][A-Z0-9_]*)\}/g;
 
 function hashStr(str) {
@@ -30,6 +32,7 @@ function hashStr(str) {
   return h >>> 0;
 }
 
+// tools/gen_market.js·src/build.js·src/daily.js도 쓴다(판정 R4)
 export function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -47,13 +50,6 @@ export function placeholders(text) {
   return [...out];
 }
 
-/** 화면 폭(한글·전각 2칸) */
-export function textWidth(s) {
-  let w = 0;
-  for (const ch of String(s)) w += /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/.test(ch) ? 2 : 1;
-  return w;
-}
-
 /** 틀에 값을 바꿔 끼운 한 벌. 실행은 하지 않는다. vars 이름은 정렬 순서로 뽑는다(점검기와 같은 순서). */
 export function instantiate(t, seed, attempt = 0) {
   const rng = mulberry32(hashStr(`${t.id}|${seed}|${attempt}`));
@@ -63,64 +59,79 @@ export function instantiate(t, seed, attempt = 0) {
     vals[k] = Array.isArray(v) ? v[Math.floor(rng() * v.length)] : v.min + Math.floor(rng() * (v.max - v.min + 1));
   }
   const fill = (s) => (typeof s === "string" ? s.replace(VAR_RE, (m, k) => (Object.hasOwn(vals, k) ? String(vals[k]) : m)) : s);
-  return {
+  const inst = {
     id: t.id, seed, attempt, vals, type: t.type, concept: t.concept,
-    q: fill(t.q), code: fill(t.code), stdin: fill(t.stdin ?? ""), explain: fill(t.explain ?? ""),
+    q: fill(t.q), sql: fill(t.sql), explain: fill(t.explain ?? ""),
     wrong: (t.wrong || []).map(fill), chips: (t.chips || []).map(fill), answer: t.type === "blank" ? t.answer : 0,
   };
+  if (Array.isArray(t.tables) && t.tables.length) inst.tables = t.tables.slice();
+  return inst;
 }
 
-/** 실행할 코드 목록: choice → [정답, 오답…], blank → 칩마다 빈칸을 채운 코드(칩 순서) */
+/** 실행할 SQL 목록: choice → [정답, 오답…], blank → 칩마다 빈칸을 채운 SQL(칩 순서) */
 export function runList(inst) {
-  return inst.type === "blank" ? inst.chips.map((c) => inst.code.split("___").join(c)) : [inst.code, ...inst.wrong];
+  return inst.type === "blank" ? inst.chips.map((c) => inst.sql.split(BLANK).join(c)) : [inst.sql, ...inst.wrong];
 }
 
-const outText = (r) => (r && r.error ? null : normalize(r ? r.stdout : ""));
+/** 보기 표 둘이 화면에서 같아 보이나: 열 이름, 앞 OPT_ROWS행(순서대로), 전체 행 수와 잘림 (오류가 있으면 false) */
+export function optionsLookSame(a, b) {
+  if (!a || !b || a.error || b.error) return false;
+  if (a.rows.length !== b.rows.length || !!a.truncated !== !!b.truncated) return false;
+  return sameTable({ columns: a.columns, rows: a.rows.slice(0, OPT_ROWS) }, { columns: b.columns, rows: b.rows.slice(0, OPT_ROWS) }, { ordered: true }).ok;
+}
+
+const isTimeout = (r) => !!r && (r.timeout === true || r.error === "timeout");
+
+/** 결과 표 둘을 학습자가 구별할 수 없나. 둘 다 오류면 같은 「오류가 나요」 보기 */
+function collide(a, b, ordered) {
+  if (a.error && b.error) return true;
+  if (a.error || b.error) return false;
+  if (!!a.truncated !== !!b.truncated) return false;
+  return sameTable(a, b, { ordered }).ok || optionsLookSame(a, b);
+}
 
 /**
  * 실행 결과로 문제를 만든다. 돌려줌 { ok: true, item } | { ok: false, why }.
- * why: "dup"(보기가 겹침 → 다음 시도) · "answer-error"(정답 코드가 오류) · "empty" · "multiline" · "wide"
+ * why: "dup"(보기가 겹침 → 다음 시도) · "answer-error"(정답 SQL이 오류) · "empty"(정답 결과가 0행) · "slow"(시간 초과)
  * (dup 말고는 틀을 잘못 쓴 것 — 점검기가 오류로 알린다)
  */
 export function judgeInstance(inst, results) {
+  if (results.some(isTimeout)) return { ok: false, why: "slow" };
+  const list = runList(inst);
   const ai = inst.type === "blank" ? inst.answer : 0;
-  const ans = outText(results[ai]);
-  if (ans === null) return { ok: false, why: "answer-error" };
-  if (!ans) return { ok: false, why: "empty" };
-  const fillOut = (s) => s.split(`{${OUT_KEY}}`).join(ans);
+  const ans = results[ai];
+  if (!ans || ans.error) return { ok: false, why: "answer-error" };
+  if (!ans.rows.length) return { ok: false, why: "empty" };
+  const ordered = hasOrderBy(list[ai]);
   if (inst.type === "blank") {
-    if (/\{OUT\}/.test(inst.q + inst.explain) && ans.includes("\n")) return { ok: false, why: "multiline" };
-    for (let i = 0; i < results.length; i++) {
-      if (i !== ai && outText(results[i]) === ans) return { ok: false, why: "dup" };
-    }
+    for (let i = 0; i < results.length; i++) if (i !== ai && collide(ans, results[i], ordered)) return { ok: false, why: "dup" };
     return {
       ok: true,
-      item: { type: "blank", concept: inst.concept, q: fillOut(inst.q), code: inst.code, chips: inst.chips.slice(), answer: ai,
-        explain: fillOut(inst.explain), ...(inst.stdin ? { stdin: inst.stdin } : {}) },
+      item: { type: "blank", concept: inst.concept, q: inst.q, code: inst.sql, chips: inst.chips.slice(), answer: ai, explain: inst.explain },
     };
   }
-  const opts = results.map((r) => { const t = outText(r); return t === null ? ERROR_OPTION : t; });
-  if (opts.some((o) => o.includes("\n"))) return { ok: false, why: "multiline" };
-  if (opts.some((o) => !o.trim())) return { ok: false, why: "empty" };
-  if (opts.some((o) => textWidth(o) > OPTION_COLS)) return { ok: false, why: "wide" };
-  if (new Set(opts).size !== opts.length) return { ok: false, why: "dup" };
-  return {
-    ok: true,
-    item: { type: "choice", concept: inst.concept, q: fillOut(inst.q), code: inst.code, options: opts, answer: 0,
-      explain: fillOut(inst.explain), ...(inst.stdin ? { stdin: inst.stdin } : {}) },
+  for (let a = 0; a < results.length; a++) {
+    for (let b = a + 1; b < results.length; b++) if (collide(results[a], results[b], ordered)) return { ok: false, why: "dup" };
+  }
+  const item = {
+    type: "choice", concept: inst.concept, q: inst.q, code: inst.sql,
+    options: results.map((r, i) => (r.error ? ERROR_OPTION : { sql: list[i] })), answer: 0, explain: inst.explain,
   };
+  if (inst.tables) item.tables = inst.tables.slice();
+  return { ok: true, item };
 }
 
 /**
- * 틀 하나 + 씨앗 → 문제(lesson.js가 그리는 choice/blank 모양 + tpl·seed·attempt). 실패하면 null.
- * @param run async (code, stdin) => { stdout, error } (앱: Pyodide 작업자)
+ * 틀 하나 + 씨앗 → 문제(lesson.js가 그리는 choice/blank 모양 + tpl·seed·attempt). 만들지 못하면 null.
+ * @param run async (sql) => { columns, rows, error, truncated, timeout } (앱: SqlRun.run). 실행기가 아예 못 도는 경우에는
+ *            run이 예외를 던지면 된다(→ null).
  */
 export async function makeTemplateItem(t, seed, run) {
   for (let attempt = 0; attempt < TEMPLATE_ATTEMPTS; attempt++) {
     const inst = instantiate(t, seed, attempt);
     const results = [];
     try {
-      for (const code of runList(inst)) results.push(await run(code, inst.stdin));
+      for (const sql of runList(inst)) results.push(await run(sql));
     } catch {
       return null;
     }

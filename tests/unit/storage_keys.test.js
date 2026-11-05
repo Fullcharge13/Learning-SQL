@@ -33,7 +33,7 @@ test("all storage keys start with dueogi-", () => {
     for (const m of src.matchAll(constRe)) consts.push({ id: m[1], value: m[2], where });
     for (const m of src.matchAll(callRe)) { if (m[1]) add(m[1], where); else used.add(m[2]); }
   }
-  // 저장 칸으로 쓰이는 *_KEY 와 캐시 이름 접두사(*_PREFIX)만 본다(예: template.js의 OUT_KEY는 저장 칸이 아님)
+  // 저장 칸으로 쓰이는 *_KEY 와 캐시 이름 접두사(*_PREFIX)만 본다(이름이 _KEY로 끝나도 저장 칸에 쓰이지 않는 상수는 건너뜀)
   for (const c of consts) if (c.id.endsWith("PREFIX") || used.has(c.id)) add(c.value, c.where);
   const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
   for (const m of sw.matchAll(/const\s+\w*CACHE\w*\s*=\s*["'`]([^"'`]+)["'`]/g)) add(m[1], "sw.js");

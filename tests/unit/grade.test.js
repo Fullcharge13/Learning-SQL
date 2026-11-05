@@ -1,14 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalize, hasOrderBy, sameTable, judgeBuild, explain, cardsToSql } from "../../src/grade.js";
+import { hasOrderBy, sameTable, judgeBuild, explain, cardsToSql } from "../../src/grade.js";
 import { ERRORS, FALLBACK } from "../../data/errors.js";
 
 const T = (columns, rows, extra = {}) => ({ columns, rows, error: null, truncated: false, ...extra });
-
-test("normalize", () => {
-  assert.equal(normalize("a  \r\nb\n\n"), "a\nb");
-  assert.equal(normalize(null), "");
-});
 
 test("cardsToSql joins with one space", () => {
   assert.equal(cardsToSql(["SELECT", "name", "FROM", "items"]), "SELECT name FROM items");

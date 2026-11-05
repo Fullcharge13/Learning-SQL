@@ -88,7 +88,7 @@ for (const f of names) {
     if (seen.has(lid)) throw new Error(`${f}: ADVANCED lesson id ${lid} is used twice`);
     seen.add(lid);
   }
-  // 매일 도전 틀(v0.9): export const TEMPLATES = [{ id: "N-T1", … }]. 없어도 됨. 내용 검사는 tests/content.py
+  // 매일 도전 틀(v0.9): export const TEMPLATES = [{ id: "N-T1", … }]. 없어도 됨. 내용 검사는 tests/content.js(규칙 templates)
   const tpl = m.TEMPLATES === undefined ? [] : m.TEMPLATES;
   if (!Array.isArray(tpl)) throw new Error(`${f}: TEMPLATES must be an array`);
   const tseen = new Set();

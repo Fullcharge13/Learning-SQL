@@ -1,6 +1,7 @@
 // 장 따로 불러오기 (v0.3 작업 1, 설계 docs/specs/2026-10-30-장-따로-불러오기-설계.md)
 //
-// - 레슨 목록(index): 장 번호·제목, 레슨 id·title·goal·summary·isExam, 레슨이 쓰는 개념 id. 학습 길·설정·진도·배지는 이것만 쓴다.
+// - 레슨 목록(index): 장 번호·제목, 레슨 id·title·goal·summary·isExam, 레슨이 쓰는 개념 id, build 문제가 있으면 hasBuild.
+//   학습 길·설정·진도·배지·매일 도전 고르기는 이것만 쓴다.
 //   심화 레슨(v0.7)은 장의 `advanced` 칸에 따로(id·title·goal·concepts·isAdvanced). ADVANCED가 없는 장은 이 칸이 없다.
 // - 매일 도전 틀(v0.9): 장 파일의 TEMPLATES. 목록에는 장의 `templates` 칸에 id·개념만(없는 장은 칸 없음).
 // - 장 파일(lessons/chN-<지문8자>.json): 장 하나의 { CHAPTER, LESSONS, ADVANCED?, TEMPLATES? } 전체. 레슨을 열 때 getChapter(n)으로 받는다.
@@ -35,12 +36,14 @@ function conceptsOf(l) {
   return concepts;
 }
 
-/** 레슨 하나의 목록 칸(문제·카드 없음) */
+/** 레슨 하나의 목록 칸(문제·카드 없음). build 문제가 있으면 hasBuild: true (매일 도전 조립 문제 고르기, 작업 11) */
 export function lessonStub(l, chapterId) {
-  return withUpdated({
+  const stub = {
     id: l.id, chapter: l.chapter ?? chapterId, title: l.title, goal: l.goal || "",
     summary: Array.isArray(l.summary) ? l.summary.slice() : [], isExam: !!l.isExam, concepts: conceptsOf(l),
-  }, l);
+  };
+  if ((Array.isArray(l.items) ? l.items : []).some((it) => it && it.type === "build")) stub.hasBuild = true;
+  return withUpdated(stub, l);
 }
 
 /** 보강 판 이름(updated)이 맞는 형식이면 stub에 옮긴다 */

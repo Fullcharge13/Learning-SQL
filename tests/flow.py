@@ -24,7 +24,10 @@
 - test_build_solve: 조립 문제를 카드 누르기로 — 틀린 조립 실행(결과 표) → 오류 실행(설명) → 틀린 제출(내 결과·기대 결과 나란히)
                     → 맞게 고쳐 제출 → 「단서를 따라 고쳐서 통과!」, 통계 fixed·hintfree 1. 캡처 build-*.png (iPhone 17)
 - test_lesson: 카드 SQL+결과 표, 행 많은 카드(30vh 상자), 객관식 표 보기(44px·포커스 없음), 「쓸 표 보기」 세 가지 닫기·한글 뜻·5행, 조립에도 단추. 캡처 lesson-*.png\n- test_lesson_wrong_option / test_lesson_no_engine: 틀린 보기 안내, 실행기 없을 때 카드 안내·보기는 SQL 글자로\n- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
-- SKIP(까닭 출력): test_advanced_branch·test_new_content_dot(실제 레슨 필요, 작업 12), test_daily_challenge(SQL 틀, 작업 11)
+- test_daily_challenge(작업 11): 시험용 1장(1-1·1-2)을 끝낸 저장 → 홈 카드 → 틀 객관식(보기 = SQL 결과 표)·틀 빈칸·카드 조립 3문제
+  → 새로고침 뒤 이어서 → 완료 화면 XP 15·엽전 10. 캡처 daily-*.png
+- test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
+- SKIP(까닭 출력): test_advanced_branch·test_new_content_dot(실제 레슨 필요, 작업 12)
 """
 
 import atexit
@@ -251,12 +254,15 @@ class App:
             return next(i for i, x in enumerate(items) if x["type"] == "build" and " ".join(str(x.get("q") or "").split()) == q)
         norm = lambda v: " ".join(str(v or "").split())
         q = self.page.inner_text("h1.q")
+        # 결과 표 보기(.opt[data-sql])는 표 글자 대신 SQL로 알아본다(작업 11 매일 도전 틀)
         shown = sorted(t.strip() for t in self.page.eval_on_selector_all(
-            ".opt .opt-text, .chip, #op .line", "es => es.map(e => e.innerText)"))
+            ".opt, .chip, #op .line",
+            "es => es.map(e => e.classList.contains('opt') ? (e.dataset.sql || e.querySelector('.opt-text').innerText) : e.innerText)"))
         code = self.page.eval_on_selector_all("article.item > pre.code", "es => es.map(e => e.innerText).join('')")
 
         def keyset(x):
-            return sorted(str(v).strip() for v in (x.get("options") or x.get("chips") or x.get("lines") or []))
+            return sorted((v["sql"] if isinstance(v, dict) else str(v)).strip()
+                          for v in (x.get("options") or x.get("chips") or x.get("lines") or []))
         cands = [i for i, x in enumerate(items) if x["type"] != "build" and norm(x.get("q")) == norm(q) and keyset(x) == shown]
         if len(cands) > 1:
             cands = [i for i in cands if norm(items[i].get("code")) == norm(code)] or cands
@@ -268,10 +274,15 @@ class App:
         if t in ("choice", "check"):
             right = it["options"][it["answer"]]
             target = right if correct else next(o for o in it["options"] if o != right)
-            for b in self.page.query_selector_all(".opt"):
-                if b.query_selector(".opt-text").inner_text().strip() == target:
-                    b.click()
-                    break
+            if isinstance(target, dict):   # 결과 표 보기: 그 SQL의 보기를 누름
+                h = self.page.evaluate_handle("(q) => [...document.querySelectorAll('.opt')].find((b) => b.dataset.sql === q) || null", target["sql"])
+                assert h.as_element(), "option %r not on screen" % target["sql"]
+                h.as_element().click()
+            else:
+                for b in self.page.query_selector_all(".opt"):
+                    if b.query_selector(".opt-text").inner_text().strip() == target:
+                        b.click()
+                        break
         elif t == "blank":
             right = it["chips"][it["answer"]]
             target = right if correct else next(c for c in it["chips"] if c != right)
@@ -990,7 +1001,7 @@ def test_new_content_dot():
 
 
 
-# ---------------------------------------------------------------- 매일 도전 (v0.9 작업 2)
+# ---------------------------------------------------------------- 매일 도전 (리아 v0.9 작업 2 → 두억이 작업 11)
 
 DAILY_JS = "() => { const l = window.__ria.app.dailyLesson; return l ? l.items : null; }"
 
@@ -1016,8 +1027,16 @@ def _daily_answer_one(a, shots):
         a.solve_build(it)
     else:
         assert a.page.query_selector(".tag.daily"), "daily tag missing"
-        if "item" in shots:
-            a.shot(shots.pop("item"))
+        if it["type"] == "choice":
+            # 틀 객관식: 보기는 실제로 돌린 결과 표(오답 SQL이 오류면 「오류가 나요」 글자), 정답 SQL이 문제에 보임
+            n_sql = sum(1 for o in it["options"] if isinstance(o, dict))
+            a.page.wait_for_function("(n) => document.querySelectorAll('.opt .rtable').length === n", arg=n_sql, timeout=ENGINE_READY_MS)
+            code = a.page.inner_text("article.item > pre.code")
+            assert code.strip() == it["code"].strip() and it["options"][it["answer"]] == {"sql": it["code"]}, (code, it)
+            if "choice" in shots:
+                a.shot(shots.pop("choice"))
+        elif "blank" in shots:
+            a.shot(shots.pop("blank"))
         a.answer_touch(it)
         a.page.wait_for_selector("#result:not([hidden])")
     assert a.cont(), "daily item %d (%s) judged wrong" % (idx, it["type"])
@@ -1025,7 +1044,6 @@ def _daily_answer_one(a, shots):
 
 
 def test_daily_challenge():
-    raise SkipTest('매일 도전 틀을 SQL로 바꾸는 작업 11 전에는 틀 문제를 만들 수 없음')
     with App("iPhone 17") as a:   # 새 저장: 잠긴 카드
         a.start()
         c = _daily_card(a)
@@ -1033,8 +1051,9 @@ def test_daily_challenge():
         assert a.save()["daily"]["picks"] == [], "no picks before chapter 1"
         assert not a.errors, a.errors
 
-    done12 = ["%d-%d" % (c, k) for c in (1, 2) for k in range(1, 6)]
-    base = {"saveVer": 2, "completed_lessons": done12, "current_chapter": 3, "current_lesson": "3-1",
+    # 시험용 1장은 레슨 2개(1-1·1-2)와 틀 2개(1-T1 객관식, 1-T2 빈칸) — 1장을 끝내면 도전이 열림
+    done12 = ["1-1", "1-2"]
+    base = {"saveVer": 1, "completed_lessons": done12, "current_chapter": 1, "current_lesson": "1-2",
             "settings": {"sound": False, "dailyGoal": 10, "name": ""}}
     with App("iPhone 17", save=base) as a:
         a.start()
@@ -1052,13 +1071,14 @@ def test_daily_challenge():
         picks = s0["daily"]["picks"]
         assert s0["daily"]["date"] == today() and len(picks) == 3, s0["daily"]
         assert [p["kind"] for p in picks] == ["tpl", "tpl", "build"], picks
-        assert all(p["chapter"] in (1, 2) for p in picks), picks
+        assert all(p["chapter"] == 1 for p in picks), picks
+        assert sorted(p["id"] for p in picks[:2]) == ["1-T1", "1-T2"], picks
         assert picks[2]["lesson"] in done12, picks
         xp0, bytes0 = s0["xp"], s0["yeopjeon"]
 
         a.wait_engine()
         a.page.click("#daily")
-        shots = {"item": "daily-item.png", "build": "daily-build.png"}
+        shots = {"choice": "daily-choice.png", "blank": "daily-blank.png", "build": "daily-build.png"}
         kinds = [_daily_answer_one(a, shots)]
         a.page.wait_for_selector("article.item")
         s1 = a.save()
@@ -1075,7 +1095,7 @@ def test_daily_challenge():
         a.page.click("#daily")
         for _ in range(2):
             kinds.append(_daily_answer_one(a, shots))
-        assert "build" in kinds and kinds.count("build") == 1, kinds
+        assert sorted(kinds) == ["blank", "build", "choice"], kinds
         a.page.wait_for_selector(".screen.done", timeout=10_000)
         a.page.wait_for_timeout(300)
         title = a.page.inner_text(".done-hero h1")
@@ -1105,6 +1125,23 @@ def test_daily_challenge():
         assert c["btn"] == "완료됨" and c["disabled"], c
         assert a.save()["daily"]["picks"] == picks
         assert not a.errors, a.errors
+
+
+def test_daily_no_engine():
+    """sql-wasm.wasm을 못 받음 → 틀 보기를 만들 수 없음 → 「SQL 실행기를 깨우는 중에 문제가 생겼어요」 + 다시 시도(푼 기록 그대로)"""
+    base = {"saveVer": 1, "completed_lessons": ["1-1", "1-2"], "current_chapter": 1, "current_lesson": "1-2",
+            "settings": {"sound": False, "dailyGoal": 10, "name": ""}}
+    with App("iPhone 17", save=base, block=("**/sql-wasm.wasm",)) as a:
+        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.start()
+        a.page.click("#daily")
+        a.page.wait_for_selector(".lesson-wait[data-state=error]", timeout=ENGINE_READY_MS)
+        assert a.page.get_attribute(".lesson-wait", "data-kind") == "engine"
+        text = a.page.inner_text(".lesson-wait")
+        assert "SQL 실행기" in text and "Python" not in text, text
+        assert a.page.is_visible("#retry")
+        a.shot("daily-no-engine.png")
+        assert a.save()["daily"]["done"] == [], "nothing recorded as solved"
 
 
 # ---------------------------------------------------------------- 카드 조립 (두억이 작업 6)

@@ -103,20 +103,6 @@ export function codeBlock(code, cls = "") {
   return `<pre class="code ${cls}"><code>${esc(code)}</code></pre>`;
 }
 
-/** 가상 파일 보기(v0.4 E1): 문제의 files { 이름: 내용 }를 「파일 이름」 + 내용 칸으로 보여 준다 */
-export function filesNote(files) {
-  if (!files || typeof files !== "object") return "";
-  return Object.entries(files).map(([name, text]) =>
-    `<div class="file-note"><p class="ex-label">${icon("book")}<span>파일 <code>${esc(name)}</code></span></p><pre class="out">${esc(text)}</pre></div>`).join("");
-}
-
-/** 입력값 보기: "12\n30" → 「입력하는 값: 12 30」 */
-export function stdinNote(stdin) {
-  if (stdin == null || stdin === "") return "";
-  const vals = String(stdin).split("\n");
-  return `<p class="stdin-note">${icon("send")}<span>입력하는 값: ${vals.map((v) => `<code>${esc(v)}</code>`).join(" ")}</span></p>`;
-}
-
 /** 개념 카드의 SQL 칸: SQL(코드 글꼴) + 그 아래 실행 결과 표 자리. 표는 화면을 그린 뒤 ui/sqlview.js의 fillResults가 채운다
  *  (실행기가 준비되기 전에는 「표를 불러오는 중…」). SQL이 없는 카드는 빈 글자 */
 export function cardExample(c) {
