@@ -124,11 +124,6 @@ export function cardExample(c) {
     <div class="sql-result" data-sql="${esc(c.sql)}" data-box="card"><p class="muted">표를 불러오는 중…</p></div></div>`;
 }
 
-/** 「개념 카드 다시 보기」 창의 본문: 카드마다 말풍선 + cardExample. 보기 전용 카드(R30)는 여기서도 실행 자리 없이 코드 상자만 */
-export function cardsModalBody(cards) {
-  return (cards || []).map((c) => `<p>${esc(c.say)}</p>${cardExample(c)}`).join("");
-}
-
 export const MILESTONE_REWARD = {
   7: "보너스 50엽전을 받았어요",
   30: "졸업 가운과 학사모를 선물로 받았어요",

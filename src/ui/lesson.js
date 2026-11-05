@@ -4,7 +4,7 @@ import { current, nextCard, answer, skip, summary } from "../lessonflow.js";
 import { newSession, mark as markConcept, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../session.js";
 import { packResume, restoreSession, hasProgress } from "../resume.js";
 import { FACES } from "../say.js";
-import { esc, icon, bar, codeBlock, dialog, dueogiSays, cardExample, cardsModalBody } from "./dom.js";
+import { esc, icon, bar, codeBlock, dialog, dueogiSays, cardExample } from "./dom.js";
 import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
 import { reviewPool } from "../lessondata.js";
 import { buildDailyLesson } from "../daily.js";
@@ -437,17 +437,6 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       onHint() { buildHint(S, cur); },
       log(entry) { logSubmit(S, lesson.id, cur.index, entry.pass, new Date().toISOString()); },
     });
-  }
-
-  function showCardsModal(cards) {
-    const p = dialog({
-      title: "개념 카드 다시 보기",
-      body: cardsModalBody(cards),
-      buttons: [{ label: "닫기", value: true, kind: "primary" }],
-    });
-    const mb = document.querySelector(".modal-back .modal-body");
-    const stop = mb ? fillResults(mb, ctx.sql) : () => {};
-    p.then(stop);
   }
 
   function finishLesson() {
