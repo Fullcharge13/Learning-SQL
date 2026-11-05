@@ -12,7 +12,10 @@
 - data/outfits.js        의상(가격·얻는 법)
 - src/dueogi.js          의상·표정 한국어 이름(그림 시트 설명)
 - src/app.js             게임 안 버전 표시(VERSION)
-- build.py               Pyodide 판 번호, 크기 상한
+- build.py               크기 상한
+- node_modules/sql.js    SQL 실행기(sql.js) 판 번호
+
+(작업 16: 리아 시절 Python 실행기·코드 입력창 문장만 걷어 냈다. 나머지 문장을 두억이 앱에 맞추는 일은 작업 17)
 
 README.md는 손으로 고치지 않는다. 문장을 바꾸려면 이 파일을 고치고 다시 실행한다.
 """
@@ -77,7 +80,7 @@ def first_line(text):
 
 def build(d):
     version = read_const("src/app.js", r'export const VERSION = "([^"]+)"')
-    pyodide = read_const("build.py", r'PYODIDE_VERSION = "([^"]+)"')
+    sqljs = read_const("node_modules/sql.js/package.json", r'"version": "([^"]+)"')
     max_kb = int(read_const("build.py", r"MAX_RAW = (\d+) \* 1024"))
     concept_name = {c["id"]: c["name"] for c in d["CONCEPTS"]}
 
@@ -115,21 +118,21 @@ def build(d):
     adv_part = f"심화 레슨 {n_adv}개 · " if n_adv else ""
     w(f"- 내용: {len(d['chapters'])}장 · 레슨 {n_lessons}개 · {adv_part}문제 {n_items}개 · 일일 퀘스트 {n_quests}종 · "
       f"배지 {n_badges}개 · 리아 교수 의상 {n_outfits}벌 · 표정 {len(d['faces'])}가지")
-    w("- 서버 없음: Python 실행은 브라우저 안의 **Pyodide**(브라우저에서 돌아가는 Python) "
-      f"`{pyodide}`이 맡고, 진도는 휴대폰 안(`localStorage`, 브라우저 저장 칸)에 저장돼요.")
+    w("- 서버 없음: SQL 실행은 브라우저 안의 **sql.js**(브라우저에서 돌아가는 SQLite) "
+      f"`{sqljs}`이 맡고, 진도는 휴대폰 안(`localStorage`, 브라우저 저장 칸)에 저장돼요.")
     w("- 이 게임은 듀오링고의 학습 방식(연속 기록, 짧은 레슨, 퀘스트)만 참고했고, 듀오링고의 이름·로고·캐릭터는 쓰지 않아요.")
     w("")
 
     # ---- 실행 방법
     w("## 실행 방법")
     w("")
-    w("처음 한 번은 `npm install`로 개발 도구(CodeMirror 입력창, esbuild 묶음 도구, 시험용 Pyodide)를 받아요.")
+    w("처음 한 번은 `npm install`로 개발 도구(esbuild 묶음 도구)와 SQL 실행기(sql.js)를 받아요.")
     w("")
     w("| 하고 싶은 일 | 명령 | 설명 |")
     w("|---|---|---|")
     w("| 개발하면서 열어 보기 | `python3 tools/dev.py` | 코드를 묶어 `http://127.0.0.1:8765/dev/`로 열어 줘요 |")
     w(f"| 배포 파일 만들기 | `python3 build.py` | `dist/`에 `index.html`(앱과 레슨 목록) + `lessons/`(장마다 문제 파일) + `manifest.webmanifest` + `sw.js` + 아이콘. **`lessons/` 폴더까지 함께** "
-      f"이 폴더를 그대로 웹에 올리면 돼요 (Pyodide 제외 {max_kb}KB 이하) |")
+      f"이 폴더를 그대로 웹에 올리면 돼요 (첫 HTML {max_kb}KB 이하, `sql-wasm.wasm`·`worker.js`는 따로) |")
     w("| README 다시 만들기 | `python3 tools/readme_gen.py` | 데이터 표를 바꾼 뒤 실행. `--check`는 어긋남만 검사 |")
     w("| 두억이 그림 시트 다시 뽑기 | `python3 tools/dueogi_sheet.py` | `docs/img/dueogi-sheet.png` |")
     w("| README 첫머리 화면 캡처 바꾸기 | `python3 tests/flow.py` 뒤 `python3 tools/readme_shots.py` | `docs/img/screen-home.png`, `screen-write.png`, `screen-done.png` |")
@@ -141,7 +144,7 @@ def build(d):
     w("| `npm test` | 규칙 단위 시험: 저장·옛 저장 옮기기, 연속 기록 날짜 계산, XP·바이트, 퀘스트·배지·상점, 채점 비교, 대사, 그림 |")
     w("| `python3 -m pytest tests/py -q` | 채점기(`runner.py`)를 일반 Python으로 시험: `input()` 값, 오류 줄 번호, 코드 구조 조건 |")
     w(f"| `python3 tests/content.py --full {len(d['chapters'])}` | 레슨 {n_lessons}개 전체 점검: 정답 코드가 시험을 통과하는지, 시작 코드는 통과하지 않는지, 힌트 4개 등 |")
-    w("| `python3 tests/grader_browser.py` | 실제 브라우저(Chromium) 안 Pyodide 작업자: 실행, 입력, 3초 시간 초과 뒤 재시작 |")
+    w("| `python3 tests/engine_browser.py` | 실제 브라우저(Chromium) 안 sql.js 작업자: 실행, 3초 시간 초과 뒤 재시작 |")
     w("| `python3 tests/build_test.py` | 배포 파일: 한 장인지, 크기 상한, 버전 표시, 오프라인 열기 |")
     w("| `python3 tests/flow.py` | 아이폰 17 크기 화면 순회: 넘침·콘솔 오류·터치 크기·첫 레슨 끝까지·옛 저장 |")
     w("| `node tests/sim/economy.js` | 가상 학습자 30일 × 12판 바이트 경제 시뮬레이션(중앙값 표) |")
@@ -155,8 +158,7 @@ def build(d):
     w("")
     w("```")
     structure = [
-        ("src/", "화면·규칙 코드, 리아 교수 그림(SVG), 소리, Pyodide 작업자"),
-        ("src/py/runner.py", "학습자 코드를 실행·채점하는 Python 코드(Pyodide 안에서 돎)"),
+        ("src/", "화면·규칙 코드, 두억이 그림(SVG), 소리, sql.js 작업자(worker.js)"),
         ("data/lessons/", f"1~{len(d['chapters'])}장 레슨 표 (ch1.js … ch{len(d['chapters'])}.js)"),
         ("data/", "개념·대사·퀘스트·배지·의상·오류 설명 표"),
         ("build.py", "모든 것을 HTML 한 장(dist/index.html)으로 합치기"),
@@ -279,7 +281,7 @@ def build(d):
     w("- **레슨 문장과 예제**는 모두 새로 썼어요. 아래 두 자료는 **장 순서와 예제 주제를 정하는 참고로만** 썼고, 문장을 옮기지 않았어요.")
     w("  - Python Tutorial 3.7 — Python Software Foundation (PSF)")
     w("  - Thomas Weise, 『Programming with Python』")
-    w("- 쓰는 도구: Pyodide (MPL-2.0), CodeMirror 6 (MIT), esbuild (MIT, 빌드 때만). 소리는 Web Audio로 합성해 음원 파일이 없어요.")
+    w(f"- 쓰는 도구: sql.js {sqljs} (MIT, 안의 SQLite는 퍼블릭 도메인), esbuild (MIT, 빌드 때만). 소리는 Web Audio로 합성해 음원 파일이 없어요.")
     w("")
 
     # ---- 한계
@@ -287,7 +289,7 @@ def build(d):
     w("")
     limits = [
         "실제 아이폰(홈 화면 앱)에서 판마다 확인하고 있어요. 자동 시험은 Chromium에 아이폰 17 화면 설정을 입혀서 해요 → `docs/device-checklist.md`.",
-        f"Pyodide(`pyodide@{pyodide}`)는 처음 한 번 인터넷(jsDelivr, 공개 파일 배달망)에서 받아요. 그 뒤로는 휴대폰에 저장돼 비행기 모드에서도 돼요.",
+        "SQL 실행기(`sql-wasm.wasm`)는 처음 한 번 앱과 함께 받아요. 그 뒤로는 휴대폰에 저장돼 비행기 모드에서도 돼요.",
         "사파리는 홈 화면에 추가하지 않은 웹사이트의 저장을 7일 동안 방문이 없으면 지울 수 있어요. 홈 화면에 추가를 안내하고, 브라우저에 저장 보존을 요청하며(`navigator.storage.persist`), 설정에 저장 내보내기·가져오기를 두었어요.",
         "서버가 없어 「숨은 시험」의 답도 앱 파일 안에 들어 있어요. 마음먹고 파일을 열어 보면 볼 수 있어요.",
         "채점은 출력과 「꼭 쓸 문법」(함수·반복·주석·elif·else 등)을 보지만, 「객체에 이름을 담았는지」처럼 값의 흐름까지는 보지 않아요(15-1, 16-1에 작은 빈틈).",

@@ -6,12 +6,16 @@
 
 SVG 문자열은 `node`로 src/dueogi.js를 불러 얻고, Playwright Chromium으로 찍는다(deviceScaleFactor 2).
 첨부 참고 그림은 저장소에 넣지 않으며 이 도구도 읽지 않는다.
+Pillow(`pip install pillow`)가 있으면 찍은 PNG를 256색으로 줄여 파일을 작게 한다. 없으면 줄이기만 건너뛰고 알린다.
 """
 import json
 import pathlib
 import subprocess
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:  # 줄이기(quantize)만 쓰므로 없어도 시트는 만든다
+    Image = None
 from playwright.sync_api import sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -71,6 +75,9 @@ def main():
             b.close()
     # 평평한 색 그림이라 256색으로 줄여도 눈에 띄지 않고 파일이 작아진다
     png = OUT / "dueogi-sheet.png"
+    if Image is None:
+        print("Pillow가 없어 256색 줄이기를 건너뜀 (pip install pillow). wrote", png, png.stat().st_size, "bytes")
+        return
     Image.open(png).convert("RGB").quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(png, optimize=True)
     print("wrote", png, png.stat().st_size, "bytes")
 
