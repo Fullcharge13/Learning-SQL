@@ -3,7 +3,8 @@
 // 표정: 상황마다 하나(src/say.js SITUATION_FACE와 같음 — 시험 faces). 화남(angry)은 쓰지 않는다.
 // 자리 표시: {name} {streak} {xp} {outfit}
 //   {outfit}에는 의상 표의 short 이름이 들어간다(C16). 조사가 붙지 않는 자리에만 쓴다.
-//   {streak}·{xp}·{outfit} 값이 없으면 say()가 그 줄을 건너뛴다. 상황마다 자리 표시 없는 줄을 하나 이상 둔다.
+//   {streak}·{xp}·{outfit} 값이 없으면 say()가 그 줄을 건너뛴다. 상황마다 자리 표시 없는 줄을 둘 이상 둔다
+//   (값이 없을 때도 같은 줄이 잇달아 나오지 않게 — 시험 no_repeat without vars).
 // {name}은 줄 맨 앞에 「{name}님, 」 꼴로 한 번만 쓴다.
 //   이름이 비어 있으면 say()가 이 덩어리를 통째로 빼므로 문장이 그대로 자연스럽다.
 //   (문장 가운데 「{name}님이」처럼 쓰면 빼고 나서 조사가 남으므로 금지. 시험 name_form)
@@ -33,7 +34,7 @@ export const LINES = {
     { text: "괜찮아요. 틀린 답에도 단서가 숨어 있어.", face: "surprise" },
     { text: "앗, 나도 여기서 자주 헷갈렸어요.", face: "surprise" },
     { text: "음, 결과 표를 한 줄씩 다시 짚어 볼까?", face: "surprise" },
-    { text: "좋은 시도예요. 다음엔 문제를 천천히 읽어 봐요.", face: "surprise" },
+    { text: "좋은 시도예요. 문제 속 단서를 한 번 더 볼까요?", face: "surprise" },
   ],
   running: [
     { text: "타닥타닥… SQL이 장부를 뒤지는 중이에요.", face: "think" },
@@ -69,6 +70,7 @@ export const LINES = {
     { text: "{name}님, {streak}일째예요. 습관이 자라고 있어요.", face: "laugh" },
     { text: "오늘 목표 달성! 엽전 모으듯 차곡차곡 쌓여요.", face: "laugh" },
     { text: "오늘도 해냈어요. 연속 {streak}일 달성!", face: "laugh" },
+    { text: "오늘 몫 끝! 내일도 장터에서 기다릴게요.", face: "laugh" },
   ],
   streak_broken: [
     { text: "다시 1일부터! 이번엔 더 길게 가 봐요.", face: "cry" },
@@ -81,6 +83,7 @@ export const LINES = {
     { text: "{outfit}, 마음에 쏙 들어요. 오늘은 이걸로!", face: "eat" },
     { text: "새 옷 {outfit}! 고르는 안목이 있네요.", face: "eat" },
     { text: "옷은 바뀌어도 방망이는 그대로예요. 짝꿍이거든.", face: "eat" },
+    { text: "새 옷 입으니 장터 나들이 가고 싶어지네요!", face: "eat" },
   ],
   welcome_back: [
     { text: "{name}님, 오랜만이에요! 깜빡 졸고 있었어요.", face: "sleep" },

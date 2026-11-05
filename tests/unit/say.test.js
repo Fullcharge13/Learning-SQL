@@ -4,6 +4,7 @@ import { LINES, FALLBACK_LINE } from "../../data/lines.js";
 import { OUTFITS } from "../../data/outfits.js";
 import { say, SITUATION_FACE, FACES as SAY_FACES, doneFace } from "../../src/say.js";
 import { FACE_IDS } from "../../src/dueogi.js";
+import * as SAY_FACES_MOD from "../../src/say.js";
 
 const SITUATIONS = [
   "course_done",
@@ -188,7 +189,7 @@ test("streak_one: {streak}=1이어도 자연스러움 (「1일 연속」 꼴 없
   });
 });
 
-test("fallback: 모르는 상황 → 오류 없이 중립 대사, 표정 smile", () => {
+test("fallback: 모르는 상황 → 오류 없이 중립 대사, 표정 proud(의기양양)", () => {
   const r = say("no_such_situation", { name: "민지" }, seeded(1), null);
   assert.equal(typeof r.text, "string");
   assert.ok(r.text.length > 0);
@@ -272,4 +273,62 @@ test("ria.js는 지워지고 아무도 부르지 않음 (판정 R7)", async () =
   for (const d of ["src", "data", "tools", "tests/unit", "tests/sim"]) walk(join(root, d));
   walk(join(root, "tests")); // flow.py 등
   assert.deepEqual([...new Set(users)].filter((p) => !p.startsWith("tests/out/") && p !== "tests/unit/say.test.js"), []);
+});
+
+// ---- 작업 10 고침 1회차 ----
+test("stale titles: 시험 이름에 바이트·표정 smile이 남지 않음", async () => {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = new URL("./", import.meta.url);
+  for (const f of readdirSync(dir).filter((x) => x.endsWith(".test.js"))) {
+    for (const m of readFileSync(new URL(f, dir), "utf8").matchAll(/^test\("([^"]*)"/gm)) {
+      if (/없|남지 않/.test(m[1])) continue;   // 「바이트가 없음」을 지키는 시험 이름은 그대로
+      assert.doesNotMatch(m[1], /바이트|표정 smile/, `${f}: ${m[1]}`);
+    }
+  }
+});
+
+test("no_repeat without vars: 자리 표시 값이 없어도 잇달아 같은 줄이 나오지 않음(상황마다 자리 표시 없는 줄 2개 이상)", () => {
+  for (const s of SITUATIONS) {
+    const free = LINES[s].filter((l) => !/\{(streak|xp|outfit)\}/.test(l.text));
+    assert.ok(free.length >= 2, `${s}: 자리 표시 없는 줄 ${free.length}`);
+    for (const vars of [{}, { name: "민지" }]) {
+      const rng = seeded(3);
+      let last = null;
+      for (let i = 0; i < 50; i++) {
+        const r = say(s, vars, rng, last);
+        assert.notEqual(r.index, last, `${s} 반복`);
+        last = r.index;
+      }
+    }
+  }
+});
+
+test("no_repeat: 쓸 수 있는 줄이 하나뿐이면 그 줄 하나를 고르되, 둘 이상이면 절대 반복하지 않음(say 규칙)", () => {
+  // streak_up에서 {streak} 없이: 자리 표시 없는 줄만 돌아가며
+  const seen = new Set();
+  let last = null;
+  for (let i = 0; i < 30; i++) { const r = say("streak_up", {}, seeded(i), last); assert.notEqual(r.index, last); last = r.index; seen.add(r.index); }
+  assert.ok(seen.size >= 2, `streak_up 줄 ${[...seen]}`);
+  seen.clear(); last = null;
+  for (let i = 0; i < 30; i++) { const r = say("outfit_bought", {}, seeded(i), last); assert.notEqual(r.index, last); last = r.index; seen.add(r.index); }
+  assert.ok(seen.size >= 2, `outfit_bought 줄 ${[...seen]}`);
+});
+
+test("wrong lines: 꾸짖는 느낌의 「천천히 읽어」가 없음", () => {
+  const all = LINES.wrong.map((l) => l.text).join("\n");
+  assert.doesNotMatch(all, /천천히 읽어/);
+  assert.ok(LINES.wrong.some((l) => l.text.includes("문제 속 단서")));
+});
+
+test("doneFace eat: 매일 도전으로 엽전을 받으면 고기 먹기(엽전 받기, 설계 §8-3), 웃음·만세와 겹치지 않음", () => {
+  const base = { firstTime: true, perfect: false, newBadges: [], finished: [], chest: false };
+  assert.equal(doneFace({ ...base, mode: "daily", totalYeopjeon: 10 }, null, "cheer"), "eat");
+  assert.equal(doneFace({ ...base, mode: "daily", totalYeopjeon: 0, xp: 0 }, null, "cheer"), "cheer", "보상을 이미 받은 날");
+  assert.equal(doneFace({ ...base, mode: "daily", totalYeopjeon: 18, finished: ["q_xp20"] }, null, "cheer"), "laugh", "퀘스트가 먼저");
+  assert.equal(doneFace({ ...base, mode: "lesson", totalYeopjeon: 10 }, { isExam: false }, "cheer"), "cheer", "보통 레슨은 만세 그대로");
+  assert.equal(SAY_FACES.yeopjeon, "eat");
+  const { milestoneFace } = SAY_FACES_MOD;
+  assert.equal(milestoneFace(7), "eat", "7일 이정표 = 50엽전");
+  assert.equal(milestoneFace(30), "laugh");
+  assert.equal(milestoneFace(100), "laugh");
 });

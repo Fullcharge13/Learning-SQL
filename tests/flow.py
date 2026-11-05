@@ -1684,6 +1684,8 @@ def test_card_table_above_button():
                         a.js("() => window.scrollTo(0, 1e6)")
                         a.page.wait_for_timeout(100)
                     p = a.js(CARD_FOOT_JS)
+                    if not a.js("() => document.querySelector('.screen.lesson').classList.contains('on-card')"):
+                        fails.append("%s %s: .screen.lesson has no on-card class on a card (:has() fallback)" % (dev, lid))
                     visible_table = p["bottom"] > 0 and p["top"] < p["vh"]
                     overlap = visible_table and p["bottom"] > p["footTop"] + 0.5 and p["top"] < p["footBottom"]
                     if overlap:
@@ -1691,11 +1693,35 @@ def test_card_table_above_button():
                             dev, lid, when, p["top"], p["bottom"], p["footTop"], p["footBottom"], p["pos"]))
                     if when == "bottom" and not (p["btnTop"] >= -0.5 and p["btnBottom"] <= p["vh"] + 0.5):
                         fails.append("%s %s: button off screen after scrolling %d..%d / %d" % (dev, lid, p["btnTop"], p["btnBottom"], p["vh"]))
+                if lid == "8-5" and dev == "iPhone 17e":
+                    # :has()를 모르는 브라우저 흉내: :has 규칙을 모두 지운 뒤에도 on-card 클래스만으로 겹치지 않아야 함
+                    n = a.js("""() => { let n = 0; for (const sh of document.styleSheets) { let r; try { r = sh.cssRules; } catch { continue; }
+                      for (let i = r.length - 1; i >= 0; i--) if (r[i].selectorText && r[i].selectorText.includes(':has(')) { sh.deleteRule(i); n++; } } return n; }""")
+                    for when in ("top", "bottom"):
+                        a.js("() => window.scrollTo(0, %s)" % ("0" if when == "top" else "1e6"))
+                        a.page.wait_for_timeout(100)
+                        p = a.js(CARD_FOOT_JS)
+                        if p["pos"] != "static" or (p["bottom"] > p["footTop"] + 0.5 and p["top"] < p["footBottom"] and p["top"] < p["vh"]):
+                            fails.append("no-:has %s %s (removed %d rules): table %d..%d, bar %d..%d (%s)" % (
+                                lid, when, n, p["top"], p["bottom"], p["footTop"], p["footBottom"], p["pos"]))
+                    if n < 1:
+                        fails.append("no :has rules found to remove")
                 if lid == "8-5" and dev == "iPhone 17":
                     a.js("() => window.scrollTo(0, 0)")
                     a.shot("card-8-5-top.png")
                     a.js("() => window.scrollTo(0, 1e6)")
                     a.shot("card-8-5-bottom.png")
+                # 문제로 넘어가면 on-card가 빠지고 단추 줄은 다시 고정
+                for _ in range(6):   # 카드가 여러 장이면 문제가 나올 때까지 넘김
+                    if a.page.query_selector("article.item"):
+                        break
+                    a.js("() => window.scrollTo(0, 1e6)")
+                    a.page.click("#act")
+                    a.page.wait_for_timeout(150)
+                a.page.wait_for_selector("article.item")
+                st = a.js("() => [document.querySelector('.screen.lesson').classList.contains('on-card'), getComputedStyle(document.querySelector('#foot')).position]")
+                if st != [False, "fixed"]:
+                    fails.append("%s %s: after the card, on-card/foot = %s (want no class, fixed)" % (dev, lid, st))
                 assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
 

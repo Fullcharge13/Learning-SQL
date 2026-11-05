@@ -79,15 +79,23 @@ export const FACES = Object.freeze({
   reward: "laugh",      // 퀘스트·배지 얻음, 축하 창
   wrongAgain: "run",    // 같은 문제를 두 번째 틀림
   closet: "eat",        // 의상실(엽전 쓰기)
+  yeopjeon: "eat",      // 엽전 받기: 매일 도전 완료(보상이 엽전), 연속 7일 이정표(50엽전)
   waiting: "think",     // 레슨을 펼치는 중·불러오지 못함
   install: "wink",      // 홈 화면에 추가 안내
 });
 
-/** 완료 화면 표정: 장 평가 첫 통과 결의 > 실수 없음 윙크 > 퀘스트·배지 웃음 > 대사 표정 */
+/** 완료 화면 표정: 장 평가 첫 통과 결의 > 실수 없음 윙크 > 퀘스트·배지 웃음 > 매일 도전 엽전 받기 고기 먹기 > 대사 표정(만세).
+ *  보통 레슨도 처음이면 엽전을 받지만, 그때는 「레슨 완료 = 만세」(§8-3)를 지키려고 고기 먹기는 매일 도전에만 쓴다. */
 export function doneFace(result, lesson, lineFace) {
   const r = result || {};
   if (r.firstTime && lesson && lesson.isExam) return FACES.examPass;
   if (r.firstTime && r.perfect) return FACES.perfect;
   if ((r.newBadges || []).length || (r.finished || []).length || r.chest) return FACES.reward;
+  if (r.mode === "daily" && (r.totalYeopjeon || 0) > 0) return FACES.yeopjeon;
   return lineFace;
+}
+
+/** 연속 기록 이정표 축하 창 표정: 7일은 50엽전 보상이라 고기 먹기, 30·100일(의상·배지)은 웃음 */
+export function milestoneFace(n) {
+  return n === 7 ? FACES.yeopjeon : FACES.reward;
 }

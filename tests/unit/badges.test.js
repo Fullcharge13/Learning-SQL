@@ -187,3 +187,13 @@ test("no ria strings: 검사기가 주석 속 「코드」는 넘기고 문자�
   assert.match(strip("const a = `내가 만든 코드`;"), /코드/);
   assert.match(strip("const a = '100바이트';"), /바이트/);
 });
+
+test("card layout fallback: :has() 없이도 카드 단추를 고정하지 않는 규칙이 있음(.screen.lesson.on-card)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("../../src/style.css", import.meta.url), "utf8").replace(/\/\*[^]*?\*\//g, "");
+  assert.match(css, /\.screen\.lesson\.on-card \.lesson-foot \{[^}]*position: static/);
+  assert.match(css, /\.screen\.lesson\.on-card \{[^}]*flex-direction: column/);
+  assert.match(css, /\.screen\.lesson\.on-card \.lesson-body \{[^}]*padding-bottom: 8px/);
+  // :has 규칙과 한 묶음(쉼표)으로 쓰면 :has를 모르는 브라우저가 묶음 전체를 버리므로 따로 써야 함
+  assert.doesNotMatch(css, /on-card[^{]*:has\(|:has\([^{]*on-card/);
+});

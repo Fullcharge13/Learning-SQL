@@ -1,6 +1,7 @@
 // 저장: localStorage 한 칸에 JSON 하나. 옛 저장은 migrate로 새 형식에 맞춘다.
 // saveVer 1 (두억이와 SQL! v0.1). 리아 저장과는 칸 이름이 달라 섞이지 않는다(dueogi-).
 import { OUTFITS } from "../data/outfits.js";
+import { BADGES } from "../data/badges.js";
 import { cleanSeenUpdates } from "./newcontent.js";
 import { newDaily, cleanDaily } from "./daily.js";
 
@@ -111,11 +112,22 @@ function migrateOutfits(s) {
   return s;
 }
 
+// 배지 정리(작업 10): 리아 시절 이름 first_print는 first_query로, 배지 표에 없는 id(ch1~ch3 등)는 버린다.
+// 결과는 배지 표 순서, 중복 없음 — 머리글의 n/16과 진열장이 같은 수를 보이고, 같은 배지를 다시 주지 않게.
+const BADGE_ORDER = BADGES.map((b) => b.id);
+const BADGE_RENAME = Object.freeze({ first_print: "first_query" });
+function migrateBadges(s) {
+  const have = new Set(s.badges.filter((x) => typeof x === "string").map((x) => (Object.hasOwn(BADGE_RENAME, x) ? BADGE_RENAME[x] : x)));
+  s.badges = BADGE_ORDER.filter((id) => have.has(id));
+  return s;
+}
+
 export function migrate(raw) {
   if (!isPlainObject(raw)) return newSave();
   const oldVer = raw.saveVer;
   const ver = typeof oldVer === "number" && Number.isFinite(oldVer) ? oldVer : 1; // saveVer 없음 = 첫 판(1)
   const s = clampRanges(fill(newSave(), structuredClone(raw)));
+  migrateBadges(s);
   migrateOutfits(s);   // 리아 시절 saveVer 1→2 옷 옮기기·환불은 이 앱에 없다(처음부터 saveVer 1)
   s.saveVer = ver > SAVE_VER ? ver : SAVE_VER;
   return s;

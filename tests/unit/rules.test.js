@@ -42,14 +42,14 @@ test("reward(C24): 복습 한 판 → {xp 10, yeopjeon 0}", () => {
   assert.deepEqual(reviewReward(), { xp: 10, yeopjeon: 0 });
 });
 
-test("freeze_cap: 보호권 2개에서 구매 → 오류, 바이트 그대로", () => {
+test("freeze_cap: 보호권 2개에서 구매 → 오류, 엽전 그대로", () => {
   const s = fixture({ yeopjeon: 500, freezes: 2 });
   const r = buyFreeze(s);
   assert.ok(r instanceof Error);
   assert.equal(s.yeopjeon, 500);
   assert.equal(s.freezes, 2);
 });
-test("freeze_buy: 200바이트 → 보호권 1, 바이트 0, 원본은 그대로", () => {
+test("freeze_buy: 200엽전 → 보호권 1, 엽전 0, 원본은 그대로", () => {
   const s = fixture({ yeopjeon: 200, freezes: 0 });
   const r = buyFreeze(s);
   assert.ok(!(r instanceof Error));
@@ -58,7 +58,7 @@ test("freeze_buy: 200바이트 → 보호권 1, 바이트 0, 원본은 그대로
   assert.equal(s.yeopjeon, 200);
   assert.equal(s.freezes, 0);
 });
-test("freeze_poor: 199바이트 → 오류, 그대로", () => {
+test("freeze_poor: 199엽전 → 오류, 그대로", () => {
   const s = fixture({ yeopjeon: 199 });
   const r = buyFreeze(s);
   assert.ok(r instanceof Error);

@@ -185,7 +185,7 @@ const info = (l, over = {}) => ({
   itemsSolved: 3, reviewCorrect: 0, logs: [], nextLessonId: "2-1", nextChapter: 2, advancedIds: advancedIds(IDX), ...over,
 });
 
-test("adv_finish: 첫 완료 +15 XP·+15 바이트, 지금 레슨·장은 그대로, 진도에 기록", () => {
+test("adv_finish: 첫 완료 +15 XP·+15 엽전, 지금 레슨·장은 그대로, 진도에 기록", () => {
   const s0 = saveAfter(mainIds(1));
   const { save, result } = finishLesson(s0, info(lesson("1-A1", 1, { isAdvanced: true })), at());
   assert.equal(result.xp, 15);
@@ -204,7 +204,7 @@ test("adv_finish_id_only: isAdvanced 표시가 빠져도 id 모양으로 심화 
   assert.equal(result.lessonYeopjeon, 15);
 });
 
-test("adv_finish_replay: 다시 하기는 XP 10·바이트 0", () => {
+test("adv_finish_replay: 다시 하기는 XP 10·엽전 0", () => {
   const s0 = saveAfter([...mainIds(1), "1-A1"]);
   const { result } = finishLesson(s0, info(lesson("1-A1", 1, { isAdvanced: true }), { perfect: true }), at());
   assert.equal(result.firstTime, false);

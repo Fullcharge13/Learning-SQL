@@ -357,7 +357,12 @@ main { padding: 16px calc(16px + var(--sar)) 0 calc(16px + var(--sal)); }
 /* 결과 패널·키보드 이동은 transform을 쓰므로 가운데 맞춤은 margin으로 (has-dock일 때) */
 .lesson-foot.has-dock { left: 0; right: 0; margin: 0 auto; transform: none; }
 /* 설명 카드(작업 10, 13c 이월): 결과 표가 단추 밑에 숨지 않도록 단추 줄을 고정하지 않고 카드 끝에 둔다.
-   화면 높이를 채우는 세로 줄로 놓아 짧은 카드는 단추가 화면 아래에 그대로 있고, 긴 카드는 표 다음에 단추가 온다(내려서 누름). */
+   화면 높이를 채우는 세로 줄로 놓아 짧은 카드는 단추가 화면 아래에 그대로 있고, 긴 카드는 표 다음에 단추가 온다(내려서 누름).
+   on-card 클래스는 ui/lesson.js가 카드를 그릴 때 붙인다(:has()를 모르는 옛 안드로이드 WebView·사파리 15.4 전용 대비).
+   :has 규칙은 클래스가 늦게 붙는 사이를 메운다. 두 규칙을 쉼표로 묶지 않는다(:has를 모르면 묶음 전체를 버리므로). */
+.screen.lesson.on-card { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.screen.lesson.on-card .lesson-body { flex: 1 0 auto; padding-bottom: 8px; }
+.screen.lesson.on-card .lesson-foot { position: static; transform: none; margin: 0 auto; background: var(--paper); }
 .screen.lesson:has(.card-view) { display: flex; flex-direction: column; min-height: 100dvh; }
 .screen.lesson:has(.card-view) .lesson-body { flex: 1 0 auto; padding-bottom: 8px; }
 .screen.lesson:has(.card-view) .lesson-foot { position: static; transform: none; margin: 0 auto; background: var(--paper); }

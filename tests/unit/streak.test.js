@@ -244,7 +244,7 @@ function at(days, best, extra = {}) {
   return fixture({ ...extra, streak: { days, best, lastGoalDate: "2026-10-28", todayDate: "2026-10-28", todayXp: 20 } });
 }
 
-test("M7: 6 → 7일 달성하면 +50바이트, 한 번만", () => {
+test("M7: 6 → 7일 달성하면 +50엽전, 한 번만", () => {
   const s0 = at(6, 6, { yeopjeon: 3 });
   const r = earnXp(s0, 20, "2026-10-29");
   assert.equal(r.save.streak.days, 7);

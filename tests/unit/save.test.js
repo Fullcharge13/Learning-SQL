@@ -372,3 +372,20 @@ test("migrate v0.9: 깨진 daily 값은 고침, 맞는 값은 그대로", () => 
   store(st, { ...newSave(), daily: good });
   assert.deepEqual(load(st).daily, good);
 });
+
+// ---- 작업 10 고침 1회차: 옛 배지 id ----
+test("migrate badges: first_print → first_query, 표에 없는 id(ch1~ch3 등)는 버림, 중복 없음", async () => {
+  const { BADGES } = await import("../../data/badges.js");
+  const s = migrate({ saveVer: 1, badges: ["first_print", "ch1", "ch2", "ch3", "streak7", "nope", 3, null] });
+  assert.deepEqual(s.badges, ["first_query", "streak7"]);
+  const ids = new Set(BADGES.map((b) => b.id));
+  for (const b of s.badges) assert.ok(ids.has(b), b);
+  assert.deepEqual(migrate({ saveVer: 1, badges: ["first_print", "first_query"] }).badges, ["first_query"]);
+  assert.deepEqual(migrate({ saveVer: 1, badges: ["join_master", "first_query"] }).badges, ["first_query", "join_master"], "배지 표 순서");
+});
+
+test("migrate badges: 옛 저장으로 배지 판정 — first_query를 두 번 주지 않음", async () => {
+  const { checkBadges } = await import("../../src/badges.js");
+  const s = migrate({ saveVer: 1, completed_lessons: ["1-1"], badges: ["first_print", "ch1"] });
+  assert.deepEqual(checkBadges(s, { hour: 12 }), []);
+});

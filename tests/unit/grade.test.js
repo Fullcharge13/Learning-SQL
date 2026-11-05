@@ -202,3 +202,11 @@ test("needLine: 빠진 카드 안내는 받침에 맞는 을/를 (고정 「를�
   assert.equal(needLine(["값"]), "결과는 맞았는데 이번엔 값을 써 보자");
   assert.equal(needLine(["가게"]), "결과는 맞았는데 이번엔 가게를 써 보자");
 });
+
+test("explain: misuse of aggregate는 두 말투 모두 자리를 단정하지 않음(ON 안·셈 함수 안에서도 같은 오류)", () => {
+  for (const outfit of ["basic", "detective"]) {
+    const t = explain("misuse of aggregate function COUNT()", outfit);
+    assert.doesNotMatch(t, /WHERE/, outfit);
+    assert.match(t, /다른 셈 함수 안/, outfit);
+  }
+});

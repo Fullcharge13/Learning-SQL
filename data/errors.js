@@ -28,9 +28,10 @@ export const ERRORS = {
     detective: "GROUP BY 자리에 셈 함수가 숨어 있어요. 묶기 전에는 아직 셀 수 없으니, 묶을 열만 남기고 셈 함수는 SELECT로 보내 봐요.",
   },
   "misuse of aggregate": {
+    // WHERE 안, JOIN … ON 안, 셈 함수 안의 셈 함수(SUM(COUNT(*))) 모두 같은 문장이라 자리를 단정하지 않는다
     match: /^misuse of aggregate/,
-    body: "음, 묶어서 세는 함수(COUNT, SUM 같은 것)가 놓을 수 없는 자리에 있어. 묶은 뒤의 조건이라면 HAVING, 아니면 SELECT 쪽이 제자리일 거야. 어디에 놓였는지 볼까?",
-    detective: "묶어서 세는 함수가 엉뚱한 자리에 숨어 있어요. 조건 단계(WHERE)에서는 아직 묶기 전이라 쓸 수 없어요. 어느 단계에 놓였는지 따라가 봐요.",
+    body: "음, 묶어서 세는 함수(COUNT, SUM 같은 것)가 놓을 수 없는 자리에 있어. 묶기 전 단계나 다른 셈 함수 안에서는 못 써. 묶은 뒤의 조건이면 HAVING, 아니면 SELECT 쪽을 볼까?",
+    detective: "묶어서 세는 함수가 엉뚱한 자리에 숨어 있어요. 묶기 전 단계나 다른 셈 함수 안에서는 쓸 수 없어요. 어느 자리에 놓였는지 따라가 봐요.",
   },
   // OVER가 붙은 창 함수를 WHERE·GROUP BY 등에 놓음: 「misuse of window function ROW_NUMBER()」
   "misuse of window function": {

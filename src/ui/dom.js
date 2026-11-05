@@ -1,6 +1,6 @@
 // 화면 공용 도우미: 글자 이스케이프, 요소 만들기, 두억이 말풍선, 아이콘, 창(modal)
 import { dueogiSVG } from "../dueogi.js";
-import { FACES } from "../say.js";
+import { milestoneFace } from "../say.js";
 
 export function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -125,7 +125,7 @@ export function celebrate({ outfit, milestone }) {
     const prev = document.activeElement;
     const wrap = el(`<div class="celebrate" role="dialog" aria-modal="true" aria-labelledby="cel-title">
       <div class="cel-card">
-        <div class="dueogi-wrap big jump">${dueogiSVG({ outfit, face: FACES.reward, size: 150 })}<span class="sfx" aria-hidden="true">짠!</span></div>
+        <div class="dueogi-wrap big jump">${dueogiSVG({ outfit, face: milestoneFace(milestone), size: 150 })}<span class="sfx" aria-hidden="true">짠!</span></div>
         <h2 id="cel-title" class="cel-title">${icon("flame")}연속 ${esc(milestone)}일!</h2>
         <p class="cel-reward">${esc(MILESTONE_REWARD[milestone] || "")}</p>
         <button class="btn sun wide" id="cel-ok">좋아요</button>

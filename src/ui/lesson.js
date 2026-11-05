@@ -208,6 +208,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
   const foot = root.querySelector("#foot");
   const result = root.querySelector("#result");
   const progEl = root.querySelector(".lp-bar");
+  const screenEl = root.querySelector(".screen.lesson");
 
   function setProgress() {
     const p = Math.round(summary(S.flow).progress * 100);
@@ -473,6 +474,8 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const cur = current(S.flow);
     body.scrollTop = 0;
     window.scrollTo(0, 0);
+    // 설명 카드에서는 단추 줄을 고정하지 않는다(CSS .on-card, :has() 없는 브라우저 대비)
+    screenEl.classList.toggle("on-card", cur.kind === "card");
     if (cur.kind === "done") { finishLesson(); return; }
     if (cur.kind === "card") { renderCard(cur); }
     else {
