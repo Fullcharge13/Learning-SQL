@@ -237,6 +237,7 @@ export const TEMPLATES = [
   - **6~13장: 1~3토큰의 짧은 구절 카드를 쓸 수 있다(판정 R38).** 예: `stock IS NULL`, `stock IS NOT NULL`, `COALESCE(stock, 0)`, `price > 100`, `AND`, `AS total`. 함수 부르기 `COALESCE(stock, 0)`은 괄호까지 한 단위로 친다.
     - `SELECT`·`FROM`·`WHERE`(뒤 장의 `ORDER`·`BY`·`GROUP` 등 문장 뼈대 낱말도)는 **한 장씩** 둔다. 문장 차례를 놓는 것이 조립 연습의 몸통이다.
     - **`GROUP BY`·`ORDER BY`는 두 낱말이지만 6장부터 구절 카드 한 장(`"GROUP BY"`, `"ORDER BY"`)으로 친다(판정 R40).** 낱장 두 장(`"GROUP"`, `"BY"`)으로 쓰지 않는다. 8장 조립도 모두 한 장으로 맞췄다.
+    - **10장부터 JOIN 카드**: 표와 별칭은 한 장(`"orders o"`, `"JOIN customers c"`), ON 조건은 30칸 안이면 `"ON oi.item_id = i.item_id"` 한 장, 넘으면 `"ON"`과 조건 두 장. 세 표 매출(`SELECT` + 셈·별칭 + `FROM` + 표 + JOIN·ON 두 쌍 + `WHERE` + 조건)이 이렇게 해서 10장에 들어간다. 정답에 표 별칭이 있으면 표 이름 뒤에 끼운 낱말은 「별칭이 둘」이나 원래 표 이름 부르기로 오류가 나서 R26 예외가 거의 안 쓰인다. 헷갈림 카드는 점이 든 이름(`shops.name`)이나 조건으로 쓰고, 낱말 하나뿐인 열 이름(`name`)은 SELECT 열 뒤에서 열 별칭이 되므로 쓰지 않는다. ON을 빠뜨린 모양(모든 짝)은 조립 정답으로 쓰지 않고 `COUNT(*)`로만 보인다(10장 머리 주석).
     - 좋은 구절 카드는 학습자가 「이 덩어리를 여기 놓는다」고 뜻으로 말할 수 있는 한 단위다: 조건 하나(`age IS NULL`), 계산 열 하나(`COALESCE(stock, 0)`), 별칭(`AS stock_or_zero`), 잇는 말(`AND`·`OR`). 구절을 쪼개면 그 장에서 배울 모양(예: `IS NOT NULL`의 차례)을 연습하게 하고, 붙이면 더미 12장 안에 AND·OR와 열 이름이 들어간다. 무엇을 연습시킬지 보고 고른다.
     - **모든 카드는 여전히 쓸모가 있어야 한다(`drop-one`).** 구절 하나를 빼도 결과가 같으면 그 구절은 넣지 않는다.
     - 구절로 붙이면 엔진의 너그러운 읽기를 피하기도 한다: SQLite는 `stock NOT NULL`(IS 없이)도 받아서, `IS`·`NOT`·`NULL`을 낱장으로 두면 `IS`를 빼도 정답이 된다(6장). 낱장으로 두려면 `need: ["IS"]`를 단다.

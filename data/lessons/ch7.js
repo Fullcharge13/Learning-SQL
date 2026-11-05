@@ -761,9 +761,9 @@ export const TEMPLATES = [
   {
     id: "7-T1", concept: "count", type: "choice",
     q: "이 SQL의 결과로 알맞은 표는?",
-    sql: "SELECT COUNT(*)\nFROM customers\nWHERE kind = '{K}'",
+    sql: "SELECT COUNT(*) AS n\nFROM customers\nWHERE kind = '{K}'",
     wrong: [
-      "SELECT COUNT(*)\nFROM customers",
+      "SELECT COUNT(*) AS n\nFROM customers",
       "SELECT name\nFROM customers\nWHERE kind = '{K}'",
     ],
     vars: { K: ["도깨비", "사람", "여우"] },
