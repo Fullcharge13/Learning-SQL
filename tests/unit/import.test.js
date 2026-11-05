@@ -22,7 +22,7 @@ test("checkImport rejects a 리아와 파이썬! save with a friendly Korean mes
   const r = checkImport(RIA);
   assert.equal(r.ok, false);
   assert.equal(r.reason, "ria");
-  assert.match(r.msg, /리아와 파이썬!/);
+  assert.match(r.msg, /다른 앱의 저장/);   // 화면 글자에 「리아」는 쓰지 않는다(badges.test.js no ria strings)
   assert.match(r.msg, /두억이와 SQL!/);
   // bytes만 지우고 yeopjeon이 없어도 리아 쪽(두억이 표시 없음)
   const { bytes, ...noBytes } = RIA;

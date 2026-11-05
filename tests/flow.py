@@ -599,7 +599,7 @@ def test_import_ria_save():
         a.page.wait_for_selector(".toast.warn")
         msg = a.page.inner_text(".toast.warn")
         print("    ria save: %r" % msg)
-        assert "리아와 파이썬!" in msg and "두억이와 SQL!" in msg, msg
+        assert "다른 앱의 저장" in msg and "두억이와 SQL!" in msg, msg
         assert not a.page.query_selector(".modal-back"), "no confirm dialog for a Ria save"
         assert a.save() == before, "save changed by a rejected import"
         mine = dict(before, xp=99, yeopjeon=12, completed_lessons=["1-1", "1-2"])

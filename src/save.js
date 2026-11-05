@@ -133,14 +133,14 @@ export function migrate(raw) {
   return s;
 }
 
-// 「저장 가져오기」로 받을 수 있는 파일인지 (작업 16). 리아와 파이썬! 저장은 칸 이름이 거의 같아(completed_lessons·xp·streak…)
+// 「저장 가져오기」로 받을 수 있는 파일인지 (작업 16). 같은 주소의 리아와 파이썬! 저장은 칸 이름이 거의 같아(completed_lessons·xp·streak…)
 // 두억이 표시를 따로 본다: 엽전(yeopjeon, 숫자)과 saveVer(1 이상 정수)가 있고 리아의 bytes가 없어야 한다.
 // 끝낸 레슨 id는 SQL 레슨 모양(장 1~17, 레슨 1~5 또는 심화 A1~)이어야 한다. 돌려줌 { ok: true } 또는 { ok: false, reason, msg }
 export const IMPORT_MAX_CHAPTER = 17;
 const LESSON_ID = /^([1-9]\d*)-([1-5]|A[1-9]\d*)$/;
 const IMPORT_MSG = {
   shape: "두억이와 SQL! 저장 파일이 아니에요. 설정의 「저장 내보내기」로 만든 파일을 골라 주세요.",
-  ria: "리아와 파이썬! 저장 파일 같아요. 두 앱의 진도는 따로 저장돼요. 두억이와 SQL!의 「저장 내보내기」로 만든 파일을 골라 주세요.",
+  ria: "다른 앱의 저장 파일 같아요(진도는 앱마다 따로 저장돼요). 두억이와 SQL!의 「저장 내보내기」로 만든 파일을 골라 주세요.",
   newer: "더 새 판의 두억이와 SQL!에서 만든 저장이에요. 앱을 새로 고친 뒤 다시 가져와 주세요.",
   lessons: "저장 파일의 끝낸 레슨 목록이 두억이와 SQL! 레슨과 맞지 않아요. 「저장 내보내기」로 만든 파일인지 확인해 주세요.",
 };
