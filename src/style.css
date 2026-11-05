@@ -123,7 +123,8 @@ button { cursor: pointer; }
   font-family: var(--mono); font-size: 15px; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
 }
-.code { background: var(--navy); color: #F4EEDD; }
+/* SQL 한 줄 38칸(tests/content.js SQL_COLS)이 가장 좁은 폰(iPhone 17e, 390px)에서도 한 줄에 들도록 14px (버그 B1: 15px은 36칸) */
+.code { background: var(--navy); color: #F4EEDD; font-size: 14px; }
 .out { background: var(--card); border: 2px dashed var(--line); color: var(--ink); }
 .out.empty { color: var(--ink-2); }
 .out.bad { border-color: var(--coral); background: var(--coral-soft); }
@@ -397,7 +398,7 @@ main { padding: 16px calc(16px + var(--sar)) 0 calc(16px + var(--sal)); }
 .order-answer li.empty { color: var(--ink-2); font-size: .9rem; justify-content: center; min-height: 52px; }
 .order-answer li.empty::before { content: none; }
 .order-pool { display: grid; gap: 8px; }
-.line { width: 100%; min-height: 48px; text-align: left; white-space: pre-wrap; tab-size: 4; padding: 8px 12px; border-radius: 12px; background: var(--navy); color: #F4EEDD; border: 2px solid var(--navy); font-size: 15px; box-shadow: 0 3px 0 #0E1520; }
+.line { width: 100%; min-height: 48px; text-align: left; white-space: pre-wrap; tab-size: 4; padding: 8px 12px; border-radius: 12px; background: var(--navy); color: #F4EEDD; border: 2px solid var(--navy); font-size: 14px; box-shadow: 0 3px 0 #0E1520; }
 .line.placed { background: var(--teal-soft); color: var(--ink); border-color: var(--teal-ink); box-shadow: 0 3px 0 var(--teal-ink); }
 .line.used { visibility: hidden; }
 

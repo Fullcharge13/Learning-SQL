@@ -204,17 +204,17 @@ export const LESSONS = [
       {
         type: "choice", concept: "subvalue",
         q: "이 SQL의 결과 값은?",
-        code: "SELECT MAX(price) AS second_price\nFROM items\nWHERE price <\n  (SELECT MAX(price) FROM items)",
-        options: ["350", "400", "320"],
+        code: "SELECT MIN(price) AS second_low\nFROM items\nWHERE price >\n  (SELECT MIN(price) FROM items)",
+        options: ["6", "5", "7"],
         answer: 0,
-        explain: "400보다 싼 물건 중 가장 비싼 값, 장승의 350이에요. 400은 가장 비싼 값, 320은 세 번째예요.",
+        explain: "가장 싼 5엽전보다 비싼 물건 중 가장 싼 값, 인절미·한지의 6엽전이에요. 5엽전은 가장 싼 식혜 값, 7엽전은 값으로 세 번째인 송편 값이에요.",
       },
       {
         type: "choice", concept: "subvalue",
-        q: "그 SQL에서 < 대신 <= 를 쓰면 결과 값은?",
-        options: ["400", "350", "오류가 난다"],
+        q: "그 SQL에서 > 대신 >= 를 쓰면 결과 값은?",
+        options: ["5", "6", "오류가 난다"],
         answer: 0,
-        explain: "<= 면 400인 금방망이도 들어가서 MAX가 다시 400이에요. 「가장 큰 값보다 작은」이라 < 를 써요.",
+        explain: ">= 면 5엽전인 식혜도 들어가서 MIN이 다시 5예요. 「가장 작은 값보다 큰」이라 > 를 써요.",
       },
       {
         type: "choice", concept: "subvalue",

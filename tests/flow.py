@@ -34,6 +34,9 @@
 - test_real_lesson_walk(작업 12): 실제 1-1을 끝까지 — 화면마다 넘침 0(열 많은 결과 표 보기 포함)
 - test_new_content_dot: 실제 1장 1-2에 updated를 단 빌드 — 홈·설정의 「새 내용」 점, 다시 하기로 끝까지 마치면 사라짐
 - test_card_table_above_button(작업 10): 7·8장 장 평가 카드·7-1의 결과 표가 「문제 풀기」 단추 줄에 가리지 않음(처음·끝까지 내림)
+- test_foot_clear_after_scroll(버그 B1): 실제 12-1·12-5·13-1·13-5를 폰 3종으로(12-1은 :has 규칙을 지운 판도) 풀며 화면마다 끝까지 내려
+  마지막 카드·보기·빈칸·줄·「쓸 표 보기」가 고정 단추 줄 위에 다 보임 + 전체 캡처 맨 아래가 내린 화면의 단추 줄과 같음(App.shot이 고정 줄을 페이지 끝으로 옮겨 찍음)
+- test_sql_cols_fit(B1 관련): SQL_COLS(38)칸 한 줄이 iPhone 17e 코드 상자·순서 줄에서 줄바꿈 없음, 글씨 13px 이상
 - SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
 """
 
@@ -170,6 +173,28 @@ class SkipTest(Exception):
     """아직 돌릴 수 없는 시험(까닭을 출력하고 실패로 세지 않음)"""
 
 
+# 전체 캡처 동안 화면 아래에 붙은 고정 요소(레슨 단추 줄 등)를 문서 맨 아래로 옮기고 되돌린다(App.shot)
+PIN_FIXED_JS = r"""() => {
+  const vh = innerHeight, sh = document.documentElement.scrollHeight;
+  if (sh <= vh + 1) return 0;
+  let n = 0;
+  for (const e of document.querySelectorAll('body *')) {
+    const cs = getComputedStyle(e);
+    if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const r = e.getBoundingClientRect();
+    if (r.height < 1 || Math.abs(r.bottom - vh) > 1 || r.top < vh / 3) continue;   // 아래에 붙은 줄만(덮개 창 제외)
+    e.dataset.flowPin = e.getAttribute('style') || '';
+    e.style.setProperty('position', 'absolute', 'important');
+    e.style.setProperty('top', (sh - r.height) + 'px', 'important');
+    e.style.setProperty('bottom', 'auto', 'important');
+    n++;
+  }
+  return n;
+}"""
+UNPIN_FIXED_JS = r"""() => { for (const e of document.querySelectorAll('[data-flow-pin]')) {
+  const s = e.dataset.flowPin; if (s) e.setAttribute('style', s); else e.removeAttribute('style'); delete e.dataset.flowPin; } }"""
+
+
 class App:
     """기기 하나 + 새 저장소의 앱 한 판."""
 
@@ -205,8 +230,16 @@ class App:
 
     # -- 공용 동작 --
     def shot(self, name, full=False):
+        """full=True: 페이지 전체 캡처. Chromium 전체 캡처는 position: fixed 요소를 지금 스크롤 자리의 화면 안 위치에
+        그대로 그린다(맨 위에서 찍으면 아래 단추 줄이 페이지 중간, 첫 화면 높이 자리에 찍혀 그 밑 내용을 덮는다 — 버그 B1).
+        그래서 찍는 동안만 화면 아래에 붙은 고정 요소를 페이지 맨 아래로 옮긴다(끝까지 내린 화면과 같은 자리)."""
         path = os.path.join(OUT, name)
-        self.page.screenshot(path=path, full_page=full)
+        pinned = self.js(PIN_FIXED_JS) if full else 0
+        try:
+            self.page.screenshot(path=path, full_page=full)
+        finally:
+            if pinned:
+                self.js(UNPIN_FIXED_JS)
         return path
 
     def js(self, expr, arg=None):
@@ -1582,8 +1615,9 @@ def _seed_before(lid):
             "grading_results": {x: {"perfect": True, "attempts": 1} for x in done}}
 
 
-def walk_lesson(lid, device="iPhone 17"):
-    """실제 레슨 lid를 처음부터 끝까지 정답으로 풀며 화면마다 캡처·측정한다. 돌려줌: (캡처 이름 목록, 문제점 목록)"""
+def walk_lesson(lid, device="iPhone 17", probe=None):
+    """실제 레슨 lid를 처음부터 끝까지 정답으로 풀며 화면마다 캡처·측정한다. 돌려줌: (캡처 이름 목록, 문제점 목록)
+    probe(app, kind)가 있으면 카드·문제 화면마다 캡처 전에 불러 그 문제점 목록을 더한다."""
     shots, fails = [], []
     tag = "walk-%s" % lid
     for f in os.listdir(OUT) if os.path.isdir(OUT) else []:
@@ -1603,6 +1637,9 @@ def walk_lesson(lid, device="iPhone 17"):
             # 결과 창은 0.28초 동안 아래에서 올라온다(.result animation up) — 다 올라온 뒤에 잰다
             a.page.wait_for_timeout(400 if kind == "result" else 150)
             name = "%s-%02d-%s.png" % (tag, n, kind)
+            if probe and kind not in ("result", "done"):
+                fails.extend("%s %s: %s" % (device, name, p) for p in probe(a, kind))
+                a.js("() => window.scrollTo(0, 0)")
             m = measure(a, name)
             fails.extend("%s: %s" % (name, p) for p in m["problems"] + m["errors"])
             if m["small"]:
@@ -1724,6 +1761,106 @@ def test_card_table_above_button():
                     fails.append("%s %s: after the card, on-card/foot = %s (want no class, fixed)" % (dev, lid, st))
                 assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
+
+
+FOOT_CLEAR_JS = r"""() => {
+  window.scrollTo(0, 1e6);
+  const foot = document.querySelector('#foot');
+  const f = foot.getBoundingClientRect();
+  const last = (sel) => { let b = null; for (const e of document.querySelectorAll(sel)) {
+      const r = e.getBoundingClientRect(); if (r.height && (!b || r.bottom > b.bottom)) b = r; } return b && { t: r2(b.top), b: r2(b.bottom) }; };
+  function r2(x) { return Math.round(x * 10) / 10; }
+  return { vh: innerHeight, sh: document.documentElement.scrollHeight, footTop: r2(f.top), footBottom: r2(f.bottom),
+    pos: getComputedStyle(foot).position, dpr: devicePixelRatio,
+    targets: { 'last card': last('#bbank .bcard'), '쓸 표 보기': last('#tablesbtn'), 'last option': last('.options .opt'),
+               'last chip': last('.chips .chip'), 'last line': last('#op .line, .order-pool .line'),
+               'card end': last('.card-view') } };
+}"""
+
+DROP_HAS_JS = r"""() => { let n = 0; for (const sh of document.styleSheets) { let r; try { r = sh.cssRules; } catch { continue; }
+  for (let i = r.length - 1; i >= 0; i--) if (r[i].selectorText && r[i].selectorText.includes(':has(')) { sh.deleteRule(i); n++; } } return n; }"""
+
+
+def _foot_probe(no_has=False):
+    """버그 B1 확인: 끝까지 내리면 마지막 카드·보기·「쓸 표 보기」가 아래 단추 줄 위에 다 보이고,
+    전체 화면 캡처(walk-*.png)에 고정 단추 줄이 페이지 맨 아래(내린 화면과 같은 자리)에 그려진다."""
+    from PIL import Image, ImageChops
+
+    def probe(a, kind):
+        out = []
+        if no_has:
+            a.js(DROP_HAS_JS)
+        a.page.wait_for_timeout(60)
+        p = a.js(FOOT_CLEAR_JS)
+        if p["footBottom"] > p["vh"] + 0.5 or p["footTop"] < -0.5:
+            out.append("%s: button bar %s..%s outside the screen (vh %d)" % (kind, p["footTop"], p["footBottom"], p["vh"]))
+        for name, r in p["targets"].items():
+            # 긴 설명 카드는 위가 화면 밖으로 나가는 것이 정상 — 카드 끝만 본다
+            if r and (r["b"] > p["footTop"] + 0.5 or (r["t"] < 0 and name != "card end")):
+                out.append("%s: %s %s..%s not fully above the button bar top %s after scrolling to the end (%s, sh %d, vh %d)" % (
+                    kind, name, r["t"], r["b"], p["footTop"], p["pos"], p["sh"], p["vh"]))
+        # 캡처: 전체 화면 캡처의 맨 아래 띠 = 끝까지 내린 화면의 맨 아래 띠(단추 줄)
+        if p["pos"] == "fixed" and p["sh"] > p["vh"] + 1:
+            a.js("() => window.scrollTo(0, 0)")   # walk-*.png처럼 처음 화면에서 전체 캡처
+            a.page.wait_for_timeout(60)
+            full = Image.open(a.shot("_foot-full.png", full=True)).convert("RGB")
+            a.js("() => window.scrollTo(0, 1e6)")
+            a.page.wait_for_timeout(60)
+            view = Image.open(a.shot("_foot-view.png")).convert("RGB")
+            band = int((p["footBottom"] - p["footTop"]) * p["dpr"])
+            fb = full.crop((0, full.height - band, full.width, full.height))
+            vb = view.crop((0, view.height - band, view.width, view.height))
+            diff = ImageChops.difference(fb, vb).convert("L")
+            bad = sum(1 for v in diff.tobytes() if v > 24) / float(band * full.width)
+            if bad > 0.01:
+                out.append("%s: full-page shot bottom %dpx differs from the scrolled screen's button bar (%.0f%% pixels) — "
+                           "the fixed bar is drawn mid-page in the shot" % (kind, band, bad * 100))
+        return out
+    return probe
+
+
+def test_foot_clear_after_scroll():
+    """버그 B1: 레슨 화면 종류(카드·객관식·빈칸·순서·조립)마다 휴대폰 화면에서 끝까지 내리면
+    마지막 카드·마지막 보기·「쓸 표 보기」가 고정 단추 줄 윗변보다 위에 다 보인다(:has() 없이도).
+    walk-*.png 전체 캡처에는 단추 줄이 페이지 맨 아래에 그려진다(내린 화면과 같은 모습)."""
+    fails, kinds = [], set()
+    runs = [("12-1", "iPhone 17e", False), ("13-5", "iPhone 17e", False), ("12-5", "iPhone 17", False),
+            ("13-1", "iPhone 17 Pro Max", False), ("12-1", "iPhone 17e", True)]
+    for lid, dev, no_has in runs:
+        shots, f = walk_lesson(lid, dev, probe=_foot_probe(no_has))
+        kinds.update(s.split("-")[-1][:-4] for s in shots)
+        fails += [("no-:has " if no_has else "") + x for x in f]
+    for x in ("_foot-full.png", "_foot-view.png"):
+        if os.path.exists(os.path.join(OUT, x)):
+            os.remove(os.path.join(OUT, x))
+    missing = {"card", "choice", "blank", "order", "build"} - kinds
+    assert not missing, "screen kinds not covered: %s" % missing
+    assert not fails, "\n".join(fails[:40]) + ("\n… %d more" % (len(fails) - 40) if len(fails) > 40 else "")
+
+
+SQL_COLS_JS = r"""(n) => {
+  const body = document.querySelector('#body');
+  body.innerHTML = `<article class="item"><pre class="code" id="c1"><code></code></pre>
+    <div class="order-pool"><button class="line mono" id="c2"></button></div></article>`;
+  const lines = (el, t, k) => { t.textContent = 'S'; const one = el.getBoundingClientRect().height;
+    t.textContent = 'S'.repeat(k); return el.getBoundingClientRect().height > one + 0.5 ? 2 : 1; };
+  const pre = document.querySelector('#c1'), ln = document.querySelector('#c2');
+  return { code: lines(pre, pre.querySelector('code'), n), line: lines(ln, ln, n),
+           codePx: parseFloat(getComputedStyle(pre).fontSize), linePx: parseFloat(getComputedStyle(ln).fontSize) };
+}"""
+
+
+def test_sql_cols_fit():
+    """B1 관련: 점검기 SQL_COLS(tests/content.js) 칸의 SQL 한 줄이 가장 좁은 휴대폰(iPhone 17e, 390px)의
+    코드 상자(pre.code)와 순서 문제 줄 단추(.line)에서 줄바꿈 없이 한 줄에 들어간다. 글씨는 13px 이상."""
+    cols = int(re.search(r"const SQL_COLS = (\d+);", open(os.path.join(ROOT, "tests", "content.js"), encoding="utf-8").read()).group(1))
+    with App("iPhone 17e") as a:
+        a.start()
+        a.page.click("#continue")
+        a.page.wait_for_selector("#body")
+        r = a.js(SQL_COLS_JS, cols)
+    assert r["code"] == 1 and r["line"] == 1, "%d columns wrap on iPhone 17e: %s" % (cols, r)
+    assert r["codePx"] >= 13 and r["linePx"] >= 13, r
 
 
 def _select(argv):
