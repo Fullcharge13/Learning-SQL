@@ -1,9 +1,10 @@
-// 의상실: 10벌 미리보기, 바이트로 사기, 입기, 기록 보호권
+// 의상실: 10벌 미리보기, 엽전으로 사기, 입기, 기록 보호권. 두억이는 고기 먹는 얼굴(엽전 쓰기, 설계 §8-3)
 import { OUTFITS } from "../../data/outfits.js";
 import { buy } from "../shop.js";
 import { buyFreeze, FREEZE_PRICE, FREEZE_MAX } from "../rules.js";
 import { checkBadges } from "../badges.js";
-import { riaSVG } from "../ria.js";
+import { dueogiSVG } from "../dueogi.js";
+import { FACES } from "../say.js";
 import { esc, icon, toast } from "./dom.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
 
@@ -20,14 +21,14 @@ export function render(root, ctx, params = {}) {
     if (wearing) action = `<button class="btn ghost wide" disabled>입고 있어요</button>`;
     else if (own) action = `<button class="btn primary wide" id="wear">입기</button>`;
     else if (o.price == null) action = `<p class="lock-note">${icon("lock")}30일 연속 기록 보상</p>`;
-    else action = `<button class="btn sun wide" id="buy"${s.yeopjeon < o.price ? " disabled" : ""}>${icon("byte")}<span>${o.price}바이트로 사기</span></button>
-      ${s.yeopjeon < o.price ? `<p class="muted center">${o.price - Math.max(0, s.yeopjeon)}바이트 더 모으면 살 수 있어요</p>` : ""}`;
+    else action = `<button class="btn sun wide" id="buy"${s.yeopjeon < o.price ? " disabled" : ""}>${icon("coin")}<span>${o.price}엽전으로 사기</span></button>
+      ${s.yeopjeon < o.price ? `<p class="muted center">엽전 ${o.price - Math.max(0, s.yeopjeon)}닢 더 모으면 살 수 있어요</p>` : ""}`;
     root.innerHTML = `<div class="screen closet with-tabs">
       ${statusBar(s)}
       <main>
         <h1 class="page-title">의상실</h1>
         <section class="stage">
-          <div class="ria-wrap big">${riaSVG({ outfit: o.id, face: wearing ? "smile" : "sparkle", size: 170 })}</div>
+          <div class="dueogi-wrap big">${dueogiSVG({ outfit: o.id, face: wearing ? FACES.closet : FACES.home, size: 170 })}</div>
           <div class="stage-info">
             <h2>${esc(o.name)}</h2>
             ${o.desc ? `<p class="muted outfit-desc">「${esc(o.desc)}」</p>` : ""}
@@ -38,9 +39,9 @@ export function render(root, ctx, params = {}) {
         </section>
         <ul class="outfit-grid" aria-label="의상 목록">${OUTFITS.map((x) => {
           const owned = s.outfits.includes(x.id);
-          const tag = s.outfit === x.id ? "입는 중" : owned ? "보유" : x.price == null ? "30일 연속 기록 보상" : `${x.price}바이트`;
+          const tag = s.outfit === x.id ? "입는 중" : owned ? "보유" : x.price == null ? "30일 연속 기록 보상" : `${x.price}엽전`;
           return `<li><button class="outfit${x.id === sel ? " sel" : ""}${owned ? " owned" : ""}" data-o="${x.id}" aria-pressed="${x.id === sel}" aria-label="${esc(`${x.short}, ${tag}`)}">
-            ${riaSVG({ outfit: x.id, face: "smile", size: 74 })}
+            ${dueogiSVG({ outfit: x.id, face: FACES.home, size: 74 })}
             <span class="o-name">${esc(x.short)}</span>
             <span class="o-tag${owned ? " own" : ""}">${!owned && x.price == null ? icon("lock") : ""}${esc(tag)}</span>
           </button></li>`;
@@ -50,7 +51,7 @@ export function render(root, ctx, params = {}) {
             <h2>${icon("shield")}기록 보호권 <b>${s.freezes}/${FREEZE_MAX}</b></h2>
             <p>목표를 못 채운 날, 다음에 열 때 자동으로 써서 연속 기록을 지켜요.</p>
           </div>
-          <button class="btn ghost" id="freeze"${s.freezes >= FREEZE_MAX || s.yeopjeon < FREEZE_PRICE ? " disabled" : ""}>${s.freezes >= FREEZE_MAX ? "가득 찼어요" : `${FREEZE_PRICE}바이트`}</button>
+          <button class="btn ghost" id="freeze"${s.freezes >= FREEZE_MAX || s.yeopjeon < FREEZE_PRICE ? " disabled" : ""}>${s.freezes >= FREEZE_MAX ? "가득 찼어요" : `${FREEZE_PRICE}엽전`}</button>
         </section>
       </main>
       ${tabBar("closet")}

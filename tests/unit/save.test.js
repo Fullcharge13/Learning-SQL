@@ -51,7 +51,7 @@ test("new: exactly the ledger Save shape", () => {
 
 test("new: returns independent objects", () => {
   const a = newSave();
-  a.outfits.push("casual");
+  a.outfits.push("merchant");
   a.streak.days = 5;
   const b = newSave();
   assert.deepEqual(b.outfits, ["basic"]);
@@ -132,7 +132,7 @@ test("cap", () => {
 test("store: round trip", () => {
   const st = fakeStorage();
   const s = newSave();
-  s.xp = 42; s.outfits.push("casual");
+  s.xp = 42; s.outfits.push("merchant");
   store(st, s);
   assert.deepEqual(load(st), s);
 });
@@ -299,13 +299,13 @@ const v1 = (outfits, outfit = "basic", over = {}) => ({ ...JSON.parse(JSON.strin
 
 test("v2: worn outfit not owned → basic; owned new outfit kept", () => {
   assert.equal(migrate(v1(["basic"], "chef")).outfit, "basic");
-  assert.equal(migrate({ saveVer: 1, outfits: ["basic", "wizard"], outfit: "wizard" }).outfit, "wizard");
-  assert.equal(migrate({ saveVer: 1, outfits: ["basic"], outfit: "wizard" }).outfit, "basic");
+  assert.equal(migrate({ saveVer: 1, outfits: ["basic", "hunjang"], outfit: "hunjang" }).outfit, "hunjang");
+  assert.equal(migrate({ saveVer: 1, outfits: ["basic"], outfit: "hunjang" }).outfit, "basic");
 });
 
 test("v2: a v2 save with old/unknown ids loads, no refund (refunds only from v1)", () => {
-  const s = migrate({ saveVer: 1, outfits: ["basic", "rain", "future_x", "gym"], outfit: "future_x", yeopjeon: 10 });
-  assert.deepEqual(s.outfits, ["basic", "gym"]);
+  const s = migrate({ saveVer: 1, outfits: ["basic", "rain", "future_x", "winter", "wizard"], outfit: "future_x", yeopjeon: 10 });
+  assert.deepEqual(s.outfits, ["basic", "winter"]);
   assert.equal(s.outfit, "basic");
   assert.equal(s.yeopjeon, 10);
 });
@@ -348,7 +348,7 @@ test("C42 refund notice: 이상한 값은 0으로", () => {
 });
 
 test("C42 refund notice text", () => {
-  assert.equal(refundNoticeText(780), "없어진 옷 값 780바이트를 돌려 드렸어요. 새 옷도 구경해 보세요!");
+  assert.equal(refundNoticeText(780), "없어진 옷 값 780엽전을 돌려 드렸어요. 새 옷도 구경해 보세요!");
 });
 
 // v0.9 매일 도전: daily 칸은 saveVer 2 그대로, 없거나 깨지면 기본값(옮기기)

@@ -1,8 +1,9 @@
-// 홈(학습 길): 상태 줄, 리아 인사와 이어 하기, 복습, 오늘의 퀘스트, 뱀처럼 이어지는 레슨 길
+// 홈(학습 길): 상태 줄, 두억이 인사와 이어 하기, 복습, 오늘의 퀘스트, 굽이굽이 이어지는 레슨 길
 import { QUESTS } from "../../data/quests.js";
 import { CONCEPTS } from "../../data/concepts.js";
-import { riaSVG } from "../ria.js";
-import { esc, icon, bar, riaSays, dialog, toast } from "./dom.js";
+import { dueogiSVG } from "../dueogi.js";
+import { FACES } from "../say.js";
+import { esc, icon, bar, dueogiSays, dialog, toast } from "./dom.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
 import { pathEndText } from "../curriculum.js";
 import { hasNewContent } from "../newcontent.js";
@@ -72,7 +73,7 @@ function questCard(save) {
         ${bar(p, def.goal, "q-bar", def.name)}
       </div>
       <span class="q-num">${p}/${def.goal}</span>
-      <span class="q-reward" aria-label="보상 ${def.reward}바이트">+${def.reward}</span>
+      <span class="q-reward" aria-label="보상 ${def.reward}엽전">+${def.reward}</span>
     </li>`;
   }).join("");
   const opened = !!q.chest;
@@ -80,7 +81,7 @@ function questCard(save) {
     <h2 id="q-title">오늘의 퀘스트</h2>
     <ul class="quest-list">${rows}</ul>
     <p class="chest${opened ? " open" : ""}">${icon(opened ? "chestOpen" : "chest")}
-      <span>${opened ? "보물상자를 열었어요 (+10바이트)" : "3개를 모두 끝내면 보물상자 +10바이트"}</span></p>
+      <span>${opened ? "보물상자를 열었어요 (+10엽전)" : "3개를 모두 끝내면 보물상자 +10엽전"}</span></p>
   </section>`;
 }
 
@@ -96,7 +97,7 @@ function dailyCard(st) {
   const dots = Array.from({ length: st.total }, (_, i) => `<span class="d-dot${i < st.done ? " on" : ""}"></span>`).join("");
   const label = st.state === "done" ? "완료됨" : st.state === "partial" ? "이어서" : "시작";
   const streak = st.streak > 0 ? `도전 ${st.streak}일째` : "첫 도전";
-  const note = st.state === "done" ? "내일 새 문제가 와요" : "3문제 · XP 15 · 바이트 10";
+  const note = st.state === "done" ? "내일 새 문제가 와요" : "3문제 · XP 15 · 엽전 10";
   return `<section class="panel daily ${st.state}" aria-labelledby="d-title">
     <div class="daily-text">
       <h2 id="d-title">오늘의 도전</h2>
@@ -150,7 +151,7 @@ function pathSection(ctx, chapter, startIndex, currentId) {
       <button class="node ${st}${cur ? " current" : ""}" data-lesson="${esc(l.id)}" aria-label="${esc(`${l.id} ${l.title}, ${stateKo}${fresh ? `, ${NEW_LABEL}` : ""}`)}">${glyph}</button>
       ${fresh ? newDot(l.id) : ""}
       <span class="node-label">${l.isExam && !/평가/.test(l.title) ? '<em>장 평가</em>' : ""}${esc(l.title)}</span>
-      ${cur ? `<span class="node-ria ${side}" aria-hidden="true">${riaSVG({ outfit: ctx.save.outfit, face: "cheer", size: 58 })}</span>` : ""}
+      ${cur ? `<span class="node-dueogi ${side}" aria-hidden="true">${dueogiSVG({ outfit: ctx.save.outfit, face: FACES.home, size: 58 })}</span>` : ""}
     </div>`;
   }).join("");
   const last = pts[pts.length - 1];
@@ -187,7 +188,7 @@ export function render(root, ctx) {
       <h1 class="sr">학습 길</h1>
       ${dst && dst.state !== "locked" ? dailyCard(dst) : ""}
       <section class="hello">
-        ${riaSays({ outfit: save.outfit, face: line.face, text: line.text, size: 92, cls: notice ? "refund-notice" : "" })}
+        ${dueogiSays({ outfit: save.outfit, face: line.face, text: line.text, size: 92, cls: notice ? "refund-notice" : "" })}
         ${cur && !allDone ? `<button class="btn primary wide" id="continue">${icon("play")}<span>${save.completed_lessons.length ? "이어서 하기" : "첫 레슨 시작"} · ${esc(cur.id)} ${esc(cur.title)}</span></button>` : ""}
         ${allDone ? `<p class="all-done">준비된 레슨을 모두 끝냈어요. 다시 풀거나 복습하며 XP를 모아 봐요.</p>` : ""}
       </section>
@@ -214,7 +215,7 @@ export function render(root, ctx) {
       const l = ctx.lessonById(id);
       const ok = await dialog({
         title: `${id} ${l.title} 다시 하기`,
-        body: `<p>끝낸 레슨도 다시 풀 수 있어요. 다시 하기는 XP만 조금 받고 바이트는 없어요.</p>`,
+        body: `<p>끝낸 레슨도 다시 풀 수 있어요. 다시 하기는 XP만 조금 받고 엽전은 없어요.</p>`,
         buttons: [{ label: "그만두기", value: false }, { label: "다시 풀기", value: true, kind: "primary" }],
       });
       if (!ok) return;

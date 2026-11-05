@@ -15,14 +15,14 @@ const base = (over = {}) => ({
 
 test("finish_first_lesson: 보상·진도·배지·통계", () => {
   const { save, result } = finishLesson(newSave(), base(), at());
-  const r = lessonReward({ firstTime: true, perfect: true, hintFreeWrite: true, isExam: false });
+  const r = lessonReward({ firstTime: true, perfect: true, hintFreeBuild: true, isExam: false });
   assert.equal(result.xp, r.xp);
-  assert.equal(result.lessonBytes, r.yeopjeon);
+  assert.equal(result.lessonYeopjeon, r.yeopjeon);
   assert.ok(save.completed_lessons.includes("1-1"));
   assert.deepEqual(save.grading_results["1-1"], { perfect: true, attempts: 1 });
   assert.equal(save.current_lesson, "1-2");
-  assert.ok(save.badges.includes("first_print"));
-  assert.ok(result.newBadges.includes("first_print"));
+  assert.ok(save.badges.includes("first_query"));
+  assert.ok(result.newBadges.includes("first_query"));
   assert.equal(save.stats.lessons, 1);
   assert.equal(save.stats.perfect, 1);
   assert.equal(save.stats.hintfree, 1);
@@ -33,16 +33,16 @@ test("finish_first_lesson: 보상·진도·배지·통계", () => {
   assert.equal(save.submission_logs.length, 1);
   assert.ok(save.last_active_at);
   assert.equal(save.quests.date, "2026-10-29");
-  // 바이트 = 레슨 15 + 끝낸 퀘스트 보상 + 상자
-  assert.equal(save.yeopjeon, r.yeopjeon + result.questBytes);
+  // 엽전 = 레슨 15 + 끝낸 퀘스트 보상 + 상자
+  assert.equal(save.yeopjeon, r.yeopjeon + result.questYeopjeon);
 });
 
 test("finish_replay: 다시 하기 보상은 rules.js 그대로, 기록 유지", () => {
   const first = finishLesson(newSave(), base(), at()).save;
   const { save, result } = finishLesson(first, base(), at(11));
-  const r = lessonReward({ firstTime: false, perfect: true, hintFreeWrite: true, isExam: false });
+  const r = lessonReward({ firstTime: false, perfect: true, hintFreeBuild: true, isExam: false });
   assert.equal(result.xp, r.xp);
-  assert.equal(result.lessonBytes, r.yeopjeon);
+  assert.equal(result.lessonYeopjeon, r.yeopjeon);
   assert.equal(result.firstTime, false);
   assert.deepEqual(save.grading_results["1-1"], { perfect: true, attempts: 2 });
   assert.equal(save.completed_lessons.filter((x) => x === "1-1").length, 1);
@@ -53,9 +53,9 @@ test("finish_not_perfect_hint: 실수·힌트 → 보너스 없음, 개념 표�
     perfect: false, marks: [["print", "wrong"], ["print", "hint"]],
     build: { passed: true, hintUsed: true, solutionSeen: false, fixedError: true },
   }), at());
-  const r = lessonReward({ firstTime: true, perfect: false, hintFreeWrite: false, isExam: false });
+  const r = lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isExam: false });
   assert.equal(result.xp, r.xp);
-  assert.equal(result.lessonBytes, r.yeopjeon);
+  assert.equal(result.lessonYeopjeon, r.yeopjeon);
   assert.equal(save.weak_concepts.print, 3);
   assert.deepEqual(save.review_queue, ["print"]);
   assert.equal(save.stats.fixed, 1);
@@ -74,7 +74,7 @@ test("finish_review: 복습 → reviewReward, 복습 통계, 완료 목록은 �
     build: null, reviewCorrect: 5, itemsSolved: 5, logs: [],
   }), at());
   assert.equal(result.xp, reviewReward().xp);
-  assert.equal(result.lessonBytes, reviewReward().yeopjeon);
+  assert.equal(result.lessonYeopjeon, reviewReward().yeopjeon);
   assert.equal(save.stats.review_items, 5);
   assert.equal(save.stats.lessons, 0);
   assert.deepEqual(save.completed_lessons, []);
@@ -98,14 +98,14 @@ test("finish_fixed_needs_no_solution: 정답을 보고 통과하면 오류 해�
   assert.ok(!save.quests.progress.q_fixerr);
 });
 
-test("finish_total_bytes: 결과의 totalBytes = 저장 바이트 증가량(이정표 포함)", () => {
+test("finish_total_yeopjeon: 결과의 totalYeopjeon = 저장 엽전 증가량(이정표 포함)", () => {
   const s0 = newSave();
   s0.streak = { days: 6, best: 6, lastGoalDate: "2026-10-28", todayDate: "2026-10-28", todayXp: 20 };
   const { save, result } = finishLesson(s0, base(), at());
   assert.equal(result.milestone, 7);
-  assert.equal(result.milestoneBytes, 50);
-  assert.equal(result.totalBytes, save.yeopjeon - s0.yeopjeon);
-  assert.equal(result.totalBytes, result.lessonBytes + result.questBytes + result.milestoneBytes);
+  assert.equal(result.milestoneYeopjeon, 50);
+  assert.equal(result.totalYeopjeon, save.yeopjeon - s0.yeopjeon);
+  assert.equal(result.totalYeopjeon, result.lessonYeopjeon + result.questYeopjeon + result.milestoneYeopjeon);
 });
 
 test("goal_change: 목표를 낮추면 오늘 이미 모은 XP로 그날이 인정됨", () => {
@@ -127,4 +127,11 @@ test("goal_change_raise: 목표를 올리면 아무 일 없음", () => {
   assert.equal(r.save.streak.days, 2);
   assert.equal(r.streakUp, false);
   assert.equal(r.milestone, null);
+});
+
+test("결과 칸 이름은 엽전(yeopjeon)·조립(build) 말로 — 옛 bytes·hintFreeWrite 이름 없음 (작업 10·11 이월)", () => {
+  const { result } = finishLesson(newSave(), base(), at());
+  for (const k of ["lessonYeopjeon", "questYeopjeon", "milestoneYeopjeon", "totalYeopjeon", "hintFreeBuild"]) assert.ok(k in result, k);
+  for (const k of Object.keys(result)) assert.doesNotMatch(k, /bytes|Bytes|hintFreeWrite/, k);
+  assert.equal(result.hintFreeBuild, true);
 });

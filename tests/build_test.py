@@ -336,10 +336,10 @@ def test_browser_offline():
         # 1) 온라인: 홈 화면, Blob 작업자로 print(1)
         pg.goto(b.url)
         b.home()
-        info = pg.evaluate("() => ({ worker: String(window.__ria.ctx.py.workerURL), idx: window.__ria.ctx.py.indexURL })")
+        info = pg.evaluate("() => ({ worker: String(window.__dueogi.ctx.py.workerURL), idx: window.__dueogi.ctx.py.indexURL })")
         assert info["worker"].startswith("blob:"), info
         assert info["idx"] == b.url + "node_modules/pyodide/", info
-        r = pg.evaluate("() => window.__ria.ctx.py.run('print(1)')")
+        r = pg.evaluate("() => window.__dueogi.ctx.py.run('print(1)')")
         assert r["stdout"] == "1\n" and r["error"] is None, r
         print("    online print(1): %r in %.0f ms" % (r["stdout"], r["ms"]))
 
@@ -355,14 +355,14 @@ def test_browser_offline():
         resp = pg.reload()
         assert resp is not None and resp.from_service_worker, "offline page not served by sw.js"
         b.home()
-        r = pg.evaluate("() => window.__ria.ctx.py.run('print(1)')")
+        r = pg.evaluate("() => window.__dueogi.ctx.py.run('print(1)')")
         assert r["stdout"] == "1\n" and r["error"] is None, r
         print("    offline reload: home OK, print(1): %r" % r["stdout"])
         # v0.5: 16장 sqlite3와 17장 chart도 오프라인에서(sw 저장본만으로) 돈다
         sql = ("import sqlite3\ncon = sqlite3.connect(':memory:')\ncon.execute('CREATE TABLE t (n INTEGER)')\n"
                "con.execute('INSERT INTO t VALUES (7)')\nprint(con.execute('SELECT n * 6 FROM t').fetchone()[0])\n"
                "import chart\nchart.bar(['a'], [1])\nchart.show()\n")
-        r = pg.evaluate("(c) => window.__ria.ctx.py.run(c)", sql)
+        r = pg.evaluate("(c) => window.__dueogi.ctx.py.run(c)", sql)
         assert r["error"] is None and r["stdout"] == "42\n", r
         assert r["charts"] == [{"kind": "bar", "labels": ["a"], "values": [1]}], r
         print("    offline sqlite3 + chart: %r, %d chart" % (r["stdout"], len(r["charts"])))
@@ -388,7 +388,7 @@ def test_blocked_pyodide_install():
         resp = b.page.reload()
         assert resp is not None and resp.from_service_worker
         b.home()
-        st = b.page.evaluate("() => window.__ria.ctx.pyState().status")
+        st = b.page.evaluate("() => window.__dueogi.ctx.pyState().status")
         print("    blocked CDN: sw installed, %d game files cached, offline home OK (python status: %s)"
               % (len(cached), st))
         assert not [e for e in b.errors if e.startswith("pageerror")], b.errors
@@ -741,18 +741,18 @@ def test_offline_chapter_write():
         assert len(files) >= 6, files
         missing = _wait_chapters_cached(b, files)
         assert not missing, "chapter files not precached: %r" % missing
-        r = pg.evaluate("() => window.__ria.ctx.py.run('print(1)')")  # Pyodide 저장본 채우기
+        r = pg.evaluate("() => window.__dueogi.ctx.py.run('print(1)')")  # Pyodide 저장본 채우기
         assert r["stdout"] == "1\n", r
         b.context.set_offline(True)
         resp = pg.reload()
         assert resp is not None and resp.from_service_worker
         b.home()
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '6-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '6-1' })")
         pg.wait_for_selector(".card-view", timeout=10_000)
         cls = _play_to_write(_driver(pg), "6-1")
         assert "ok" in (cls or ""), cls
         print("    offline: 6-1 opened from cached chapter file, write task passed")
-        pg.evaluate("() => window.__ria.ctx.show('settings')")
+        pg.evaluate("() => window.__dueogi.ctx.show('settings')")
         pg.wait_for_selector("#offline[data-ready]", timeout=10_000)
         assert pg.get_attribute("#offline", "data-ready") == "true", pg.inner_text("#offline")
         b.context.set_offline(False)
@@ -771,7 +771,7 @@ def test_chapter_blocked_retry():
         b.home()
         b.wait_controlled()  # 장 파일을 못 받아도 설치는 끝남
         assert not [u for u in b.cached_urls() if "/lessons/" in u]
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '2-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '2-1' })")
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=15_000)
         txt = pg.inner_text(".lesson-wait")
         assert "이 장은 인터넷이 될 때 한 번 열어 주세요" in txt, txt
@@ -779,9 +779,9 @@ def test_chapter_blocked_retry():
         pg.screenshot(path=os.path.join(OUT, "build_chapter_blocked.png"))
         pg.click("#to-home")
         pg.wait_for_selector("#app[data-screen=home] .screen.home")
-        st = pg.evaluate("() => window.__ria.ctx.save.completed_lessons.length")
+        st = pg.evaluate("() => window.__dueogi.ctx.save.completed_lessons.length")
         assert st == 0
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '2-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '2-1' })")
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=15_000)
         pg.click("#retry")
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=15_000)  # 아직 막힘 → 다시 안내
@@ -791,7 +791,7 @@ def test_chapter_blocked_retry():
         print("    blocked chapter: guidance shown, retry after unblocking opened 2-1")
         # 느린 장 파일: 0.3초 넘으면 「준비 중」
         _Handler.STATE["slow_chapter_s"] = 1.5
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '3-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '3-1' })")
         pg.wait_for_selector(".lesson-wait[data-state=wait]:has-text('준비 중')", timeout=5_000)
         pg.wait_for_selector(".card-view", timeout=15_000)
         _Handler.STATE["slow_chapter_s"] = 0
@@ -861,7 +861,7 @@ def test_review_lazy():
         assert asked == [], "home must not load chapter files: %r" % asked
         pg.click("#review")
         pg.wait_for_selector("article.item", timeout=15_000)
-        need = pg.evaluate("() => window.__ria.ctx.chaptersForConcepts(['slice', 'def'])")
+        need = pg.evaluate("() => window.__dueogi.ctx.chaptersForConcepts(['slice', 'def'])")
         assert 0 < len(need) < len(table), need
         want = sorted(table[str(k)].rsplit("/", 1)[-1] for k in need)
         assert sorted(asked) == want, (asked, want)
@@ -913,7 +913,7 @@ def test_new_index_not_cached_without_new_sw():
         b.context.set_offline(True)
         pg.reload()
         b.home()
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '1-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '1-1' })")
         pg.wait_for_selector(".card-view, .lesson-wait[data-state=error]", timeout=15_000)
         assert pg.query_selector(".card-view"), "offline launch after failed sw update cannot open 1-1: " + pg.inner_text("#app")
         print("    failed sw update: offline launch still uses a consistent cached build")
@@ -933,7 +933,7 @@ def test_chapter_wait_timeout():
         b.home()
         _Handler.STATE["slow_chapter_s"] = 60
         t0 = time.monotonic()
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '2-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '2-1' })")
         pg.wait_for_selector(".lesson-wait[data-state=wait]:has-text('준비 중')", timeout=5_000)
         assert pg.is_visible("#to-home"), "waiting screen needs a way back"
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=20_000)
@@ -945,7 +945,7 @@ def test_chapter_wait_timeout():
         pg.wait_for_selector("#app[data-screen=home] .screen.home")
         # 기다리는 중에도 학습 길로 나갈 수 있음
         _Handler.STATE["slow_chapter_s"] = 60
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { id: '3-1' })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { id: '3-1' })")
         pg.wait_for_selector(".lesson-wait[data-state=wait] #to-home", timeout=5_000)
         pg.click("#to-home")
         pg.wait_for_selector("#app[data-screen=home] .screen.home")
@@ -963,7 +963,7 @@ def test_chapter_404_reload():
         pg.goto(b.url)
         b.home()
         _Handler.STATE["chapter_404"] = True
-        pg.evaluate("() => { window.__marker = 1; window.__ria.ctx.show('lesson', { id: '2-1' }); }")
+        pg.evaluate("() => { window.__marker = 1; window.__dueogi.ctx.show('lesson', { id: '2-1' }); }")
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=15_000)
         txt = pg.inner_text(".lesson-wait")
         assert "새 판이 나왔어요. 눌러서 새로 고쳐요" in txt, txt
@@ -987,7 +987,7 @@ def test_review_one_chapter_fails():
         b.home()
         # 두 장에서 그 장에만 있는 개념 하나씩
         pick = pg.evaluate("""() => {
-            const ctx = window.__ria.ctx, out = [];
+            const ctx = window.__dueogi.ctx, out = [];
             for (const ch of ctx.chapters) {
                 const c = ch.lessons.flatMap((l) => l.concepts).find((k) => ctx.chaptersForConcepts([k]).length === 1);
                 if (c) out.push([ch.id, c]);
@@ -999,7 +999,7 @@ def test_review_one_chapter_fails():
         (bad_ch, bad_c), (good_ch, good_c) = pick
         table = pg.evaluate("() => window.RIA_CHAPTER_FILES")
         _Handler.STATE["block_names"] = (table[str(bad_ch)].rsplit("/", 1)[-1],)
-        pg.evaluate("(q) => { const ctx = window.__ria.ctx; ctx.commit({ ...ctx.save, review_queue: q }); ctx.show('lesson', { review: true }); }",
+        pg.evaluate("(q) => { const ctx = window.__dueogi.ctx; ctx.commit({ ...ctx.save, review_queue: q }); ctx.show('lesson', { review: true }); }",
                     [bad_c, good_c])
         pg.wait_for_selector("article.item, .lesson-wait[data-state=error]", timeout=15_000)
         assert pg.query_selector("article.item"), pg.inner_text("#app")
@@ -1010,7 +1010,7 @@ def test_review_one_chapter_fails():
         _Handler.STATE["block_names"] = tuple(table[str(k)].rsplit("/", 1)[-1] for k in (bad_ch, good_ch))
         pg.reload()
         b.home()
-        pg.evaluate("() => window.__ria.ctx.show('lesson', { review: true })")
+        pg.evaluate("() => window.__dueogi.ctx.show('lesson', { review: true })")
         pg.wait_for_selector(".lesson-wait[data-state=error]", timeout=15_000)
         assert not [e for e in b.errors if e.startswith("pageerror")], b.errors
     finally:

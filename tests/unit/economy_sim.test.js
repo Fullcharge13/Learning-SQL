@@ -1,9 +1,9 @@
-// 작업 12: 바이트 경제 시뮬레이션이 같은 씨앗에서 같은 결과를 내고, 숫자가 깨지지 않는지
+// 작업 12: 엽전 경제 시뮬레이션이 같은 씨앗에서 같은 결과를 내고, 숫자가 깨지지 않는지
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { runSim } from "../sim/economy.js";
 
-const NUM_KEYS = ["bytesPerActiveDay", "freezesUsed", "streakBroken", "finalStreak", "outfitsOwned", "activeDays"];
+const NUM_KEYS = ["yeopjeonPerActiveDay", "freezesUsed", "streakBroken", "finalStreak", "outfitsOwned", "activeDays"];
 
 test("같은 씨앗 → 같은 결과", () => {
   const a = runSim(1);
@@ -19,7 +19,7 @@ test("숫자에 NaN이 없고 범위가 맞음", () => {
   }
   assert.ok(r.firstOutfitDay === null || (Number.isInteger(r.firstOutfitDay) && r.firstOutfitDay >= 1 && r.firstOutfitDay <= 30));
   assert.equal(r.activeDays, 26); // 30일 중 4일 빠짐(빠짐 3번, 그중 1번은 이틀)
-  assert.ok(r.bytesPerActiveDay > 0);
+  assert.ok(r.yeopjeonPerActiveDay > 0);
   assert.ok(Array.isArray(r.milestones));
 });
 
@@ -50,7 +50,7 @@ test("advanced 옵션: 심화를 끝내고, 본 과정 길이는 그대로, 같�
   assert.ok(a.advancedDone > 0, `advancedDone=${a.advancedDone}`);
   assert.equal(base.advancedDone, 0);
   assert.ok(a.advancedTotal >= 18, "v0.7: 1~6장 심화 18개(데이터가 아직 없으면 자리 표시로)");
-  assert.ok(Number.isFinite(a.bytesPerActiveDay) && a.bytesPerActiveDay > 0);
+  assert.ok(Number.isFinite(a.yeopjeonPerActiveDay) && a.yeopjeonPerActiveDay > 0);
   // 심화는 그 장 평가 뒤에만
   for (const [id, day] of Object.entries(a.advancedDay)) {
     const n = id.split("-")[0];
@@ -58,15 +58,15 @@ test("advanced 옵션: 심화를 끝내고, 본 과정 길이는 그대로, 같�
   }
 });
 
-// v0.9 작업 2: 매일 도전을 하는 학습자 — 같은 씨앗 같은 결과, 1장 뒤에만, 바이트가 늘고 첫 의상은 3~4일 안팎
-test("daily 옵션: 결정적, 도전한 날이 있고 바이트가 기준보다 많음", () => {
+// v0.9 작업 2: 매일 도전을 하는 학습자 — 같은 씨앗 같은 결과, 1장 뒤에만, 엽전가 늘고 첫 의상은 3~4일 안팎
+test("daily 옵션: 결정적, 도전한 날이 있고 엽전가 기준보다 많음", () => {
   const base = runSim(1);
   const d = runSim(1, { daily: true });
   assert.deepEqual(d, runSim(1, { daily: true }));
   assert.equal(base.dailyDone, 0);
   assert.ok(d.dailyDone > 10 && d.dailyDone <= d.activeDays, `dailyDone=${d.dailyDone}`);
   assert.ok(d.sources.daily >= d.dailyDone * 10, JSON.stringify(d.sources));
-  assert.ok(d.bytesPerActiveDay > base.bytesPerActiveDay);
+  assert.ok(d.yeopjeonPerActiveDay > base.yeopjeonPerActiveDay);
   assert.equal(d.courseLength, base.courseLength);
   const fods = [1, 2, 3, 4, 5, 6].map((s) => runSim(s, { daily: true }).firstOutfitDay).sort((a, b) => a - b);
   const med = (fods[2] + fods[3]) / 2;

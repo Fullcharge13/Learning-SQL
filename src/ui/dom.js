@@ -1,5 +1,6 @@
-// 화면 공용 도우미: 글자 이스케이프, 요소 만들기, 리아 말풍선, 아이콘, 창(modal)
-import { riaSVG } from "../ria.js";
+// 화면 공용 도우미: 글자 이스케이프, 요소 만들기, 두억이 말풍선, 아이콘, 창(modal)
+import { dueogiSVG } from "../dueogi.js";
+import { FACES } from "../say.js";
 
 export function esc(v) {
   return String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -14,10 +15,10 @@ export function el(html) {
 export const $ = (root, sel) => root.querySelector(sel);
 export const $$ = (root, sel) => Array.from(root.querySelectorAll(sel));
 
-/** 리아 + 말풍선. sfx: 효과음 말풍선 글자(딩동! 등) */
-export function riaSays({ outfit, face, text, size = 96, sfx = "", cls = "" }) {
-  return `<div class="ria-row ${cls}">
-    <div class="ria-wrap">${riaSVG({ outfit, face, size })}${sfx ? `<span class="sfx" aria-hidden="true">${esc(sfx)}</span>` : ""}</div>
+/** 두억이 + 말풍선. face: src/dueogi.js FACE_IDS(설계 §8-3), sfx: 효과음 말풍선 글자(딩동! 등) */
+export function dueogiSays({ outfit, face, text, size = 96, sfx = "", cls = "" }) {
+  return `<div class="dueogi-row ${cls}">
+    <div class="dueogi-wrap">${dueogiSVG({ outfit, face, size })}${sfx ? `<span class="sfx" aria-hidden="true">${esc(sfx)}</span>` : ""}</div>
     <p class="bubble">${esc(text)}</p>
   </div>`;
 }
@@ -25,7 +26,7 @@ export function riaSays({ outfit, face, text, size = 96, sfx = "", cls = "" }) {
 // 선 아이콘 (24 격자). 색은 currentColor
 const P = {
   flame: '<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5.3 1.6 1.2 2.5 2.2 2.5C10.5 8.5 11 5.5 12 3z"/>',
-  byte: '<path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M9.5 10v4M14.5 10v4M9.5 12h5" />',
+  coin: '<circle cx="12" cy="12" r="8.5"/><rect x="9.6" y="9.6" width="4.8" height="4.8" rx=".4"/>',   // 엽전(가운데 네모 구멍)
   xp: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   cross: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
@@ -113,7 +114,7 @@ export function cardExample(c) {
 }
 
 export const MILESTONE_REWARD = {
-  7: "보너스 50바이트를 받았어요",
+  7: "보너스 50엽전을 받았어요",
   30: "졸업 가운과 학사모를 선물로 받았어요",
   100: "「연속 100일」 배지를 받았어요",
 };
@@ -124,7 +125,7 @@ export function celebrate({ outfit, milestone }) {
     const prev = document.activeElement;
     const wrap = el(`<div class="celebrate" role="dialog" aria-modal="true" aria-labelledby="cel-title">
       <div class="cel-card">
-        <div class="ria-wrap big jump">${riaSVG({ outfit, face: "sparkle", size: 150 })}<span class="sfx" aria-hidden="true">짠!</span></div>
+        <div class="dueogi-wrap big jump">${dueogiSVG({ outfit, face: FACES.reward, size: 150 })}<span class="sfx" aria-hidden="true">짠!</span></div>
         <h2 id="cel-title" class="cel-title">${icon("flame")}연속 ${esc(milestone)}일!</h2>
         <p class="cel-reward">${esc(MILESTONE_REWARD[milestone] || "")}</p>
         <button class="btn sun wide" id="cel-ok">좋아요</button>

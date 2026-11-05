@@ -32,19 +32,20 @@ export function whenEngine(sql) {
   return { promise, cancel: () => off() };
 }
 
-/** 결과 표 HTML (box: card·opt·sheet). 객관식 보기(opt)는 앞 OPT_ROWS행, 포커스 없음 */
-export function resultHTML(r, box) {
+/** 결과 표 HTML (box: card·opt·sheet). 객관식 보기(opt)는 앞 OPT_ROWS행, 포커스 없음.
+ *  sql: 이 표를 만든 SQL(별칭이 진짜 열 이름을 가리면 한글 뜻을 달지 않으려고) */
+export function resultHTML(r, box, sql = null) {
   return tableHTML(r, box === "opt"
-    ? { ko: SCHEMA, max: OPT_ROWS, label: "보기 결과 표", focusable: false }
-    : { ko: SCHEMA, label: box === "sheet" ? "표 미리 보기" : "실행 결과 표" });
+    ? { ko: SCHEMA, max: OPT_ROWS, label: "보기 결과 표", focusable: false, sql }
+    : { ko: SCHEMA, label: box === "sheet" ? "표 미리 보기" : "실행 결과 표", sql });
 }
 
-function paint(node, r, box) {
+function paint(node, r, box, sql) {
   if (r.error) {
     node.innerHTML = `<p class="muted sql-err">표를 보여 줄 수 없어요</p>`;
     return;
   }
-  node.innerHTML = resultHTML(r, box);
+  node.innerHTML = resultHTML(r, box, sql);
   node.dataset.filled = "1";
 }
 
@@ -72,7 +73,7 @@ export function choiceOptionHTML(o, i) {
   const has = o.result && Array.isArray(o.result.columns) && Array.isArray(o.result.rows);
   // 표를 들고 있으면 바로 그린다(data-sql 자리가 없어 fillResults가 다시 돌리지 않음). 아니면 fillResults가 채울 자리
   const inner = has
-    ? `<span class="opt-text sql-result" data-box="opt" data-filled="1">${resultHTML(o.result, "opt")}</span>`
+    ? `<span class="opt-text sql-result" data-box="opt" data-filled="1">${resultHTML(o.result, "opt", q)}</span>`
     : `<span class="opt-text sql-result" data-sql="${esc(q)}" data-box="opt"><span class="muted">${esc(LOADING_LINE)}</span></span>`;
   const label = has ? `${n}번 보기: 열 ${o.result.columns.join(", ")}, ${o.result.rows.length}행` : `${n}번 보기: 표를 불러오는 중`;
   return `<button class="opt sqlopt" role="radio" aria-checked="false" data-i="${i}" data-sql="${esc(q)}" aria-label="${esc(label)}"><span class="opt-key" aria-hidden="true">${n}</span>${inner}</button>`;
@@ -100,7 +101,7 @@ export function answerFeedbackHTML(right, answerIndex, code, drawnHTML = null) {
   if (rq == null) return `<p class="answer">정답: <span class="${isCodey(right) ? "mono" : ""}">${esc(right)}</span></p>`;
   const head = `<p class="answer">정답: ${answerIndex + 1}번 보기</p>`;
   if (!sameSql(rq, code)) return head + codeBlock(rq, "sql");
-  const table = right.result ? resultHTML(right.result, "opt") : drawnHTML || "";
+  const table = right.result ? resultHTML(right.result, "opt", rq) : drawnHTML || "";
   return head + (table ? `<div class="answer-table">${table}</div>` : "");
 }
 
@@ -122,7 +123,7 @@ export function fillResults(root, sql, { onFilled = null, onFailed = null } = {}
       let r;
       try { r = await sql.run(node.dataset.sql); } catch (e) { r = { error: String(e), columns: [], rows: [] }; }
       if (stopped || !node.isConnected) return;
-      paint(node, r, node.dataset.box);
+      paint(node, r, node.dataset.box, node.dataset.sql);
       if (onFilled) { try { onFilled(node, r); } catch (e) { console.error(e); } }
     }
   });

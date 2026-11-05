@@ -2,7 +2,7 @@
 // 겹치는 순서: 바닥 그림자 → 바닥에 둔 방망이 → 뒷머리 → (모자 없으면) 뿔 → 기대 둔 방망이 → 다리 → 몸·의상 → 팔
 //              → 쥔 방망이(mid) → 머리(귀·얼굴·표정·앞머리·눈썹) → 어깨에 멘 방망이(front) → 의상 소품 → 손
 //              → 모자 + (모자 있으면) 뿔 → 얼굴 앞 팔·고기(over) → 효과(g.dueogi-fx)
-// 같은 입력이면 언제나 같은 문자열. <defs>·id를 쓰지 않아 한 화면에 여러 장을 넣어도 충돌이 없다(riaSVG와 같은 약속).
+// 같은 입력이면 언제나 같은 문자열. <defs>·id를 쓰지 않아 한 화면에 여러 장을 넣어도 충돌이 없다(화면에 여러 장을 같이 그려도 됨).
 // 첨부 시트는 특징(파란 피부, 뿔, 헝클어진 머리, 송곳니 …)만 참고했고 자세·구도는 새로 정했다.
 
 export const FACE_IDS = Object.freeze(["proud", "cheer", "wink", "laugh", "think", "surprise", "run", "nervous", "swing", "eat", "cry", "sleep"]);
@@ -34,7 +34,7 @@ const C = {
   meat: "#B5532E", meatL: "#D8794A", bone: "#FBF3E2", gray: "#B8BCC6", grayL: "#E3E5EA", shadow: "#2B2433",
 };
 
-// ---- 작은 도우미 (ria.js와 같은 꼴) ----
+// ---- 작은 도우미 ----
 const n = (v) => Math.round(v * 10) / 10;
 function p(d, fill, o = {}) {
   const sw = o.sw ?? 2.6;

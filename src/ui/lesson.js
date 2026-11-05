@@ -3,12 +3,13 @@
 import { current, nextCard, answer, skip, summary } from "../lessonflow.js";
 import { newSession, mark as markConcept, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../session.js";
 import { packResume, restoreSession, hasProgress } from "../resume.js";
-import { riaSVG } from "../ria.js";
-import { esc, icon, bar, codeBlock, dialog, riaSays, cardExample } from "./dom.js";
+import { FACES } from "../say.js";
+import { esc, icon, bar, codeBlock, dialog, dueogiSays, cardExample } from "./dom.js";
 import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
 import { reviewPool } from "../lessondata.js";
 import { buildDailyLesson } from "../daily.js";
 import { mountBuild } from "./build.js";
+import { dueogiSVG } from "../dueogi.js";
 import { fillResults, choiceOptionHTML, choiceOptionFailed, optionsShowCode, answerFeedbackHTML } from "./sqlview.js";
 import { openTables } from "./tables.js";
 
@@ -43,7 +44,7 @@ async function buildReview(ctx) {
 /** 매일 도전: 저장에 고정된 오늘 문제 중 아직 안 푼 것만(daily.buildDailyLesson). 실행기 탓이면 engine 오류 → 「다시 시도」(R28) */
 async function buildDaily(ctx) {
   const lesson = await buildDailyLesson({ save: ctx.save, getChapter: ctx.getChapter, sql: ctx.sql });
-  if (lesson && ctx.app) ctx.app.dailyLesson = lesson;   // 시험 도구가 만든 문제를 볼 수 있게(window.__ria)
+  if (lesson && ctx.app) ctx.app.dailyLesson = lesson;   // 시험 도구가 만든 문제를 볼 수 있게(window.__dueogi)
   return lesson;
 }
 
@@ -51,13 +52,13 @@ async function buildDaily(ctx) {
  *  state: blank(0.3초 전) · wait(준비 중) · error. kind(error일 때): offline · stale(새 판) · broken(그리다 실패) */
 function waitScreen(root, ctx, state, kind = "offline", daily = false) {
   const err = state === "error";
-  const face = (f) => riaSays({ outfit: ctx.save.outfit, face: f, text: err ? ERROR_LINES[kind].say : daily ? "준비 중… 오늘의 문제를 만들고 있어요" : "준비 중… 레슨을 펼치고 있어요", size: 92 });
+  const face = (f) => dueogiSays({ outfit: ctx.save.outfit, face: f, text: err ? ERROR_LINES[kind].say : daily ? "준비 중… 오늘의 문제를 만들고 있어요" : "준비 중… 레슨을 펼치고 있어요", size: 92 });
   const body = err
-    ? `<h1 class="sr">레슨을 열지 못했어요</h1>${face("think")}
+    ? `<h1 class="sr">레슨을 열지 못했어요</h1>${face(FACES.waiting)}
        <p class="muted center">${esc(ERROR_LINES[kind].note)}</p>
        <div class="btn-row"><button class="btn ghost" id="to-home">학습 길로</button><button class="btn primary" id="retry">${esc(ERROR_LINES[kind].btn)}</button></div>`
     : state === "wait"
-      ? `${face("smile")}<div class="btn-row one"><button class="btn ghost" id="to-home">학습 길로</button></div>`
+      ? `${face(FACES.waiting)}<div class="btn-row one"><button class="btn ghost" id="to-home">학습 길로</button></div>`
       : "";
   root.innerHTML = `<div class="screen lesson-wait" data-state="${state}"${err ? ` data-kind="${kind}"` : ""} aria-busy="${err ? "false" : "true"}">
     <main role="status" aria-live="polite">${body}</main>
@@ -80,7 +81,7 @@ async function askResume(ctx, lesson, S0) {
   const p = Math.round(summary(S0.flow).progress * 100);
   const v = await dialog({
     title: "레슨 이어 하기",
-    body: riaSays({ outfit: ctx.save.outfit, face: "smile", text: RESUME_ASK, size: 72, cls: "small resume-ask" })
+    body: dueogiSays({ outfit: ctx.save.outfit, face: FACES.home, text: RESUME_ASK, size: 72, cls: "small resume-ask" })
       + `<p class="muted resume-meta">${esc(`${lesson.id} ${lesson.title || ""}`.trim())} · ${p}% 했어요</p>`,
     buttons: [{ label: "이어서 하기", value: "resume", kind: "primary" }, { label: "처음부터", value: "restart" }],
   });
@@ -219,7 +220,8 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
   const mark = (index, concept, outcome) => markConcept(S, index, concept, outcome);
 
   // ---- 결과 패널 ----
-  function openResult({ ok, flowCorrect, title, text, answerHTML = "", situation, sfx, onContinue }) {
+  // face: 대사 표정 대신 쓸 표정(같은 문제를 다시 틀림 → 달리기, 설계 §8-3)
+  function openResult({ ok, flowCorrect, title, text, answerHTML = "", situation, sfx, onContinue, face = null }) {
     const line = ctx.say(situation);
     result.className = "result " + (ok ? "ok" : "bad");
     result.innerHTML = `<div class="result-scroll">
@@ -229,8 +231,8 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       </div>
       ${answerHTML}
       ${text ? `<p class="result-explain">${esc(text)}</p>` : ""}
-      <div class="ria-row small">
-        <div class="ria-wrap${ok ? " jump" : ""}">${riaSVG({ outfit: ctx.save.outfit, face: line.face, size: 64 })}<span class="sfx" aria-hidden="true">${esc(sfx)}</span></div>
+      <div class="dueogi-row small">
+        <div class="dueogi-wrap${ok ? " jump" : ""}">${dueogiSVG({ outfit: ctx.save.outfit, face: face || line.face, size: 64 })}<span class="sfx" aria-hidden="true">${esc(sfx)}</span></div>
         <p class="bubble">${esc(line.text)}</p>
       </div>
     </div>
@@ -271,6 +273,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       answerHTML: ok ? "" : answerHTML,
       situation: ok ? (combo ? "combo" : "correct") : "wrong",
       sfx: ok ? (combo ? "척척!" : "딩동!") : "어라?",
+      face: !ok && cur.retry ? FACES.wrongAgain : null,   // 다시 풀기에서 또 틀림
     });
   }
 
@@ -286,10 +289,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     body.innerHTML = `<article class="card-view">
       ${first && lesson.goal ? `<p class="goal-line">${icon("book")}<span>오늘의 목표: ${esc(lesson.goal)}</span></p>` : ""}
       <h1 class="lesson-title">${esc(lesson.title)}</h1>
-      <div class="ria-row">
-        <div class="ria-wrap">${riaSVG({ outfit: ctx.save.outfit, face: first ? "smile" : "think", size: 84 })}</div>
-        <p class="bubble">${esc(c.say)}</p>
-      </div>
+      ${dueogiSays({ outfit: ctx.save.outfit, face: first && lesson.isExam && !review && !daily ? FACES.examStart : FACES.card, text: c.say, size: 84 })}
       ${cardExample(c)}
     </article>`;
     S.cleanupItem = fillResults(body, ctx.sql);   // 카드의 SQL 결과 표(실행기가 준비되면 채움, 화면을 떠나면 멈춤)
@@ -304,7 +304,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       : it.type === "check" ? `<span class="tag check">이해도 확인</span>`
       : review && it.from ? `<span class="tag">${esc(it.from)} 복습</span>`
       : daily && it.tag ? `<span class="tag daily">${icon("flame")}${esc(it.tag)}</span>` : "";
-    return `${tag}<h1 class="q">${esc(it.q || (it.type === "order" ? "줄을 차례대로 눌러 코드를 완성해 보세요." : "답을 골라 보세요."))}</h1>
+    return `${tag}<h1 class="q">${esc(it.q || (it.type === "order" ? "줄을 차례대로 눌러 SQL을 완성해 보세요." : "답을 골라 보세요."))}</h1>
       ${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}`;
   }
 
@@ -377,7 +377,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const order = shuffleOrder(it.lines, newSeed());
     const chosen = [];
     body.innerHTML = `<article class="item">${itemHead(cur)}
-      <p class="ex-label">내가 만든 코드 <small>(누르면 빠져요)</small></p>
+      <p class="ex-label">내가 맞춘 SQL <small>(누르면 빠져요)</small></p>
       <ol class="order-answer" id="oa" aria-label="고른 순서"></ol>
       <p class="ex-label">줄 조각 <small>(누른 순서대로 들어가요)</small></p>
       <div class="order-pool" id="op">${order.map((li) =>

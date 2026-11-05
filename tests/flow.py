@@ -20,7 +20,7 @@
 - test_old_save: saveVer 없는 {xp: 30} → 홈 정상, XP 30
 - test_replay_and_exam: 1-1 다시 하기 XP +10·레슨 엽전 0 / 실제 1장으로 1-1~1-4를 끝낸 저장 → 1-5(장 평가) 첫 완료 XP +40·엽전 15
 - test_wrong_then_retry: 객관식 틀림 → 본 문제 끝에 다시 나옴 → 완료 화면은 실수 없음 아님
-- test_reduced_motion: 동작 줄이기에서 리아 .ria-body 움직임 없음
+- test_reduced_motion: 동작 줄이기에서 두억이 .dueogi-body 움직임 없음
 - test_status_after_milestone: 연속 6일(어제 달성) → 레슨 완료로 7일 축하 창이 떠 있는 동안 상태 줄 7일
 - test_resume_lesson: 조립 문제에 카드 몇 장 놓고 새로고침 → 「이어서 하기」 → 같은 카드가 놓여 있음 → 끝까지: 보상·저장이 끊지 않은 판과 같음
 - test_resume_decline: 「처음부터」 → 카드 1부터, 칸 지워짐 / 「그만두기」도 칸을 지움
@@ -33,6 +33,7 @@
 - test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
 - test_real_lesson_walk(작업 12): 실제 1-1을 끝까지 — 화면마다 넘침 0(열 많은 결과 표 보기 포함)
 - test_new_content_dot: 실제 1장 1-2에 updated를 단 빌드 — 홈·설정의 「새 내용」 점, 다시 하기로 끝까지 마치면 사라짐
+- test_card_table_above_button(작업 10): 7·8장 장 평가 카드·7-1의 결과 표가 「문제 풀기」 단추 줄에 가리지 않음(처음·끝까지 내림)
 - SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
 """
 
@@ -235,10 +236,10 @@ class App:
 
     def lesson(self, lid):
         # 레슨 목록(index.html)에는 문제가 없어 장 파일에서 받는다(v0.3 작업 1)
-        return self.js("(id) => window.__ria.ctx.getLesson(id)", lid)
+        return self.js("(id) => window.__dueogi.ctx.getLesson(id)", lid)
 
     def wait_engine(self):
-        self.page.wait_for_function("() => window.__ria.ctx.sql.status === 'ready'", timeout=ENGINE_READY_MS)
+        self.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'ready'", timeout=ENGINE_READY_MS)
 
     def bank_texts(self):
         return self.js("() => [...document.querySelectorAll('#bbank button.bcard')].map((b) => b.dataset.text)")
@@ -385,7 +386,7 @@ class App:
         return seq
 
     def result(self):
-        return self.js("() => window.__ria.app.params && window.__ria.app.params.result")
+        return self.js("() => window.__dueogi.app.params && window.__dueogi.app.params.result")
 
 
 # ---------------------------------------------------------------- 화면 측정
@@ -523,9 +524,9 @@ def test_first_lesson():
         r = a.result()
         s = a.save()
         print("    done tiles: %s | result xp=%s yeopjeon=%s perfect=%s hintfree=%s" % (
-            a.page.inner_text(".tiles").replace("\n", " "), r["xp"], r["totalBytes"], r["perfect"], r["hintFreeWrite"]))
+            a.page.inner_text(".tiles").replace("\n", " "), r["xp"], r["totalYeopjeon"], r["perfect"], r["hintFreeBuild"]))
         assert xp_tile == "+20", xp_tile
-        assert r["xp"] == 20 and r["perfect"] and r["hintFreeWrite"] and r["firstTime"], r
+        assert r["xp"] == 20 and r["perfect"] and r["hintFreeBuild"] and r["firstTime"], r
         assert s["completed_lessons"] == ["1-1"], s["completed_lessons"]
         assert s["xp"] == 20, s["xp"]
         a.dismiss()
@@ -584,10 +585,10 @@ def test_replay_and_exam():
         r = a.result()
         after = a.save()
         a.shot("replay-done.png", full=True)
-        print("    replay: xp +%s, lessonBytes %s, questBytes %s, total yeopjeon +%s, tiles %s" % (
-            r["xp"], r["lessonBytes"], r["questBytes"], r["totalBytes"], a.page.inner_text(".tiles").replace("\n", " ")))
+        print("    replay: xp +%s, lessonYeopjeon %s, questYeopjeon %s, total yeopjeon +%s, tiles %s" % (
+            r["xp"], r["lessonYeopjeon"], r["questYeopjeon"], r["totalYeopjeon"], a.page.inner_text(".tiles").replace("\n", " ")))
         assert a.page.inner_text(".tile.xp b") == "+10"
-        assert r["xp"] == 10 and r["lessonBytes"] == 0 and not r["firstTime"], r
+        assert r["xp"] == 10 and r["lessonYeopjeon"] == 0 and not r["firstTime"], r
         assert after["xp"] - before["xp"] == 10, (before["xp"], after["xp"])
         assert after["completed_lessons"] == ["1-1"]
         assert "다시 하기라서" in a.page.inner_text(".screen.done")
@@ -609,14 +610,14 @@ def test_replay_and_exam():
         r = a.result()
         s = a.save()
         a.shot("exam-done.png", full=True)
-        print("    exam: xp +%s (perfect %s, hintfree %s), lessonBytes %s, total yeopjeon +%s" % (
-            r["xp"], r["perfect"], r["hintFreeWrite"], r["lessonBytes"], r["totalBytes"]))
-        assert r["firstTime"] and r["perfect"] and r["hintFreeWrite"], r
+        print("    exam: xp +%s (perfect %s, hintfree %s), lessonYeopjeon %s, total yeopjeon +%s" % (
+            r["xp"], r["perfect"], r["hintFreeBuild"], r["lessonYeopjeon"], r["totalYeopjeon"]))
+        assert r["firstTime"] and r["perfect"] and r["hintFreeBuild"], r
         assert r["xp"] == 30 + 5 + 5, r["xp"]
-        assert r["lessonBytes"] == 15, r["lessonBytes"]
+        assert r["lessonYeopjeon"] == 15, r["lessonYeopjeon"]
         assert a.page.inner_text(".tile.xp b") == "+40"
         assert s["xp"] == 120 and "1-5" in s["completed_lessons"], (s["xp"], s["completed_lessons"])
-        assert s["yeopjeon"] - seed["yeopjeon"] == r["totalBytes"], (s["yeopjeon"], r["totalBytes"])
+        assert s["yeopjeon"] - seed["yeopjeon"] == r["totalYeopjeon"], (s["yeopjeon"], r["totalYeopjeon"])
         a.dismiss()
         assert not a.errors, a.errors
 
@@ -643,7 +644,7 @@ def test_wrong_then_retry():
 
 
 def test_reduced_motion():
-    q = """() => [...document.querySelectorAll('.ria-body')].map(e => ({
+    q = """() => [...document.querySelectorAll('svg.dueogi .dueogi-body')].map(e => ({
         name: getComputedStyle(e).animationName,
         running: e.getAnimations().filter(x => x.playState === 'running').length }))"""
     with App("iPhone 17", reduced=True) as a:
@@ -656,7 +657,7 @@ def test_reduced_motion():
         seen["card"] = a.js(q)
         print("    %s" % {k: len(v) for k, v in seen.items()})
         bad = {k: v for k, v in seen.items() if any(x["running"] or x["name"] != "none" for x in v)}
-        assert all(seen.values()), "no Ria found on some screen: %s" % seen
+        assert all(seen.values()), "no Dueogi found on some screen: %s" % seen
         assert not bad, bad
     # 대조: 동작 줄이기가 없으면 숨쉬기 움직임이 돈다(측정 방법이 맞는지)
     with App("iPhone 17") as a:
@@ -810,7 +811,7 @@ def test_resume_lesson():
         a.play(RESUME_LESSON)
         r, s = a.result(), a.save()
         print("    resumed: xp +%s yeopjeon +%s perfect %s | whole: xp +%s yeopjeon +%s perfect %s | prompt %s" % (
-            r["xp"], r["totalBytes"], r["perfect"], whole_r["xp"], whole_r["totalBytes"], whole_r["perfect"], path))
+            r["xp"], r["totalYeopjeon"], r["perfect"], whole_r["xp"], whole_r["totalYeopjeon"], whole_r["perfect"], path))
         assert r == whole_r, (r, whole_r)
         assert _strip_times(s) == _strip_times(whole_s)
         assert _resume_rec(a) is None
@@ -905,11 +906,11 @@ def test_advanced_branch():
         r = a.result()
         s = a.save()
         title = a.page.inner_text(".done-hero h1")
-        print("    advanced: %s xp +%s, lessonBytes %s, perfect %s, hintfree %s, badges %s" % (
-            title, r["xp"], r["lessonBytes"], r["perfect"], r["hintFreeWrite"], r["newBadges"]))
+        print("    advanced: %s xp +%s, lessonYeopjeon %s, perfect %s, hintfree %s, badges %s" % (
+            title, r["xp"], r["lessonYeopjeon"], r["perfect"], r["hintFreeBuild"], r["newBadges"]))
         assert title == "1-A1 심화 완료!", title
-        assert r["firstTime"] and not r["perfect"] and r["hintFreeWrite"], r
-        assert r["xp"] == 15 + 5 and r["lessonBytes"] == 15, r
+        assert r["firstTime"] and not r["perfect"] and r["hintFreeBuild"], r
+        assert r["xp"] == 15 + 5 and r["lessonYeopjeon"] == 15, r
         assert "advanced1" in r["newBadges"], r["newBadges"]
         assert "심화 첫걸음" in a.page.inner_text(".screen.done")
         assert "1-A1" in s["completed_lessons"] and s["current_lesson"] == "2-1" and s["current_chapter"] == 2, s
@@ -926,7 +927,7 @@ def test_advanced_branch():
         a.page.wait_for_selector(".screen.settings")
         row = a.page.query_selector('.ch-row[aria-controls="ch-1"]')
         assert "심화 1/3" in row.inner_text(), row.inner_text()
-        plain = a.js("() => (window.__ria.app.chapters.find((c) => !(c.advanced || []).length) || {}).id")
+        plain = a.js("() => (window.__dueogi.app.chapters.find((c) => !(c.advanced || []).length) || {}).id")
         assert plain, "need a chapter without ADVANCED"
         assert a.page.query_selector('.ch-row[aria-controls="ch-%d"] .ch-adv' % plain) is None, "chapter without ADVANCED shows no 심화 count"
         assert "심화 0/3" in a.page.inner_text('.ch-row[aria-controls="ch-2"]')
@@ -1047,7 +1048,7 @@ def test_new_content_dot():
         a.play("1-2")
         r = a.result()
         s = a.save()
-        assert r["xp"] == 10 and r["lessonBytes"] == 0 and not r["firstTime"], r
+        assert r["xp"] == 10 and r["lessonYeopjeon"] == 0 and not r["firstTime"], r
         assert s["seen_updates"] == {"1-2": UPD_VER}, s.get("seen_updates")
         assert s["completed_lessons"] == done and s["saveVer"] == 1, s
         text = a.page.inner_text(".screen.done")
@@ -1072,7 +1073,7 @@ def test_new_content_dot():
 
 # ---------------------------------------------------------------- 매일 도전 (리아 v0.9 작업 2 → 두억이 작업 11)
 
-DAILY_JS = "() => { const l = window.__ria.app.dailyLesson; return l ? l.items : null; }"
+DAILY_JS = "() => { const l = window.__dueogi.app.dailyLesson; return l ? l.items : null; }"
 
 
 def _daily_card(a):
@@ -1149,7 +1150,7 @@ def test_daily_challenge():
         assert all(p["chapter"] == 1 for p in picks), picks
         assert sorted(p["id"] for p in picks[:2]) == ["1-T1", "1-T2"], picks
         assert picks[2]["lesson"] in done12, picks
-        xp0, bytes0 = s0["xp"], s0["yeopjeon"]
+        xp0, yeopjeon0 = s0["xp"], s0["yeopjeon"]
 
         a.wait_engine()
         a.page.click("#daily")
@@ -1180,9 +1181,9 @@ def test_daily_challenge():
         a.shot("daily-done.png", full=True)
         r = a.result()
         s2 = a.save()
-        assert r["mode"] == "daily" and r["xp"] == 15 and r["lessonBytes"] == 10, r
+        assert r["mode"] == "daily" and r["xp"] == 15 and r["lessonYeopjeon"] == 10, r
         assert s2["xp"] == xp0 + 15, (s2["xp"], xp0)
-        assert s2["yeopjeon"] == bytes0 + 10 + r["questBytes"] + r["milestoneBytes"], (s2["yeopjeon"], bytes0, r)
+        assert s2["yeopjeon"] == yeopjeon0 + 10 + r["questYeopjeon"] + r["milestoneYeopjeon"], (s2["yeopjeon"], yeopjeon0, r)
         assert s2["daily"]["streak"] == 1 and s2["daily"]["last_done_date"] == today() and s2["daily"]["done"] == [0, 1, 2], s2["daily"]
         assert s2["streak"]["todayXp"] >= 15 and s2["streak"]["lastGoalDate"] == today(), s2["streak"]
         assert s2["completed_lessons"] == done12, "daily does not change course progress"
@@ -1207,7 +1208,7 @@ def test_daily_no_engine():
     base = {"saveVer": 1, "completed_lessons": ["1-1", "1-2"], "current_chapter": 1, "current_lesson": "1-2",
             "settings": {"sound": False, "dailyGoal": 10, "name": ""}}
     with App("iPhone 17", save=base, block=("**/sql-wasm.wasm",)) as a:
-        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'failed'", timeout=20_000)
         a.start()
         a.page.click("#daily")
         a.page.wait_for_selector(".lesson-wait[data-state=error]", timeout=ENGINE_READY_MS)
@@ -1337,8 +1338,8 @@ def test_build_solve():
         a.page.wait_for_timeout(300)
         r, s = a.result(), a.save()
         print("    build done: xp +%s perfect %s hintfree %s stats %s logs %s" % (
-            r["xp"], r["perfect"], r["hintFreeWrite"], s["stats"], [e["pass"] for e in s["submission_logs"]]))
-        assert r["hintFreeWrite"] and not r["perfect"] and r["xp"] == 15, r
+            r["xp"], r["perfect"], r["hintFreeBuild"], s["stats"], [e["pass"] for e in s["submission_logs"]]))
+        assert r["hintFreeBuild"] and not r["perfect"] and r["xp"] == 15, r
         assert s["stats"]["fixed"] == 1 and s["stats"]["hintfree"] == 1, s["stats"]
         assert [e["pass"] for e in s["submission_logs"]] == [False, True], s["submission_logs"]
         a.dismiss()
@@ -1348,7 +1349,7 @@ def test_build_solve():
 
 def test_build_no_engine():
     with App("iPhone 17", block=("**/sql-wasm.wasm",)) as a:
-        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'failed'", timeout=20_000)
         assert "못 받았어요" in a.page.inner_text(".load-text"), a.page.inner_text(".load-text")
         a.start()
         a.page.click("#continue")
@@ -1376,7 +1377,7 @@ def test_build_no_engine():
         assert a.page.is_hidden("#result")
         # 「다시 시도」를 눌러도 막혀 있으면 계속 실패 안내
         a.page.click("#engretry")
-        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'failed'", timeout=20_000)
         a.page.wait_for_selector("#engchip.err")
         assert a.page.is_disabled("#submit")
         a.shot("build-no-engine.png")
@@ -1538,7 +1539,7 @@ def test_lesson_wrong_option():
 
 def test_lesson_no_engine():
     with App("iPhone 17", save={"completed_lessons": ["1-1"]}, block=("**/sql-wasm.wasm",)) as a:
-        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'failed'", timeout=20_000)
         a.start()
         a.page.click("#continue")
         a.page.wait_for_selector(".card-view")
@@ -1651,6 +1652,51 @@ def test_real_lesson_walk():
     보기 단추가 화면 폭 안에 있고 표만 옆으로 밀린다(설계 §3)"""
     shots, fails = walk_lesson("1-1")
     print("    %d screens, e.g. %s" % (len(shots), ", ".join(shots[:3])))
+    assert not fails, "\n".join(fails)
+
+
+CARD_FOOT_JS = r"""() => {
+  const f = document.querySelector('#foot').getBoundingClientRect();
+  const b = document.querySelector('#act').getBoundingClientRect();
+  const t = document.querySelector('.card-view .sql-result[data-filled="1"] .rtable');
+  const r = t.getBoundingClientRect();
+  return { vh: innerHeight, footTop: f.top, footBottom: f.bottom, btnTop: b.top, btnBottom: b.bottom,
+           top: r.top, bottom: r.bottom, sy: scrollY, max: document.documentElement.scrollHeight - innerHeight,
+           pos: getComputedStyle(document.querySelector('#foot')).position };
+}"""
+
+
+def test_card_table_above_button():
+    """작업 10 (작업 13c 이월): 설명 카드의 결과 표가 「다음 카드」/「문제 풀기」 단추에 가리지 않는다.
+    7장·8장 장 평가 카드(표가 화면 아래쪽까지 오는 카드)와 7-1을 아이폰 17·17e로: 처음 화면과 끝까지 내린 화면 모두에서
+    결과 표(행 수 줄까지)와 단추 줄이 겹치지 않고, 끝까지 내리면 단추가 화면 안에 다 보인다."""
+    fails = []
+    for dev in ["iPhone 17", "iPhone 17e"]:
+        for lid in ["7-5", "8-5", "7-1"]:
+            with App(dev, save=_seed_before(lid), url=real_url()) as a:
+                a.start()
+                a.page.click("#continue")
+                a.page.wait_for_selector(".card-view")
+                a.page.wait_for_selector(".card-view .sql-result[data-filled='1']", timeout=ENGINE_READY_MS)
+                a.page.wait_for_timeout(200)
+                for when in ("top", "bottom"):
+                    if when == "bottom":
+                        a.js("() => window.scrollTo(0, 1e6)")
+                        a.page.wait_for_timeout(100)
+                    p = a.js(CARD_FOOT_JS)
+                    visible_table = p["bottom"] > 0 and p["top"] < p["vh"]
+                    overlap = visible_table and p["bottom"] > p["footTop"] + 0.5 and p["top"] < p["footBottom"]
+                    if overlap:
+                        fails.append("%s %s %s: table %d..%d under button bar %d..%d (%s)" % (
+                            dev, lid, when, p["top"], p["bottom"], p["footTop"], p["footBottom"], p["pos"]))
+                    if when == "bottom" and not (p["btnTop"] >= -0.5 and p["btnBottom"] <= p["vh"] + 0.5):
+                        fails.append("%s %s: button off screen after scrolling %d..%d / %d" % (dev, lid, p["btnTop"], p["btnBottom"], p["vh"]))
+                if lid == "8-5" and dev == "iPhone 17":
+                    a.js("() => window.scrollTo(0, 0)")
+                    a.shot("card-8-5-top.png")
+                    a.js("() => window.scrollTo(0, 1e6)")
+                    a.shot("card-8-5-bottom.png")
+                assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
 
 

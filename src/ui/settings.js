@@ -75,7 +75,7 @@ export function render(root, ctx) {
             `<button role="radio" aria-checked="${g === goal}" data-g="${g}">${g} XP</button>`).join("")}</div>
         </div>
         <div class="row col">
-          <label for="name" class="row-label">부를 이름<small>리아 교수가 「○○님」이라고 불러요. 비워 둬도 돼요</small></label>
+          <label for="name" class="row-label">부를 이름<small>두억이가 「○○님」이라고 불러요. 비워 둬도 돼요</small></label>
           <input id="name" type="text" maxlength="9" autocomplete="nickname" autocapitalize="off" value="${esc(s.settings.name || "")}" placeholder="예: 지민">
         </div>
       </section>
@@ -94,7 +94,7 @@ export function render(root, ctx) {
         <p class="muted">아이폰 사파리에서는 홈 화면에 추가해 두면 앱처럼 열리고 기록도 더 안전해요.</p>
         <button class="btn ghost wide" id="install">홈 화면에 추가 방법</button>
       </section>
-      <p class="ver center">리아와 파이썬! ${esc(ctx.version)} · <a class="lic-link" href="licenses.txt" target="_blank" rel="noopener">사용한 프로그램</a></p>
+      <p class="ver center">두억이와 SQL! ${esc(ctx.version)} · <a class="lic-link" href="licenses.txt" target="_blank" rel="noopener">사용한 프로그램</a></p>
     </main>
     ${tabBar("settings")}
   </div>`;
@@ -184,13 +184,13 @@ export function render(root, ctx) {
     try { raw = JSON.parse(await f.text()); } catch { toast("저장 파일을 읽지 못했어요. 내보내기로 만든 .json 파일인지 확인해 주세요.", "warn"); return; }
     const known = Object.keys(newSave());
     if (!raw || typeof raw !== "object" || Array.isArray(raw) || !Object.keys(raw).some((k) => known.includes(k))) {
-      toast("리아와 파이썬! 저장 파일이 아니에요. 설정의 「저장 내보내기」로 만든 파일을 골라 주세요.", "warn");
+      toast("두억이와 SQL! 저장 파일이 아니에요. 설정의 「저장 내보내기」로 만든 파일을 골라 주세요.", "warn");
       return;
     }
     const next = ctx.migrate(raw);
     const ok = await dialog({
       title: "이 저장으로 바꿀까요?",
-      body: `<p>끝낸 레슨 ${next.completed_lessons.length}개, XP ${Math.max(0, next.xp)}, 바이트 ${Math.max(0, next.yeopjeon)}, 연속 기록 ${next.streak.days}일</p><p>지금 이 브라우저의 진행은 이 파일 내용으로 바뀌어요.</p>`,
+      body: `<p>끝낸 레슨 ${next.completed_lessons.length}개, XP ${Math.max(0, next.xp)}, 엽전 ${Math.max(0, next.yeopjeon)}, 연속 기록 ${next.streak.days}일</p><p>지금 이 브라우저의 진행은 이 파일 내용으로 바뀌어요.</p>`,
       buttons: [{ label: "그만두기", value: false }, { label: "바꾸기", value: true, kind: "primary" }],
     });
     if (!ok) return;

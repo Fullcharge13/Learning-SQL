@@ -1,19 +1,16 @@
-// 의상 10벌 (설계 2026-10-31 「리아 의상 교체」 §1). short: 대사 {outfit}에 넣는 짧은 이름(C16, 조사 없이).
-// price: null = 판매 안 함. unlock = 판매 외 얻는 방법. desc = 의상실 설명(참고 그림의 문구를 그림 대신 여기에 씀)
-// voice: 입으면 바뀌는 오류 설명 말투(data/errors.js의 같은 이름 칸). 탐정 말투는 탐험가(판정 C42)
+// 두억이 의상 10벌 (설계 §8-4, D12). 값은 리아 의상 값 순서 그대로(100 · 180 × 4 · 240 × 2 · 300).
+// short: 대사 {outfit}에 넣는 짧은 이름(C16, 조사 없이). price: null = 판매 안 함. unlock = 판매 외 얻는 방법.
+// desc = 의상실 설명. voice: 입으면 바뀌는 오류 설명 말투(data/errors.js의 같은 이름 칸) — 탐정 의상(판정 R14)
+// 그림은 src/dueogi.js(OUTFIT_IDS와 같은 차례).
 export const OUTFITS = [
-  { id: "basic", short: "기본복장", name: "기본복장 (교수)", price: null, unlock: "start", desc: "언제나 친절한 리아 교수!" },
-  { id: "casual", short: "캐주얼룩", name: "캐주얼룩", price: 100, desc: "편하게 공부하는 것도 좋아요!" },
-  { id: "whitecoat", short: "화이트 코트", name: "화이트 코트", price: 180, desc: "더 깊이 연구해볼까요?" },
-  { id: "hoodie", short: "후드티", name: "후드티 (게임·스트리머)", price: 180, desc: "코딩도 게임처럼 재밌게!" },
-  { id: "gym", short: "체육복", name: "체육복", price: 180, desc: "건강한 몸이 좋은 코드를 만들어요!" },
-  { id: "chef", short: "요리사 옷", name: "요리사", price: 180, desc: "맛있는 코드는 어때요?" },
-  { id: "explorer", short: "탐험가 옷", name: "탐험가", price: 240, desc: "새로운 것을 탐험하러 가볼까요?", voice: "detective" },
-  { id: "uniform", short: "교복", name: "교복", price: 240, desc: "열심히 공부하는 리아!" },
-  { id: "wizard", short: "마법사 망토", name: "판타지 마법사", price: 300, desc: "마법처럼 지식을 발견해요!" },
-  { id: "graduate", short: "졸업 가운", name: "졸업 가운·학사모", price: null, unlock: "streak30", desc: "꾸준함이 졸업장을 만들어요!" },
+  { id: "basic", short: "기본 옷", name: "기본 (베 저고리·털 조끼)", price: null, unlock: "start", desc: "장터를 누비는 두억이 그대로!" },
+  { id: "merchant", short: "상인 옷", name: "장터 상인 (앞치마·주판)", price: 100, desc: "엽전 셈은 주판알처럼 착착!" },
+  { id: "seonbi", short: "선비 옷", name: "선비 (갓·도포)", price: 180, desc: "장부도 글공부처럼 차근차근" },
+  { id: "podol", short: "포졸 옷", name: "포졸 (전립·쾌자)", price: 180, desc: "장터 순찰, 빠진 행은 없나?" },
+  { id: "detective", short: "탐정 옷", name: "탐정", price: 180, desc: "오류의 단서를 쫓아라!", voice: "detective" },
+  { id: "winter", short: "겨울 털옷", name: "겨울 털옷", price: 180, desc: "추운 날에도 장부는 따끈하게" },
+  { id: "gukbap", short: "주방장 옷", name: "국밥집 주방장", price: 240, desc: "한 그릇씩 묶어서 세어 볼까?" },
+  { id: "seolbim", short: "설빔", name: "설빔 한복", price: 240, desc: "새해 첫 장터 나들이 차림" },
+  { id: "hunjang", short: "훈장 옷", name: "서당 훈장", price: 300, desc: "이제 내가 가르쳐 볼까?" },
+  { id: "graduate", short: "졸업 가운", name: "졸업 (학사모·가운)", price: null, unlock: "streak30", desc: "꾸준함이 졸업장을 만들어요!" },
 ];
-
-// saveVer 1 → 2 옮기기 표 (설계 §2). 새 짝이 있는 옛 의상은 이름만 바꾸고, 없어진 의상은 산 값만큼 바이트로 돌려준다.
-export const OUTFIT_RENAME_V2 = Object.freeze({ lab: "whitecoat", chef: "chef", camping: "explorer", astronaut: "graduate" });
-export const OUTFIT_REFUND_V2 = Object.freeze({ detective: 180, painter: 180, gardener: 180, rain: 240 });

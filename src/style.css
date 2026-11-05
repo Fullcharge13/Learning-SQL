@@ -1,4 +1,4 @@
-/* 리아와 파이썬! — 연구 노트 같은 크림색 모눈 종이, 남색 잉크, 청록 뱀길 */
+/* 두억이와 SQL! — 크림색 모눈 종이, 남색 잉크, 청록 길 (리아 화면 틀을 물려받음) */
 :root {
   --paper: #FBF6EA;
   --paper-2: #F2E9D5;
@@ -94,13 +94,13 @@ button { cursor: pointer; }
 .link { background: none; border: 0; color: var(--teal-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; min-height: 44px; padding: 0 4px; }
 .icon-btn { width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: 12px; color: var(--ink-2); }
 
-/* ---------- 리아와 말풍선 ---------- */
-.ria-row { display: flex; align-items: flex-end; gap: 10px; }
-.ria-row.small { align-items: center; }
-.ria-wrap { position: relative; flex: none; line-height: 0; }
-.ria-wrap.big { display: flex; justify-content: center; }
-.ria .ria-body { transform-box: fill-box; transform-origin: 50% 100%; animation: breathe 3.2s ease-in-out infinite; }
-.jump .ria .ria-body { animation: hop .55s cubic-bezier(.3,.7,.4,1.3) 1, breathe 3.2s ease-in-out .55s infinite; }
+/* ---------- 두억이와 말풍선 ---------- */
+.dueogi-row { display: flex; align-items: flex-end; gap: 10px; }
+.dueogi-row.small { align-items: center; }
+.dueogi-wrap { position: relative; flex: none; line-height: 0; }
+.dueogi-wrap.big { display: flex; justify-content: center; }
+.dueogi .dueogi-body { transform-box: fill-box; transform-origin: 50% 100%; animation: breathe 3.2s ease-in-out infinite; }
+.jump .dueogi .dueogi-body { animation: hop .55s cubic-bezier(.3,.7,.4,1.3) 1, breathe 3.2s ease-in-out .55s infinite; }
 @keyframes breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @keyframes hop { 0% { transform: translateY(0); } 40% { transform: translateY(-14px); } 100% { transform: translateY(0); } }
 .sfx {
@@ -173,7 +173,7 @@ button { cursor: pointer; }
 .stat small { font-weight: 600; }
 .stat.flame .ic { color: #B9AE96; }
 .stat.flame.lit .ic { color: #E8742E; fill: #FFB347; }
-.stat.byte .ic { color: var(--teal-ink); }
+.stat.coin .ic { color: var(--teal-ink); }
 .stat.xp .ic { color: var(--sun-deep); fill: var(--sun); }
 .goal { margin-top: 6px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; font-size: .85rem; color: var(--ink-2); }
 .goal b { color: var(--ink); }
@@ -304,9 +304,9 @@ main { padding: 16px calc(16px + var(--sar)) 0 calc(16px + var(--sal)); }
 .node-wrap > .new-dot { position: absolute; top: -8px; left: 46px; pointer-events: none; z-index: 1; }
 .new-dot-at { position: absolute; pointer-events: none; z-index: 1; line-height: 0; }
 .new-dot.inline { margin-left: 6px; vertical-align: 1px; box-shadow: none; }
-.node-ria { position: absolute; top: -26px; line-height: 0; pointer-events: none; }
-.node-ria.right { left: 78px; }
-.node-ria.left { right: 78px; }
+.node-dueogi { position: absolute; top: -26px; line-height: 0; pointer-events: none; }
+.node-dueogi.right { left: 78px; }
+.node-dueogi.left { right: 78px; }
 .path-end { text-align: center; color: var(--ink-2); font-size: .88rem; margin: 18px 0 8px; }
 /* 심화 가지 (v0.7): 장 평가 아래 별 노드 3개. 선택 레슨이라 본 길보다 작고 가볍게 */
 .adv-link { fill: none; stroke: var(--line); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 7; }
@@ -356,9 +356,14 @@ main { padding: 16px calc(16px + var(--sar)) 0 calc(16px + var(--sal)); }
 .lesson-foot.has-dock { padding-top: 6px; background: var(--paper); border-top: 2px solid var(--line); }
 /* 결과 패널·키보드 이동은 transform을 쓰므로 가운데 맞춤은 margin으로 (has-dock일 때) */
 .lesson-foot.has-dock { left: 0; right: 0; margin: 0 auto; transform: none; }
+/* 설명 카드(작업 10, 13c 이월): 결과 표가 단추 밑에 숨지 않도록 단추 줄을 고정하지 않고 카드 끝에 둔다.
+   화면 높이를 채우는 세로 줄로 놓아 짧은 카드는 단추가 화면 아래에 그대로 있고, 긴 카드는 표 다음에 단추가 온다(내려서 누름). */
+.screen.lesson:has(.card-view) { display: flex; flex-direction: column; min-height: 100dvh; }
+.screen.lesson:has(.card-view) .lesson-body { flex: 1 0 auto; padding-bottom: 8px; }
+.screen.lesson:has(.card-view) .lesson-foot { position: static; transform: none; margin: 0 auto; background: var(--paper); }
 .goal-line { display: flex; gap: 8px; align-items: center; font-size: .9rem; font-weight: 700; color: var(--teal-ink); background: var(--teal-soft); padding: 8px 12px; border-radius: 12px; }
 .lesson-title { font-size: 1.35rem; margin: 10px 0 14px; }
-.card-view .ria-row { margin-bottom: 16px; }
+.card-view .dueogi-row { margin-bottom: 16px; }
 .example { margin-top: 4px; }
 .tag { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--paper-2); color: var(--ink-2); margin-bottom: 8px; }
 .tag .ic { width: 16px; height: 16px; }
@@ -414,7 +419,7 @@ main { padding: 16px calc(16px + var(--sar)) 0 calc(16px + var(--sal)); }
 .result.ok .result-ic { background: var(--teal-ink); }
 .result.bad .result-ic { background: var(--coral-ink); }
 .result-explain { font-size: .95rem; }
-.result .ria-row { margin: 6px 0 10px; }
+.result .dueogi-row { margin: 6px 0 10px; }
 .answer { font-weight: 700; margin-bottom: 6px; }
 body.result-open .lesson-foot { visibility: hidden; }
 
@@ -530,7 +535,7 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 /* ---------- 완료 ---------- */
 .done main { padding-top: calc(var(--sat) + 20px); padding-bottom: calc(110px + var(--sab)); }
 .done-hero { text-align: center; margin-bottom: 14px; }
-.done-hero .ria-wrap { display: inline-block; }
+.done-hero .dueogi-wrap { display: inline-block; }
 .done-hero .sfx { font-size: 1.1rem; right: -20px; top: 6px; }
 .done-hero h1 { font-size: 1.6rem; margin: 6px 0 10px; }
 .milestone { display: flex; gap: 10px; align-items: center; background: var(--sun); border: 2px solid var(--ink); border-radius: 16px; padding: 12px 14px; font-weight: 800; }
@@ -540,13 +545,13 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 .tile span { font-size: .72rem; color: var(--ink-2); font-weight: 700; }
 .tile.xp { border-color: var(--sun-deep); background: var(--sun-soft); }
 .tile.xp .ic { color: var(--sun-deep); fill: var(--sun); }
-.tile.byte .ic { color: var(--teal-ink); }
+.tile.coin .ic { color: var(--teal-ink); }
 .tile.acc .ic { color: var(--teal-ink); }
 .tile.flame .ic { color: #B9AE96; }
 .tile.flame.lit { border-color: #E8742E; }
 .tile.flame.lit .ic { color: #E8742E; fill: #FFB347; }
 .perk { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: .92rem; color: var(--teal-deep); margin-bottom: 6px; }
-.done .ria-row { margin: 10px 0 14px; }
+.done .dueogi-row { margin: 10px 0 14px; }
 .summary ol { margin: 0; padding-left: 1.3em; }
 .summary li { margin-bottom: 4px; }
 .plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -623,14 +628,14 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-  .ria .ria-body, .jump .ria .ria-body { animation: none !important; }
+  .dueogi .dueogi-body, .jump .dueogi .dueogi-body { animation: none !important; }
   .load-bar > span { width: 100%; }
 }
 
 /* ---------- 이정표 축하 ---------- */
 .celebrate { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(31, 43, 61, .55); animation: fade .2s ease; }
 .cel-card { width: 100%; max-width: 360px; background: var(--sun-soft); border: 3px solid var(--ink); border-radius: 26px; padding: 24px 20px 20px; text-align: center; box-shadow: 6px 6px 0 rgba(34, 48, 74, .25); animation: pop .35s cubic-bezier(.3,.7,.4,1.3); }
-.cel-card .ria-wrap { display: inline-flex; }
+.cel-card .dueogi-wrap { display: inline-flex; }
 .cel-title { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 1.8rem; font-weight: 900; margin: 10px 0 4px; }
 .cel-title .ic { width: 30px; height: 30px; color: #E8742E; fill: #FFB347; }
 .cel-reward { font-weight: 700; color: var(--sun-ink); margin-bottom: 16px; }

@@ -1,6 +1,6 @@
 // 진도 규칙 (작업 2) — 순수 함수만. 실제 시계는 읽지 않고 "YYYY-MM-DD" 문자열을 받는다.
 // 모든 함수는 받은 저장을 고치지 않고, 변화가 없어도 언제나 새 객체를 돌려준다.
-import { ADV_XP, ADV_BYTES } from "./advanced.js";
+import { ADV_XP, ADV_YEOPJEON } from "./advanced.js";
 
 export const FREEZE_PRICE = 200;
 export const FREEZE_MAX = 2;
@@ -48,13 +48,13 @@ function copy(save) {
 }
 
 // ---- 보상 ----
-// 다시 하기(판정 C24): 고정 XP 10(평가 15), 보너스·바이트 없음. 심화도 같은 규칙(10).
+// 다시 하기(판정 C24): 고정 XP 10(평가 15), 보너스·엽전 없음. 심화도 같은 규칙(10).
 // 15레슨을 다 끝낸 뒤에도 하루 목표 20을 다시 하기 2번으로 채울 수 있게 한 값.
-// 심화(v0.7): 처음 끝내면 XP 15·바이트 15 + 보통 레슨과 같은 보너스(실수 없음 +5 XP·+5 바이트, 힌트 없음 +5 XP).
-export function lessonReward({ firstTime, perfect, hintFreeWrite, isExam, isAdvanced }) {
+// 심화(v0.7): 처음 끝내면 XP 15·엽전 15 + 보통 레슨과 같은 보너스(실수 없음 +5 XP·+5 엽전, 힌트 없이 조립 통과 +5 XP).
+export function lessonReward({ firstTime, perfect, hintFreeBuild, isExam, isAdvanced }) {
   if (!firstTime) return { xp: isExam ? 15 : 10, yeopjeon: 0 };
-  const xp = (isExam ? 30 : isAdvanced ? ADV_XP : 10) + (perfect ? 5 : 0) + (hintFreeWrite ? 5 : 0);
-  return { xp, yeopjeon: (isAdvanced ? ADV_BYTES : 10) + (perfect ? 5 : 0) };
+  const xp = (isExam ? 30 : isAdvanced ? ADV_XP : 10) + (perfect ? 5 : 0) + (hintFreeBuild ? 5 : 0);
+  return { xp, yeopjeon: (isAdvanced ? ADV_YEOPJEON : 10) + (perfect ? 5 : 0) };
 }
 
 // 복습 한 판(판정 C24): XP 10
@@ -112,7 +112,7 @@ export function addDailyXp(save, xp, today) {
   return s;
 }
 
-// ---- 연속 기록 이정표 (설계 5-2): 7일 50바이트, 30일 졸업 가운·학사모 의상, 100일 배지 ----
+// ---- 연속 기록 이정표 (설계 5-2): 7일 50엽전, 30일 졸업 가운·학사모 의상, 100일 배지 ----
 // 각 보상은 평생 한 번 — 이전 저장의 best가 그 숫자보다 작을 때만 준다.
 export function applyMilestones(prevSave, nextSave) {
   const prevBest = prevSave.streak.best || 0;
@@ -138,7 +138,7 @@ export function earnXp(save, xp, today) {
 // ---- 보호권 구매 ----
 export function buyFreeze(save) {
   if (save.freezes >= FREEZE_MAX) return new Error("보호권은 최대 2개까지 가질 수 있어요");
-  if (save.yeopjeon < FREEZE_PRICE) return new Error("바이트가 모자라요");
+  if (save.yeopjeon < FREEZE_PRICE) return new Error("엽전이 모자라요");
   return { ...save, yeopjeon: save.yeopjeon - FREEZE_PRICE, freezes: save.freezes + 1 };
 }
 

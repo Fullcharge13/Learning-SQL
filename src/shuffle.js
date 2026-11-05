@@ -1,4 +1,4 @@
-// 보기·칩·줄 섞기 (판정 C23·C26)와 코드 조건(require) 이름의 한국어 표기. 순수 함수.
+// 보기·칩·줄 섞기 (판정 C23·C26), 조사 도우미, 조건(require) 이름의 한국어 표기. 순수 함수.
 
 function mulberry32(a) {
   return function () {
@@ -58,8 +58,28 @@ const REQ_PHRASE = {
 
 // v0.9(13~17장 심화): Def:<이름> — 함수·메서드 정의(__이름__이면 「메서드」), SQL:<낱말> — SQL 글 안의 낱말
 const defKind = (n) => (/^__\w+__$/.test(n) ? "메서드" : "함수");
-// 영어 낱말을 한글로 읽었을 때 받침이 있으면 「을」(JOIN 조인, HAVING 해빙, LIMIT 리밋), 없으면 「를」(WHERE, COUNT)
-const sqlEul = (w) => (/(?:[NML]|NG|P|[AEIOU]T)$/.test(w) ? "을" : "를");
+// ---- 조사(받침) 도우미: 화면 문장에 들어가는 SQL 낱말·열 이름·한글 값 뒤의 조사를 고른다 ----
+// 받침이 있나: 한글은 마지막 글자 받침, 숫자는 읽는 소리(영·일·삼·육·칠·팔), 영어는 한글로 읽었을 때의 끝소리
+//   (JOIN 조인, HAVING 해빙, LIMIT 리밋, shop 숍, name 네임, table 테이블 → 받침 / WHERE, COUNT, price, id → 없음).
+//   괄호로 끝나면(COUNT(*)) 「카운트」로 읽어 받침 없음.
+export function hasBatchim(word) {
+  const w = String(word ?? "").trim();
+  if (!w) return false;
+  const last = w.slice(-1);
+  const code = last.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+  if (/[0-9]/.test(last)) return "013678".includes(last);
+  const m = /([A-Za-z]+)$/.exec(w);
+  if (!m) return false;
+  const e = m[1].toLowerCase();
+  return /(?:[mnl]|ng|p|b|ck|[aeiou]t|[aeiou]k)$/.test(e) || /[aeiou][mnl]e$/.test(e) || /[^aeiou]le$/.test(e);
+}
+/** 목적격 조사 을/를 (SQL 낱말·한글 모두) */
+export const sqlEul = (w) => (hasBatchim(w) ? "을" : "를");
+/** 보조사 은/는 */
+export const sqlEun = (w) => (hasBatchim(w) ? "은" : "는");
+/** 「(이)라는」의 「이」: 받침이 있으면 "이", 없으면 "" */
+export const sqlI = (w) => (hasBatchim(w) ? "이" : "");
 
 export function requireKo(name) {
   const s = String(name);

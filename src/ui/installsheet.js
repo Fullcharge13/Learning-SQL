@@ -1,5 +1,6 @@
-// 「홈 화면에 추가」 안내 시트: 리아 + 그림 3단계 + 이유
-import { riaSVG } from "../ria.js";
+// 「홈 화면에 추가」 안내 시트: 두억이 + 그림 3단계 + 이유
+import { dueogiSVG } from "../dueogi.js";
+import { FACES } from "../say.js";
 import { el, esc, icon } from "./dom.js";
 import { INSTALL_AFTER_TEXT } from "../install.js";
 
@@ -16,9 +17,9 @@ const STEPS = [
 const WHY = "사파리에서는 7일 동안 열지 않으면 기록이 지워질 수 있어요. 홈 화면에 추가하면 더 안전하게 남아요.";
 
 function safariBody(outfit) {
-  return `<div class="ria-row">
-          <div class="ria-wrap">${riaSVG({ outfit, face: "wink", size: 72 })}</div>
-          <p class="bubble">홈 화면에 저를 데려가 주세요. 앱처럼 바로 열 수 있어요.</p>
+  return `<div class="dueogi-row">
+          <div class="dueogi-wrap">${dueogiSVG({ outfit, face: FACES.install, size: 72 })}</div>
+          <p class="bubble">홈 화면에 나를 데려가 줘요. 앱처럼 바로 열 수 있어요.</p>
         </div>
         <h2 id="ins-title">홈 화면에 추가하기</h2>
         <ol class="ins-steps">${STEPS.map(([svg, text], i) => `<li><span class="ins-no" aria-hidden="true">${i + 1}</span>${svg}<span>${esc(text)}</span></li>`).join("")}</ol>
@@ -28,8 +29,8 @@ function safariBody(outfit) {
 
 // 카카오톡 등 앱 안 브라우저: 홈 화면 추가가 안 되므로 사파리로 열라는 짧은 안내
 function inAppBody(outfit) {
-  return `<div class="ria-row">
-          <div class="ria-wrap">${riaSVG({ outfit, face: "think", size: 72 })}</div>
+  return `<div class="dueogi-row">
+          <div class="dueogi-wrap">${dueogiSVG({ outfit, face: FACES.waiting, size: 72 })}</div>
           <p class="bubble">지금은 앱 안의 브라우저로 보고 있어요.</p>
         </div>
         <h2 id="ins-title">Safari에서 열어야 홈 화면에 추가할 수 있어요</h2>

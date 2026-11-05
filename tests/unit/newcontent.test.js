@@ -118,7 +118,7 @@ test("finish: 다시 하기 보상은 기존 규칙 그대로(updated와 무관)
   const a = finishLesson(s, info(S12), at).result;
   const b = finishLesson(s, info({ id: "1-2", chapter: 1 }), at).result;
   assert.equal(a.xp, b.xp);
-  assert.equal(a.lessonBytes, b.lessonBytes);
+  assert.equal(a.lessonYeopjeon, b.lessonYeopjeon);
 });
 
 // ── 레슨 목록 stub ───────────────────────────────────────────────────

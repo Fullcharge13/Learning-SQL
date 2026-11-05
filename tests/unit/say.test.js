@@ -2,14 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LINES, FALLBACK_LINE } from "../../data/lines.js";
 import { OUTFITS } from "../../data/outfits.js";
-import { say } from "../../src/say.js";
+import { say, SITUATION_FACE, FACES as SAY_FACES, doneFace } from "../../src/say.js";
+import { FACE_IDS } from "../../src/dueogi.js";
 
 const SITUATIONS = [
   "course_done",
   "greet", "correct", "combo", "wrong", "running", "error", "hint",
   "lesson_done", "streak_up", "streak_broken", "outfit_bought", "welcome_back",
 ];
-const FACES = ["smile", "joy", "sparkle", "think", "surprise", "worry", "cheer", "wink"];
+const FACES = [...FACE_IDS];   // 두억이 표정 12가지(설계 §8-3)
 
 // 씨앗 고정 난수(mulberry32) — 시험 결과가 매번 같도록
 function seeded(seed) {
@@ -42,10 +43,10 @@ test("no_repeat: rng가 항상 같은 칸을 가리켜도 직전 줄은 피함",
   assert.notEqual(r.index, 0);
 });
 
-test("all_situations: 13종 모두 3줄 이상, 표정 이름이 8종 안에 있음", () => {
+test("all_situations: 13종 모두 3~5줄, 표정 이름이 두억이 12종 안에 있음", () => {
   assert.deepEqual(Object.keys(LINES).sort(), [...SITUATIONS].sort());
   for (const s of SITUATIONS) {
-    assert.ok(LINES[s].length >= 3, `${s} 줄 수 ${LINES[s].length}`);
+    assert.ok(LINES[s].length >= 3 && LINES[s].length <= 5, `${s} 줄 수 ${LINES[s].length}`);
     for (const l of LINES[s]) {
       assert.equal(typeof l.text, "string");
       assert.ok(FACES.includes(l.face), `${s}: 모르는 표정 ${l.face}`);
@@ -200,4 +201,75 @@ test("deterministic: 같은 씨앗 → 같은 결과", () => {
   const a = say("correct", {}, seeded(42), null);
   const b = say("correct", {}, seeded(42), null);
   assert.deepEqual(a, b);
+});
+
+// ---- 두억이 (작업 10, 설계 §8-1·§8-3) ----
+test("faces: 상황마다 설계 §8-3의 표정 (정답 만세, 오답 놀람, 기록 끊김 울음, 오랜만 잠 …)", () => {
+  assert.deepEqual(SITUATION_FACE, {
+    greet: "proud", correct: "cheer", combo: "wink", wrong: "surprise", running: "think", error: "surprise",
+    hint: "think", lesson_done: "cheer", course_done: "swing", streak_up: "laugh", streak_broken: "cry",
+    outfit_bought: "eat", welcome_back: "sleep",
+  });
+  for (const s of SITUATIONS) for (const l of LINES[s]) assert.equal(l.face, SITUATION_FACE[s], `${s}: ${l.text}`);
+  assert.ok(FACE_IDS.includes(FALLBACK_LINE.face));
+});
+
+test("faces: 화면이 쓰는 표정 이름 표(FACES)는 모두 그림에 있고, 화남은 없음", () => {
+  for (const [k, f] of Object.entries(SAY_FACES)) assert.ok(FACE_IDS.includes(f), `${k}: ${f}`);
+  assert.ok(!FACE_IDS.includes("angry"));
+  assert.equal(SAY_FACES.home, "proud");
+  assert.equal(SAY_FACES.card, "think");
+  assert.equal(SAY_FACES.examStart, "nervous");
+  assert.equal(SAY_FACES.wrongAgain, "run");
+  assert.equal(SAY_FACES.closet, "eat");
+  assert.equal(SAY_FACES.reward, "laugh");
+});
+
+test("doneFace: 장 평가 통과 결의 > 실수 없음 윙크 > 배지·퀘스트 웃음 > 대사 표정(만세)", () => {
+  const base = { firstTime: true, perfect: false, newBadges: [], finished: [], chest: false };
+  assert.equal(doneFace({ ...base }, { isExam: false }, "cheer"), "cheer");
+  assert.equal(doneFace({ ...base, newBadges: ["fixer"] }, { isExam: false }, "cheer"), "laugh");
+  assert.equal(doneFace({ ...base, finished: ["q_xp20"] }, null, "cheer"), "laugh");
+  assert.equal(doneFace({ ...base, perfect: true, newBadges: ["fixer"] }, { isExam: false }, "cheer"), "wink");
+  assert.equal(doneFace({ ...base, perfect: true }, { isExam: true }, "cheer"), "swing");
+  assert.equal(doneFace({ ...base, firstTime: false }, { isExam: true }, "cheer"), "cheer", "다시 하기는 평가 통과 축하 없음");
+  assert.equal(doneFace(null, null, "swing"), "swing");
+});
+
+test("voice: 두억이 대사에 리아 소품·말이 없고 SQL·장터 이야기를 함", () => {
+  const all = Object.values(LINES).flat().map((l) => l.text).join("\n") + FALLBACK_LINE.text;
+  for (const bad of ["리아", "파이썬", "교수", "브로치", "커피", "뱀", "코드", "바이트", "print"]) assert.ok(!all.includes(bad), bad);
+  assert.match(all, /SQL/);
+  assert.match(all, /장터/);
+  assert.match(all, /엽전/);
+});
+
+test("dueogiSays: 두억이 그림 + 말풍선, 리아 그림 없음", async () => {
+  const { dueogiSays } = await import("../../src/ui/dom.js");
+  const h = dueogiSays({ outfit: "seonbi", face: "cheer", text: "<맞았어>", size: 64, sfx: "딩동!" });
+  assert.match(h, /class="dueogi"/);
+  assert.match(h, /두억이, 만세, 선비/);
+  assert.match(h, /&lt;맞았어&gt;/);
+  assert.match(h, /딩동!/);
+  assert.doesNotMatch(h, /class="ria|ria-(row|wrap|body)/);
+});
+
+test("ria.js는 지워지고 아무도 부르지 않음 (판정 R7)", async () => {
+  const { existsSync, readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = new URL("../../", import.meta.url).pathname;
+  for (const f of ["src/ria.js", "tests/unit/ria.test.js", "tools/ria_sheet.py", "docs/img/ria-sheet.png", "docs/img/ria-hero.png"]) {
+    assert.ok(!existsSync(join(root, f)), `${f} 남음`);
+  }
+  const users = [];
+  const walk = (d) => {
+    for (const f of readdirSync(d)) {
+      const p = join(d, f);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(js|py)$/.test(f) && /ria\.js|riaSVG|riaSays|ria_sheet/.test(readFileSync(p, "utf8"))) users.push(p.slice(root.length));
+    }
+  };
+  for (const d of ["src", "data", "tools", "tests/unit", "tests/sim"]) walk(join(root, d));
+  walk(join(root, "tests")); // flow.py 등
+  assert.deepEqual([...new Set(users)].filter((p) => !p.startsWith("tests/out/") && p !== "tests/unit/say.test.js"), []);
 });

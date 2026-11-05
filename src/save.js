@@ -1,6 +1,6 @@
 // 저장: localStorage 한 칸에 JSON 하나. 옛 저장은 migrate로 새 형식에 맞춘다.
 // saveVer 1 (두억이와 SQL! v0.1). 리아 저장과는 칸 이름이 달라 섞이지 않는다(dueogi-).
-import { OUTFITS, OUTFIT_RENAME_V2, OUTFIT_REFUND_V2 } from "../data/outfits.js";
+import { OUTFITS } from "../data/outfits.js";
 import { cleanSeenUpdates } from "./newcontent.js";
 import { newDaily, cleanDaily } from "./daily.js";
 
@@ -27,7 +27,7 @@ export function newSave() {
     badges: [], outfits: ["basic"], outfit: "basic",
     stats: { lessons: 0, perfect: 0, hintfree: 0, fixed: 0, review_items: 0 },
     settings: { sound: true, dailyGoal: 20, name: "" },
-    pending_refund: 0, // saveVer 1→2에서 돌려준 바이트. 홈에서 한 번 알리고 0으로 (판정 C42)
+    pending_refund: 0, // 없어진 의상 값으로 돌려준 엽전. 홈에서 한 번 알리고 0으로 (판정 C42). 지금은 돌려줄 일이 없어 늘 0
     seen_updates: {},  // v0.7.1 「새 내용」 점: { 레슨 id: 끝까지 다시 본 판 "v0.7.1" }. saveVer 그대로, 없으면 {}
     daily: newDaily(), // v0.9 매일 도전 { date, picks, done, streak, best, last_done_date }. saveVer 그대로, 없으면 기본값
   };
@@ -101,22 +101,13 @@ function clampRanges(s) {
 
 const OUTFIT_ORDER = OUTFITS.map((o) => o.id);
 
-// 가진 의상·입은 의상 정리. fromV1이면 옛 id를 옮기고 없어진 의상 값을 돌려준다(한 벌에 한 번).
-// 결과: 의상 표 순서, 중복 없음, basic 항상 포함, 표에 없는 id는 버림. 입은 옷이 가진 옷이 아니면 basic.
-function migrateOutfits(s, fromV1) {
-  const raw = new Set(s.outfits.filter((x) => typeof x === "string"));
-  const owned = new Set(["basic"]);
-  let refund = 0;
-  for (const id of raw) {
-    if (fromV1 && Object.hasOwn(OUTFIT_REFUND_V2, id)) refund += OUTFIT_REFUND_V2[id];
-    else owned.add(fromV1 && Object.hasOwn(OUTFIT_RENAME_V2, id) ? OUTFIT_RENAME_V2[id] : id);
-  }
+// 가진 의상·입은 의상 정리.
+// 결과: 의상 표 순서, 중복 없음, basic 항상 포함, 표에 없는 id(예: 리아 의상 id)는 버림. 입은 옷이 가진 옷이 아니면 basic.
+function migrateOutfits(s) {
+  const owned = new Set(["basic", ...s.outfits.filter((x) => typeof x === "string")]);
   s.outfits = OUTFIT_ORDER.filter((id) => owned.has(id));
-  let worn = typeof s.outfit === "string" ? s.outfit : "basic";
-  if (fromV1 && Object.hasOwn(OUTFIT_RENAME_V2, worn)) worn = OUTFIT_RENAME_V2[worn];
+  const worn = typeof s.outfit === "string" ? s.outfit : "basic";
   s.outfit = s.outfits.includes(worn) ? worn : "basic";
-  s.yeopjeon += refund;
-  if (fromV1) s.pending_refund += refund;
   return s;
 }
 
@@ -125,7 +116,7 @@ export function migrate(raw) {
   const oldVer = raw.saveVer;
   const ver = typeof oldVer === "number" && Number.isFinite(oldVer) ? oldVer : 1; // saveVer 없음 = 첫 판(1)
   const s = clampRanges(fill(newSave(), structuredClone(raw)));
-  migrateOutfits(s, false);   // 리아 시절 saveVer 1→2 옷 옮기기는 이 앱에 없다(처음부터 saveVer 1)
+  migrateOutfits(s);   // 리아 시절 saveVer 1→2 옷 옮기기·환불은 이 앱에 없다(처음부터 saveVer 1)
   s.saveVer = ver > SAVE_VER ? ver : SAVE_VER;
   return s;
 }
@@ -135,7 +126,7 @@ export function takeRefundNotice(save) {
   const yeopjeon = save && Number.isInteger(save.pending_refund) && save.pending_refund > 0 ? save.pending_refund : 0;
   return yeopjeon ? { save: { ...save, pending_refund: 0 }, yeopjeon } : { save, yeopjeon: 0 };
 }
-export const refundNoticeText = (n) => `없어진 옷 값 ${n}바이트를 돌려 드렸어요. 새 옷도 구경해 보세요!`;
+export const refundNoticeText = (n) => `없어진 옷 값 ${n}엽전을 돌려 드렸어요. 새 옷도 구경해 보세요!`;
 
 // 깨진 원본을 남긴다. 이미 남긴 것은 덮지 않고 .broken.1 ~ .broken.5 중 빈 칸에 쓴다(모두 차면 .broken.5를 덮음).
 function keepBroken(storage, text) {

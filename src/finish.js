@@ -1,5 +1,5 @@
 // 레슨·복습이 끝났을 때 저장에 반영하는 순수 함수 (계획 작업 9).
-// 순서: 개념 점수 → 보상 → XP·연속 기록(이정표) → 바이트 → 퀘스트 집계 → 통계·진도 → 배지
+// 순서: 개념 점수 → 보상 → XP·연속 기록(이정표) → 엽전 → 퀘스트 집계 → 통계·진도 → 배지
 import { lessonReward, reviewReward, earnXp, markConcept } from "./rules.js";
 import { tick, ensureQuests } from "./quests.js";
 import { checkBadges } from "./badges.js";
@@ -30,24 +30,25 @@ export function finishLesson(save, info, now = new Date()) {
 
   const w = info.build || null;
   const firstTime = !isReview && !s.completed_lessons.includes(lesson.id);
-  const hintFreeWrite = !isReview && !!(w && w.passed && !w.hintUsed && !w.solutionSeen);
+  // 힌트·정답 보기 없이 카드 조립 문제를 통과(퀘스트 hintfree_pass·배지 hintfree10·+5 XP)
+  const hintFreeBuild = !isReview && !!(w && w.passed && !w.hintUsed && !w.solutionSeen);
   const fixedError = !isReview && !!(w && w.passed && w.fixedError && !w.solutionSeen);
   const perfect = !isReview && !!info.perfect;
   const reward = isReview
     ? reviewReward()
-    : lessonReward({ firstTime, perfect, hintFreeWrite, isExam: !!lesson.isExam, isAdvanced: isAdvancedLesson(lesson) });
+    : lessonReward({ firstTime, perfect, hintFreeBuild, isExam: !!lesson.isExam, isAdvanced: isAdvancedLesson(lesson) });
 
   const goalBefore = s.streak.lastGoalDate;
-  const bytesBeforeXp = num(s.yeopjeon);
+  const yeopjeonBeforeXp = num(s.yeopjeon);
   const earned = earnXp(s, reward.xp, today);
   s = earned.save;
-  const milestoneBytes = num(s.yeopjeon) - bytesBeforeXp;
+  const milestoneYeopjeon = num(s.yeopjeon) - yeopjeonBeforeXp;
   const streakUp = s.streak.lastGoalDate === today && goalBefore !== today;
   s.yeopjeon = num(s.yeopjeon) + reward.yeopjeon;
 
   // 퀘스트 집계
   s = ensureQuests(s, today);
-  const bytesBeforeQuests = s.yeopjeon;
+  const yeopjeonBeforeQuests = s.yeopjeon;
   const finished = [];
   let chest = false;
   const ev = (name, amount = 1) => {
@@ -59,17 +60,17 @@ export function finishLesson(save, info, now = new Date()) {
   };
   if (!isReview) ev("lesson_done");
   ev("xp", reward.xp);
-  if (hintFreeWrite) ev("hintfree_pass");
+  if (hintFreeBuild) ev("hintfree_pass");
   if (fixedError) ev("fixed_error_pass");
   if (perfect) ev("perfect_lesson");
   if (isReview) ev("review_item", num(info.reviewCorrect));
-  const questBytes = s.yeopjeon - bytesBeforeQuests;
+  const questYeopjeon = s.yeopjeon - yeopjeonBeforeQuests;
 
   // 통계
   const st = { ...s.stats };
   if (!isReview) st.lessons += 1;
   if (perfect) st.perfect += 1;
-  if (hintFreeWrite) st.hintfree += 1;
+  if (hintFreeBuild) st.hintfree += 1;
   if (fixedError) st.fixed += 1;
   if (isReview) st.review_items += num(info.reviewCorrect);
   st.items += num(info.itemsSolved);
@@ -100,10 +101,10 @@ export function finishLesson(save, info, now = new Date()) {
   return {
     save: s,
     result: {
-      mode: info.mode, lessonId: lesson.id, xp: reward.xp, lessonBytes: reward.yeopjeon, questBytes, milestoneBytes,
-      totalBytes: num(s.yeopjeon) - num(save.yeopjeon),
+      mode: info.mode, lessonId: lesson.id, xp: reward.xp, lessonYeopjeon: reward.yeopjeon, questYeopjeon, milestoneYeopjeon,
+      totalYeopjeon: num(s.yeopjeon) - num(save.yeopjeon),
       finished, chest, newBadges, milestone: earned.milestone, streakUp, streak: s.streak.days,
-      firstTime, perfect, hintFreeWrite, accuracy: info.accuracy,
+      firstTime, perfect, hintFreeBuild, accuracy: info.accuracy,
     },
   };
 }

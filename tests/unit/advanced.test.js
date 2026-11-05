@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildLessonIndex, createLessonData, chaptersForConcepts, reviewPool } from "../../src/lessondata.js";
 import {
-  isAdvancedId, isAdvancedLesson, advancedOpen, advancedState, advancedIds, advancedCount, ADV_XP, ADV_BYTES,
+  isAdvancedId, isAdvancedLesson, advancedOpen, advancedState, advancedIds, advancedCount, ADV_XP, ADV_YEOPJEON,
 } from "../../src/advanced.js";
 import { curriculum, courseJustFinished, pathEndText } from "../../src/curriculum.js";
 import { lessonReward } from "../../src/rules.js";
@@ -112,6 +112,20 @@ test("adv_unlock: 장 평가 전 잠김, 통과하면 세 개 함께 열림(순�
   assert.equal(advancedState(IDX, s, "9-A1"), null, "없는 심화");
 });
 
+test("no advanced branch without lessons: 심화 레슨이 없는 장은 장 평가를 통과해도 advancedOpen이 false (설계 §7)", () => {
+  const plain = IDX[2];   // 3장: ADVANCED 없음
+  assert.equal((plain.advanced || []).length, 0);
+  assert.equal(advancedOpen(plain, mainIds(3)), false);
+  assert.equal(advancedOpen({ ...plain, advanced: [] }, mainIds(3)), false);
+  // 학습 내용(curriculum)에서도 심화 가지가 생기지 않음
+  const c = curriculum({ chapters: IDX, completed: [...mainIds(1), ...mainIds(2), ...mainIds(3)], currentId: null });
+  const ch3 = c.chapters.find((x) => x.id === 3);
+  assert.deepEqual(ch3.advanced, []);
+  assert.ok(!ch3.advancedOpen, "advancedOpen 표시 없음");
+  // 실제 장 파일(심화 내용 없음, 설계 D7)도 가지가 없음
+  assert.equal(advancedOpen(IDX[0], mainIds(1)), true, "심화가 있는 장은 그대로 열림");
+});
+
 test("adv_count_ids: 장마다 n/3, 전체 id 목록", () => {
   assert.deepEqual(advancedCount(IDX[0], ["1-A1", "1-A3", "2-A1"]), { done: 2, total: 3 });
   assert.deepEqual(advancedCount(IDX[2], ["1-A1"]), { done: 0, total: 0 });
@@ -153,12 +167,12 @@ test("adv_course_done: 완주(C39)는 본 과정만 — 심화 안 해도 완주
 // ---- 보상 ----
 test("adv_reward: 처음 15·15 + 보통 레슨과 같은 보너스, 다시 하기는 기존 규칙", () => {
   assert.equal(ADV_XP, 15);
-  assert.equal(ADV_BYTES, 15);
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeWrite: false, isAdvanced: true }), { xp: 15, yeopjeon: 15 });
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: true, hintFreeWrite: true, isAdvanced: true }), { xp: 25, yeopjeon: 20 });
-  assert.deepEqual(lessonReward({ firstTime: false, perfect: true, hintFreeWrite: true, isAdvanced: true }), { xp: 10, yeopjeon: 0 });
+  assert.equal(ADV_YEOPJEON, 15);
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false, isAdvanced: true }), { xp: 15, yeopjeon: 15 });
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: true, hintFreeBuild: true, isAdvanced: true }), { xp: 25, yeopjeon: 20 });
+  assert.deepEqual(lessonReward({ firstTime: false, perfect: true, hintFreeBuild: true, isAdvanced: true }), { xp: 10, yeopjeon: 0 });
   // 보통 레슨은 그대로
-  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeWrite: false }), { xp: 10, yeopjeon: 10 });
+  assert.deepEqual(lessonReward({ firstTime: true, perfect: false, hintFreeBuild: false }), { xp: 10, yeopjeon: 10 });
 });
 
 const at = (h = 10) => new Date(2026, 10, 2, h, 0);
@@ -175,7 +189,7 @@ test("adv_finish: 첫 완료 +15 XP·+15 바이트, 지금 레슨·장은 그대
   const s0 = saveAfter(mainIds(1));
   const { save, result } = finishLesson(s0, info(lesson("1-A1", 1, { isAdvanced: true })), at());
   assert.equal(result.xp, 15);
-  assert.equal(result.lessonBytes, 15);
+  assert.equal(result.lessonYeopjeon, 15);
   assert.equal(result.firstTime, true);
   assert.ok(save.completed_lessons.includes("1-A1"));
   assert.equal(save.current_lesson, "2-1");
@@ -187,7 +201,7 @@ test("adv_finish: 첫 완료 +15 XP·+15 바이트, 지금 레슨·장은 그대
 test("adv_finish_id_only: isAdvanced 표시가 빠져도 id 모양으로 심화 보상", () => {
   const { result } = finishLesson(saveAfter(mainIds(1)), info({ id: "1-A2", chapter: 1 }), at());
   assert.equal(result.xp, 15);
-  assert.equal(result.lessonBytes, 15);
+  assert.equal(result.lessonYeopjeon, 15);
 });
 
 test("adv_finish_replay: 다시 하기는 XP 10·바이트 0", () => {
@@ -195,7 +209,7 @@ test("adv_finish_replay: 다시 하기는 XP 10·바이트 0", () => {
   const { result } = finishLesson(s0, info(lesson("1-A1", 1, { isAdvanced: true }), { perfect: true }), at());
   assert.equal(result.firstTime, false);
   assert.equal(result.xp, 10);
-  assert.equal(result.lessonBytes, 0);
+  assert.equal(result.lessonYeopjeon, 0);
 });
 
 test("adv_quest: 심화 완료도 lesson_done 퀘스트를 채움", () => {
@@ -213,8 +227,8 @@ test("adv_review_queue: 심화 개념도 틀리면 복습 목록에 들어감", 
 });
 
 // ---- 배지 ----
-test("adv_badges_table: 배지 15개, 새 배지 2개 이름", () => {
-  assert.equal(BADGES.length, 15);
+test("adv_badges_table: 배지 16개, 심화 배지 2개 이름", () => {
+  assert.equal(BADGES.length, 16);
   const b1 = BADGES.find((b) => b.id === "advanced1");
   const b2 = BADGES.find((b) => b.id === "advancedAll");
   assert.equal(b1.name, "심화 첫걸음");

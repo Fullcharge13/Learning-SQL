@@ -98,7 +98,7 @@ function commit(next) {
     toast("저장하지 못했어요. 브라우저 저장 공간이 꽉 찼거나 막혀 있어요. 설정에서 저장 내보내기를 해 두면 안전해요.", "warn");
   }
   if (ok) app.storeFailedShown = false;
-  // 화면에 있는 상태 줄(연속 기록·바이트·XP)을 새 값으로
+  // 화면에 있는 상태 줄(연속 기록·엽전·XP)을 새 값으로
   const bar = document.querySelector("#app .status");
   if (bar) {
     const t = document.createElement("template");
@@ -252,7 +252,7 @@ const ctx = {
   sql,   // SqlRun: 설명 카드·보기 표·카드 조립·매일 도전 틀이 함께 씀
   dayStart,
   takeGreeting() { const g = app.greetOverride; app.greetOverride = null; return g; },
-  // 의상 교체로 돌려준 바이트 안내(판정 C42): 처음 한 번만. 깃발을 내린 저장을 바로 남긴다
+  // 없어진 의상 값으로 돌려준 엽전 안내(판정 C42): 처음 한 번만. 깃발을 내린 저장을 바로 남긴다
   takeNotice() {
     const r = takeRefundNotice(app.save);
     if (!r.yeopjeon) return null;
@@ -295,7 +295,7 @@ async function boot() {
   });
   root.removeAttribute("aria-busy");
   // 시험 도구가 상태를 볼 수 있게
-  window.__ria = { app, ctx };
+  window.__dueogi = { app, ctx };
 }
 
 boot().catch((e) => {

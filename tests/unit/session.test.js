@@ -46,14 +46,14 @@ test("session buildPass counts hintfree", () => {
   assert.deepEqual(a.S.build, { passed: true, hintUsed: false, solutionSeen: false, fixedError: false });
   assert.equal(a.r.clean, true);
   assert.equal(a.r.flowCorrect, true);
-  assert.equal(a.result.hintFreeWrite, true);
+  assert.equal(a.result.hintFreeBuild, true);
   assert.equal(a.save.stats.hintfree, 1);
   assert.equal(a.save.quests.progress.q_hintfree, 1);
   assert.ok(!a.save.quests.progress.q_fixerr);
 
   const b = play({ hint: true });
   assert.equal(b.S.build.hintUsed, true);
-  assert.equal(b.result.hintFreeWrite, false);
+  assert.equal(b.result.hintFreeBuild, false);
   assert.equal(b.save.stats.hintfree, 0);
   assert.ok(!b.save.quests.progress.q_hintfree, "힌트를 쓰면 빠짐");
   assert.ok(b.S.marks.some(([c, o]) => c === "where" && o === "hint"));

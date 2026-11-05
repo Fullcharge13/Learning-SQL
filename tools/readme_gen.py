@@ -10,7 +10,7 @@
 - data/quests.js         일일 퀘스트
 - data/badges.js         배지
 - data/outfits.js        의상(가격·얻는 법)
-- src/ria.js             의상·표정 한국어 이름(그림 시트 설명)
+- src/dueogi.js          의상·표정 한국어 이름(그림 시트 설명)
 - src/app.js             게임 안 버전 표시(VERSION)
 - build.py               Pyodide 판 번호, 크기 상한
 
@@ -40,9 +40,9 @@ const { CONCEPTS } = await imp("data/concepts.js");
 const { QUESTS } = await imp("data/quests.js");
 const { BADGES } = await imp("data/badges.js");
 const { OUTFITS } = await imp("data/outfits.js");
-const ria = await imp("src/ria.js");
+const dueogi = await imp("src/dueogi.js");
 console.log(JSON.stringify({ chapters, CONCEPTS, QUESTS, BADGES, OUTFITS,
-  outfitKo: ria.OUTFIT_KO, faceKo: ria.FACE_KO, faces: ria.FACE_IDS }));
+  outfitKo: dueogi.OUTFIT_KO, faceKo: dueogi.FACE_KO, faces: dueogi.FACE_IDS }));
 """
 
 TYPE_KO = {"choice": "객관식", "blank": "빈칸", "order": "순서", "write": "직접 작성", "check": "이해도 확인"}
@@ -131,7 +131,7 @@ def build(d):
     w(f"| 배포 파일 만들기 | `python3 build.py` | `dist/`에 `index.html`(앱과 레슨 목록) + `lessons/`(장마다 문제 파일) + `manifest.webmanifest` + `sw.js` + 아이콘. **`lessons/` 폴더까지 함께** "
       f"이 폴더를 그대로 웹에 올리면 돼요 (Pyodide 제외 {max_kb}KB 이하) |")
     w("| README 다시 만들기 | `python3 tools/readme_gen.py` | 데이터 표를 바꾼 뒤 실행. `--check`는 어긋남만 검사 |")
-    w("| 리아 그림 시트 다시 뽑기 | `python3 tools/ria_sheet.py` | `docs/img/ria-sheet.png`, `ria-hero.png` |")
+    w("| 두억이 그림 시트 다시 뽑기 | `python3 tools/dueogi_sheet.py` | `docs/img/dueogi-sheet.png` |")
     w("| README 첫머리 화면 캡처 바꾸기 | `python3 tests/flow.py` 뒤 `python3 tools/readme_shots.py` | `docs/img/screen-home.png`, `screen-write.png`, `screen-done.png` |")
     w("")
     w("**시험 (확인 도구)**")
@@ -264,7 +264,7 @@ def build(d):
     faces = " · ".join(d["faceKo"][f] for f in d["faces"])
     w(f"그림은 이미지 파일 없이 코드(SVG)로 그려서, 의상 {n_outfits}벌 × 표정 {len(d['faces'])}가지({faces})를 자유롭게 조합해요.")
     w("")
-    w(f'<p align="center"><img src="docs/img/ria-sheet.png" alt="리아 교수 의상 {n_outfits}벌 × 표정 {len(d["faces"])}가지 시트" width="100%"></p>')
+    w(f'<p align="center"><img src="docs/img/dueogi-sheet.png" alt="두억이 표정 {len(d["faces"])}가지 + 의상 {n_outfits}벌 시트" width="100%"></p>')
     w("")
     w("홈 화면 아이콘:")
     w("")

@@ -226,36 +226,36 @@ export function finishDaily(save, info = {}, now = new Date()) {
   s.stats.items += num(info.itemsSolved);
   s.submission_logs = [...(s.submission_logs || []), ...(info.logs || [])].slice(-50);
   s.last_active_at = now.toISOString();
-  const empty = { mode: "daily", xp: 0, lessonBytes: 0, bonusBytes: 0, questBytes: 0, milestoneBytes: 0, totalBytes: 0,
+  const empty = { mode: "daily", xp: 0, lessonYeopjeon: 0, bonusYeopjeon: 0, questYeopjeon: 0, milestoneYeopjeon: 0, totalYeopjeon: 0,
     finished: [], chest: false, newBadges: [], milestone: null, streakUp: false, streak: s.streak.days,
     dailyStreak: d0.streak, firstTime: false, accuracy: info.accuracy };
   if (d0.last_done_date === day) return { save: s, result: empty };
 
   const goalBefore = s.streak.lastGoalDate;
-  const bytesBefore = num(s.yeopjeon);
+  const yeopjeonBefore = num(s.yeopjeon);
   const earned = earnXp(s, DAILY_XP, today);
   s = earned.save;
-  const milestoneBytes = num(s.yeopjeon) - bytesBefore;
+  const milestoneYeopjeon = num(s.yeopjeon) - yeopjeonBefore;
   const streakUp = s.streak.lastGoalDate === today && goalBefore !== today;
 
   const streak = d0.last_done_date && isDate(day) && d0.last_done_date === prevDay(day) ? d0.streak + 1 : 1;
-  const bonusBytes = streak % DAILY_BONUS_EVERY === 0 ? DAILY_BONUS_YEOPJEON : 0;
-  s.yeopjeon = num(s.yeopjeon) + DAILY_YEOPJEON + bonusBytes;
+  const bonusYeopjeon = streak % DAILY_BONUS_EVERY === 0 ? DAILY_BONUS_YEOPJEON : 0;
+  s.yeopjeon = num(s.yeopjeon) + DAILY_YEOPJEON + bonusYeopjeon;
   s.daily = { ...d0, done: d0.picks.map((_, i) => i), streak, best: Math.max(d0.best || 0, streak), last_done_date: day };
 
   s = ensureQuests(s, today);
   const before = s.yeopjeon;
   const q = tick(s, "xp", today, DAILY_XP);
   s = q.save;
-  const questBytes = s.yeopjeon - before;
+  const questYeopjeon = s.yeopjeon - before;
 
   const got = checkBadges(s, { hour: now.getHours(), lessonDone: false, advancedIds: info.advancedIds || [] });
   s.badges = [...s.badges, ...got];
   const had = new Set(save.badges || []);
   return {
     save: s,
-    result: { ...empty, xp: DAILY_XP, lessonBytes: DAILY_YEOPJEON, bonusBytes, questBytes, milestoneBytes,
-      totalBytes: num(s.yeopjeon) - num(save.yeopjeon), finished: q.finished, chest: q.chest,
+    result: { ...empty, xp: DAILY_XP, lessonYeopjeon: DAILY_YEOPJEON, bonusYeopjeon, questYeopjeon, milestoneYeopjeon,
+      totalYeopjeon: num(s.yeopjeon) - num(save.yeopjeon), finished: q.finished, chest: q.chest,
       newBadges: s.badges.filter((b) => !had.has(b)), milestone: earned.milestone, streakUp, streak: s.streak.days,
       dailyStreak: streak, firstTime: true },
   };

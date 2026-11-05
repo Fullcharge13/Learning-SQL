@@ -7,6 +7,6 @@ export function buy(save, id) {
   if ((save.outfits || []).includes(id)) return new Error("이미 가지고 있는 의상이에요");
   if (o.price == null) return new Error("판매하지 않는 의상이에요");
   const yeopjeon = save.yeopjeon || 0;
-  if (yeopjeon < o.price) return new Error(`바이트가 모자라요 (${yeopjeon}/${o.price})`);
+  if (yeopjeon < o.price) return new Error(`엽전이 모자라요 (${yeopjeon}/${o.price})`);
   return { ...save, yeopjeon: yeopjeon - o.price, outfits: [...(save.outfits || []), id] };
 }

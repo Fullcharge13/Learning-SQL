@@ -1,14 +1,15 @@
 // 인사 화면: 인사 + SQL 실행기 미리 받기 진행 표시. 준비를 기다리지 않고 바로 시작할 수 있다.
-import { riaSVG } from "../ria.js";
+import { dueogiSVG } from "../dueogi.js";
+import { FACES } from "../say.js";
 import { esc } from "./dom.js";
 
 export function render(root, ctx) {
   const line = ctx.say("greet");
   root.innerHTML = `<main class="screen splash">
     <div class="splash-hero">
-      <div class="ria-wrap big">${riaSVG({ outfit: ctx.save.outfit, face: "joy", size: 200 })}</div>
-      <h1 class="logo">리아와 파이썬<span class="bang">!</span></h1>
-      <p class="tagline">하루 10분, 문리아 교수와 첫 코드부터</p>
+      <div class="dueogi-wrap big">${dueogiSVG({ outfit: ctx.save.outfit, face: FACES.home, size: 200 })}</div>
+      <h1 class="logo">두억이와 SQL<span class="bang">!</span></h1>
+      <p class="tagline">하루 10분, 도깨비 장터 장부로 배우는 첫 SQL</p>
     </div>
     <p class="bubble center">${esc(line.text)}</p>
     <div class="load" aria-live="polite">

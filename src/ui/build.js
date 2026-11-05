@@ -1,4 +1,4 @@
-// 카드 조립 문제 화면 (설계 §4-3·§4-4·§4-5). 리아의 mountWrite와 같은 모양이지만 입력창이 없다:
+// 카드 조립 문제 화면 (설계 §4-3·§4-4·§4-5). 입력창 없이 카드만 누른다:
 // 카드 더미를 눌러 조립 줄에 놓고, 「실행」으로 결과 표를 보고, 「제출」로 채점한다.
 //
 //   const off = mountBuild({ body, foot }, { item, seed, sql, outfit, init, onState, onPass, onWrong, onHint, log, sound, say });
@@ -11,15 +11,15 @@
 //   실행기를 못 받은 것(load·worker)은 학습자 잘못이 아니라서 세지 않고, 제출 수에도 넣지 않는다.
 // - 실행기가 준비되지 않았으면(받는 중·실패) 「실행」·「제출」을 막고 안내 줄을 보인다. 카드 놓기·힌트는 된다.
 import { newBuild, tap, sqlOf, usedTexts, hint as hintStep } from "../build.js";
-import { cardsToSql, judgeBuild, explain } from "../grade.js";
+import { cardsToSql, judgeBuild, explain, needLine } from "../grade.js";
 import { SCHEMA } from "../../data/schema.js";
-import { riaSVG } from "../ria.js";
-import { esc, icon, codeBlock } from "./dom.js";
+import { FACES } from "../say.js";
+import { esc, icon, codeBlock, dueogiSays } from "./dom.js";
 import { tableHTML } from "./table.js";
 import { openTables } from "./tables.js";
 
 export const HINT_LEVELS = 4;
-export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다(리아와 같음)
+export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다
 const SYSTEM_ERRORS = new Set(["load", "worker"]);
 export const ENGINE_WAIT_LINE = "실행기 준비 중이에요";
 export const ENGINE_FAIL_LINE = "실행기를 아직 받지 못했어요. 인터넷이 될 때 「다시 시도」를 눌러 주세요. 다른 문제는 그대로 풀 수 있어요.";
@@ -145,10 +145,11 @@ export function mountBuild(host, {
   if (sql && sql.status === "idle") sql.preload().catch(() => {});
 
   // ---- 출력 ----
-  function riaLine(situation, sfx = "") {
+  // 두억이 한마디. face: 대사 표정 대신 쓸 표정(같은 문제를 두 번째 틀리면 「달리기」, 설계 §8-3)
+  function sayLine(situation, sfx = "", face = null) {
     if (!say) return "";
     const l = say(situation);
-    return `<div class="ria-row small"><div class="ria-wrap">${riaSVG({ outfit, face: l.face, size: 56 })}${sfx ? `<span class="sfx" aria-hidden="true">${esc(sfx)}</span>` : ""}</div><p class="bubble">${esc(l.text)}</p></div>`;
+    return dueogiSays({ outfit, face: face || l.face, text: l.text, size: 56, sfx, cls: "small" });
   }
   const errorHTML = (error) => `<div class="err-panel">
       <p class="err-orig mono" lang="en">${esc(error === "timeout" ? "timeout: 3초 안에 끝나지 않음" : error)}</p>
@@ -165,19 +166,20 @@ export function mountBuild(host, {
     if (st.busy || st.passed || !ready()) return;
     if (!B.line.length) { show(emptyHTML()); return; }
     setBusy(true);
-    show(riaLine("running", "타닥타닥") || `<p class="muted">실행하는 중…</p>`);
+    show(sayLine("running", "타닥타닥") || `<p class="muted">실행하는 중…</p>`);
     try {
-      const r = await sql.run(sqlOf(B));
+      const ranSql = sqlOf(B);
+      const r = await sql.run(ranSql);
       if (st.destroyed) return;
       if (r.error && SYSTEM_ERRORS.has(r.error)) { show(systemHTML()); return; }
       if (r.error) {
         st.hadError = true;
         play("error");
-        show(`<p class="ex-label">실행 결과</p>${errorHTML(r.error)}${riaLine("error", "어라?")}`);
+        show(`<p class="ex-label">실행 결과</p>${errorHTML(r.error)}${sayLine("error", "어라?")}`);
         notify();
         return;
       }
-      show(`<p class="ex-label">실행 결과</p>${tableHTML(r, { ...opts, label: "실행 결과 표" })}`);
+      show(`<p class="ex-label">실행 결과</p>${tableHTML(r, { ...opts, label: "실행 결과 표", sql: ranSql })}`);
     } finally { if (!st.destroyed) setBusy(false); }
   }
 
@@ -192,11 +194,11 @@ export function mountBuild(host, {
   }
 
   // 틀렸을 때 두 표 모두 평소처럼 50행까지. 표 상자 높이를 줄여(CSS .cmp .rt-scroll) 두 표가 한 화면 가까이에 오게 한다
-  function compareHTML(got, exp) {
-    const mine = got.error ? errorHTML(got.error) : tableHTML(got, { ...opts, label: "내 결과 표" });
+  function compareHTML(got, exp, mySql) {
+    const mine = got.error ? errorHTML(got.error) : tableHTML(got, { ...opts, label: "내 결과 표", sql: mySql });
     return `<div class="cmp">
       <div class="cmp-col"><p class="ex-label bad">내 결과</p>${mine}</div>
-      <div class="cmp-col"><p class="ex-label">기대 결과</p>${tableHTML(exp, { ...opts, label: "기대 결과 표" })}</div>
+      <div class="cmp-col"><p class="ex-label">기대 결과</p>${tableHTML(exp, { ...opts, label: "기대 결과 표", sql: cardsToSql(item.cards) })}</div>
     </div>`;
   }
 
@@ -204,9 +206,10 @@ export function mountBuild(host, {
     if (st.busy || st.passed || !ready()) return;
     if (!B.line.length) { show(emptyHTML()); return; }
     setBusy(true);
-    show(riaLine("running", "타닥타닥") || `<p class="muted">채점하는 중…</p>`);
+    show(sayLine("running", "타닥타닥") || `<p class="muted">채점하는 중…</p>`);
     try {
-      const got = await sql.run(sqlOf(B));
+      const mySql = sqlOf(B);
+      const got = await sql.run(mySql);
       if (st.destroyed) return;
       if (got.error && SYSTEM_ERRORS.has(got.error)) { show(systemHTML()); return; }
       const exp = await expected();
@@ -224,26 +227,28 @@ export function mountBuild(host, {
         st.passed = true;
         hintBtn.disabled = true;
         solBtn.disabled = true;
-        show(`<p class="pass-line">${icon("check")}기대 결과와 같아요</p>${tableHTML(got, { ...opts, label: "내 결과 표" })}`);
+        show(`<p class="pass-line">${icon("check")}기대 결과와 같아요</p>${tableHTML(got, { ...opts, label: "내 결과 표", sql: mySql })}`);
         onPass({ hintUsed: st.hintsShown > 0, solutionSeen: st.solutionSeen, hadError: st.hadError, firstSubmit: st.submits === 1 });
         return;
       }
       onWrong();
+      // 같은 문제를 두 번째 이상 틀리면 땀 흘리며 달리는 얼굴(설계 §8-3). 오류도 놀람 대신 달리기
+      const again = st.submits >= 2 ? FACES.wrongAgain : null;
       let html;
       if (v.reason === "error") {
         st.hadError = true;
         play("error");
-        html = compareHTML(got, exp) + riaLine("error", "어라?");
+        html = compareHTML(got, exp, mySql) + sayLine("error", "어라?", again);
       } else if (v.reason === "need") {
         play("wrong");
-        html = `<div class="err-panel soft"><h3>${icon("cross")}결과는 맞았는데 이번엔 ${esc((v.missingNeed || []).join(", "))}를 써 보자</h3>
-          <p>같은 결과를 그 카드를 써서 만들어 볼까요?</p></div>` + riaLine("wrong");
+        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(needLine(v.missingNeed))}</h3>
+          <p>같은 결과를 그 카드를 써서 만들어 볼까요?</p></div>` + sayLine("wrong", "", again);
       } else {
         play("wrong");
         const why = v.reason === "columns"
           ? "보여 주는 열이 기대 결과와 달라요. 어떤 열을 어떤 차례로 보여 줘야 할지 살펴봐요."
           : "행이 기대 결과와 달라요. 조건이나 차례를 다시 살펴봐요.";
-        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(why)}</h3></div>` + compareHTML(got, exp) + riaLine("wrong");
+        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(why)}</h3></div>` + compareHTML(got, exp, mySql) + sayLine("wrong", "", again);
       }
       show(`<p class="submit-count">제출 ${st.submits}번째</p>${html}`);
       if (st.submits >= AUTO_SOLUTION_AFTER && !st.solutionSeen) revealSolution(true);
@@ -274,7 +279,7 @@ export function mountBuild(host, {
     if (r.state) { B = { bank: B.bank, line: cleanLine(r.state.line, B.bank) }; paint(); }
     st.hintsShown = Math.max(st.hintsShown, level);
     paintHint(level);
-    show(riaLine("hint"));
+    show(sayLine("hint"));
     hintList.lastElementChild.scrollIntoView({ block: "nearest" });
     notify();
   }

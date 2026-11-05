@@ -108,7 +108,12 @@ test("explain: every listed error has both voices and a name when it has one", (
     ["no such table: itemz", "itemz"], ["misuse of aggregate: SUM()", null],
     ['near "FORM": syntax error', "FORM"], ["ambiguous column name: name", "name"],
     ["incomplete input", null], ["no such function: cnt", "cnt"],
-    ["1st GROUP BY term does not match any column in the result set", null],
+    ["1st GROUP BY term out of range - should be between 1 and 2", null],
+    ["aggregate functions are not allowed in the GROUP BY clause", null],
+    ["misuse of window function ROW_NUMBER()", "ROW_NUMBER"],
+    ["wrong number of arguments to function SUBSTR()", "SUBSTR"],
+    ["1st ORDER BY term out of range - should be between 1 and 1", null],
+    ["sub-select returns 2 columns - expected 1", null],
     ["read-only", null], ["timeout", null], ["worker", null], ["load", null],
   ];
   for (const [msg, name] of samples) {
@@ -126,4 +131,74 @@ test("explain: unknown outfit uses default; unknown error uses fallback", () => 
   assert.equal(explain("something weird", "default"), FALLBACK);
   assert.equal(explain("", "detective"), FALLBACK);
   assert.equal(explain(null, "detective"), FALLBACK);
+});
+
+// ---- 작업 10 (작업 4 이월): 실제 SQLite 문장으로 본 오류 설명 ----
+const SPECIFIC = [
+  // [실제 sql.js 오류 문장(작업 10에서 sql.js 1.15.2로 뽑음), 표 키]
+  ["aggregate functions are not allowed in the GROUP BY clause", "aggregate in GROUP BY"],
+  ["misuse of window function ROW_NUMBER()", "misuse of window function"],
+  ["wrong number of arguments to function ROUND()", "wrong number of arguments"],
+  ["1st ORDER BY term out of range - should be between 1 and 1", "ORDER BY term"],
+  ["1st ORDER BY term does not match any column in the result set", "ORDER BY term"],
+  ["sub-select returns 2 columns - expected 1", "sub-select columns"],
+  ["1st GROUP BY term out of range - should be between 1 and 1", "GROUP BY term"],
+  ["misuse of aggregate function SUM()", "misuse of aggregate"],
+];
+
+test("explain: 실제 SQLite 오류 문장이 자기 설명으로 감 (대체 문장 아님)", () => {
+  for (const [msg, key] of SPECIFIC) {
+    assert.ok(ERRORS[key], `표에 ${key} 없음`);
+    assert.equal(explain(msg, "basic"), ERRORS[key].body.replace(/\{name\}/g, (ERRORS[key].match.exec(msg) || [])[1] || "그 이름"), msg);
+    assert.notEqual(explain(msg, "basic"), FALLBACK, msg);
+  }
+});
+
+test("explain: misuse of aggregate 기본 말투는 자리를 단정하지 않음(WHERE 대신 HAVING만 권하지 않음)", () => {
+  const a = explain("misuse of aggregate function COUNT()", "basic");
+  assert.doesNotMatch(a, /WHERE 대신 HAVING/);
+  assert.match(a, /HAVING/);
+});
+
+test("explain: 「이거 봐요」로 여는 설명은 셋 이하(여는 말이 고루 다름)", () => {
+  const bodies = Object.values(ERRORS).map((e) => e.body);
+  const n = bodies.filter((b) => b.startsWith("이거 봐요")).length;
+  assert.ok(n <= 3, `「이거 봐요」 ${n}번`);
+  const openers = new Set(bodies.map((b) => b.split(/[,.!?]/)[0]));
+  assert.ok(openers.size >= 6, `여는 말 ${openers.size}가지`);
+});
+
+test("explain: (이)라는 조사가 이름 받침에 맞음", () => {
+  // 영어 이름은 읽은 소리로: name(네임) → 이라는, price(프라이스) → 라는, 숫자 3 → 이라는, 한글 값 → 받침대로
+  assert.match(explain("no such column: name", "basic"), /'name'이라는/);
+  assert.match(explain("no such column: price", "basic"), /'price'라는/);
+  assert.match(explain("no such column: item_id", "basic"), /'item_id'라는/);
+  assert.match(explain("no such column: shop", "basic"), /'shop'이라는/);
+  assert.match(explain("no such table: orders", "basic"), /'orders'라는/);
+  assert.match(explain("no such table: 장부", "basic"), /'장부'라는/);
+  assert.match(explain("no such table: 가게", "basic"), /'가게'라는/);
+  assert.match(explain("no such column: 손님", "detective"), /'손님'이라는/);
+  assert.match(explain("ambiguous column name: id", "basic"), /'id'는/);
+  assert.match(explain("ambiguous column name: name", "basic"), /'name'은/);
+  for (const e of Object.values(ERRORS)) {
+    assert.doesNotMatch(e.body + e.detective, /\}'라는|\}'이라는/, "고정 조사 대신 {i}·{eun} 자리를 씀");
+  }
+});
+
+test("explain: read-only 안내는 「만들어 볼까」", () => {
+  assert.match(explain("read-only", "basic"), /만들어 볼까/);
+  assert.doesNotMatch(explain("read-only", "basic"), /써 볼까/);
+});
+
+// ---- 작업 10 (작업 6 이월): need 안내의 조사 ----
+test("needLine: 빠진 카드 안내는 받침에 맞는 을/를 (고정 「를」 아님)", async () => {
+  const { needLine } = await import("../../src/grade.js");
+  assert.equal(needLine(["JOIN"]), "결과는 맞았는데 이번엔 JOIN을 써 보자");
+  assert.equal(needLine(["AS"]), "결과는 맞았는데 이번엔 AS를 써 보자");
+  assert.equal(needLine(["HAVING"]), "결과는 맞았는데 이번엔 HAVING을 써 보자");
+  assert.equal(needLine(["WHERE"]), "결과는 맞았는데 이번엔 WHERE를 써 보자");
+  assert.equal(needLine(["COUNT(*)"]), "결과는 맞았는데 이번엔 COUNT(*)를 써 보자");
+  assert.equal(needLine(["GROUP BY", "LIMIT"]), "결과는 맞았는데 이번엔 GROUP BY, LIMIT을 써 보자");
+  assert.equal(needLine(["값"]), "결과는 맞았는데 이번엔 값을 써 보자");
+  assert.equal(needLine(["가게"]), "결과는 맞았는데 이번엔 가게를 써 보자");
 });

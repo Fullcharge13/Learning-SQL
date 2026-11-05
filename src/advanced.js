@@ -2,10 +2,10 @@
 // - id는 `N-A1`~`N-A3`, 장 파일의 ADVANCED 목록에 있고 레슨 목록(index)에서는 장의 `advanced` 칸에 따로 있다.
 //   본 과정 `lessons`에는 섞지 않으므로 지금 레슨·진도 개수·과정 완주(C39)는 그대로 본 과정만 본다.
 // - 열림: 그 장 평가(마지막 본 과정 레슨, 보통 N-5)를 끝내면 세 개가 함께 열림. 순서 없음, 선택.
-// - 보상: 처음 끝내면 XP 15·바이트 15 (+ 보통 레슨과 같은 실수 없음·힌트 없음 보너스). 다시 하기는 기존 규칙(rules.js).
+// - 보상: 처음 끝내면 XP 15·엽전 15 (+ 보통 레슨과 같은 실수 없음·힌트 없음 보너스). 다시 하기는 기존 규칙(rules.js).
 
 export const ADV_XP = 15;
-export const ADV_BYTES = 15;
+export const ADV_YEOPJEON = 15;
 const ADV_RE = /^[1-9]\d*-A[1-9]\d*$/;
 
 export const isAdvancedId = (id) => typeof id === "string" && ADV_RE.test(id);
@@ -18,8 +18,10 @@ function examId(chapter) {
   return exam ? exam.id : null;
 }
 
-/** 그 장의 심화가 열렸나: 장 평가를 끝냈으면 참 */
+/** 그 장의 심화가 열렸나: 심화 레슨이 있고 장 평가를 끝냈으면 참.
+ *  심화 레슨이 없는 장(두억이 v0.1은 모든 장, 설계 D7·§7)은 장 평가를 통과해도 가지를 열지 않는다. */
 export function advancedOpen(chapter, completed) {
+  if (!chapter || !Array.isArray(chapter.advanced) || chapter.advanced.length === 0) return false;
   const ex = examId(chapter);
   return !!ex && (completed || []).includes(ex);
 }

@@ -207,8 +207,8 @@ test("finishDaily: XP 15·엽전 10, 도전 1일째, 하루 목표·연속 기�
   const { save: out, result } = finishDaily(s, { itemsSolved: 3, logs: [] }, NOW("2026-11-05"));
   assert.equal(result.mode, "daily");
   assert.equal(result.xp, 15);
-  assert.equal(result.lessonBytes, 10);
-  assert.equal(result.bonusBytes, 0);
+  assert.equal(result.lessonYeopjeon, 10);
+  assert.equal(result.bonusYeopjeon, 0);
   assert.equal(result.dailyStreak, 1);
   assert.equal(out.xp, 15);
   assert.equal(out.streak.todayXp, 15);
@@ -220,8 +220,8 @@ test("finishDaily: XP 15·엽전 10, 도전 1일째, 하루 목표·연속 기�
   assert.deepEqual(out.daily.done, [0, 1, 2]);
   assert.equal(out.stats.items, 3);
   // 엽전 = 도전 10 + 퀘스트(있으면)
-  assert.equal(out.yeopjeon, 10 + result.questBytes);
-  assert.equal(result.totalBytes, out.yeopjeon);
+  assert.equal(out.yeopjeon, 10 + result.questYeopjeon);
+  assert.equal(result.totalYeopjeon, out.yeopjeon);
   if (out.quests.ids.includes("q_xp20")) assert.equal(out.quests.progress.q_xp20, 15);
   // 퀘스트 「레슨 2개」에는 세지 않음
   assert.ok(!(out.quests.progress.q_lessons2 > 0));
@@ -261,8 +261,8 @@ test("도전 7일째마다 +20엽전(7, 14일째)", () => {
   const { results } = playDays(dates);
   results.forEach((r, i) => {
     const day = i + 1;
-    assert.equal(r.bonusBytes, day % 7 === 0 ? DAILY_BONUS_YEOPJEON : 0, `day ${day}`);
-    assert.ok(r.totalBytes >= DAILY_YEOPJEON + r.bonusBytes);
+    assert.equal(r.bonusYeopjeon, day % 7 === 0 ? DAILY_BONUS_YEOPJEON : 0, `day ${day}`);
+    assert.ok(r.totalYeopjeon >= DAILY_YEOPJEON + r.bonusYeopjeon);
   });
 });
 

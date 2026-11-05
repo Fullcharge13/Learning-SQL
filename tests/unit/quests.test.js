@@ -41,6 +41,15 @@ test("QUESTS table: 6 ledger ids, rewards 5/5/8/8/5/8", () => {
   for (const q of QUESTS) assert.ok(typeof q.name === "string" && q.name.length > 0);
 });
 
+test("QUESTS names: 설계 §7 두 줄은 SQL 말로, 나머지는 그대로", () => {
+  const name = (id) => QUESTS.find((q) => q.id === id).name;
+  assert.equal(name("q_fixerr"), "오류가 난 조립을 고쳐서 통과하기");
+  assert.equal(name("q_hintfree"), "힌트 없이 카드 조립 통과하기");
+  assert.equal(name("q_lessons2"), "레슨 2개 완료하기");
+  assert.equal(name("q_perfect"), "실수 없이 레슨 끝내기");
+  for (const q of QUESTS) assert.doesNotMatch(q.name, /코드|바이트/, q.id);
+});
+
 test("same_day: same date twice -> same result, 3 items, distinct", () => {
   const s = mkSave({ review_queue: ["assign"] });
   const a = pickQuests("2026-10-29", s);

@@ -1,6 +1,7 @@
 // 채점 핵심 (설계서 4-4, 4-6). 실행은 sqlcore/sqlrun이 하고,
 // 이 파일은 결과 표를 비교하고 오류를 설명할 뿐이다.
 import { ERRORS, FALLBACK, DETECTIVE_ID } from "../data/errors.js";
+import { sqlEul, sqlEun, sqlI } from "./shuffle.js";
 
 export function cardsToSql(cards) {
   return (cards || []).join(" ");
@@ -73,13 +74,22 @@ export function judgeBuild(item, got, exp, usedCards) {
 }
 
 // error: SQLite 오류 문장 또는 엔진 오류 이름. 모르는 오류여도 예외를 던지지 않는다.
+// outfit: 입은 의상 id. 탐정 의상(DETECTIVE_ID, 판정 R14)이면 탐정 말투.
+// 설명 글의 자리: {name} 문제가 된 이름, {i} 「(이)라는」의 「이」, {eun} 은/는 — 이름의 받침에 맞춘다.
 export function explain(error, outfit) {
   const msg = String(error && typeof error === "object" ? error.message ?? "" : error ?? "");
   for (const e of Object.values(ERRORS)) {
     const m = e.match.exec(msg);
     if (!m) continue;
     const text = outfit === DETECTIVE_ID ? e.detective : e.body;
-    return text.replace(/\{name\}/g, m[1] != null && m[1] !== "" ? m[1] : "그 이름");
+    const name = m[1] != null && m[1] !== "" ? m[1] : "그 이름";
+    return text.replace(/\{(name|i|eun)\}/g, (_, k) => (k === "name" ? name : k === "i" ? sqlI(name) : sqlEun(name)));
   }
   return FALLBACK;
+}
+
+/** 결과는 맞았지만 꼭 써야 할 카드(need)를 안 썼을 때의 안내 제목 (설계 §4-4-4). 조사는 마지막 카드의 받침에 맞춘다 */
+export function needLine(missing) {
+  const words = (missing || []).map(String).join(", ");
+  return `결과는 맞았는데 이번엔 ${words}${sqlEul(words)} 써 보자`;
 }

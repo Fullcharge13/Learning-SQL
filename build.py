@@ -16,7 +16,7 @@
                           매일 도전 틀 TEMPLATES(v0.9)도 있으면 함께 넣고, 목록에는 장의 templates 칸에 id·개념만
   manifest.webmanifest    홈 화면 앱 설명
   sw.js                   서비스 작업자(판 번호·내용 지문을 채움)
-  icons/*.png             리아 얼굴 아이콘(tools/icon.py)
+  icons/*.png             두억이 얼굴 아이콘(tools/icon.py)
   worker.js               SQL 작업자(src/worker.js 묶음, 모듈 작업자)
   sql-wasm.js, sql-wasm.wasm  sql.js 1.15.2 (node_modules/sql.js/dist 그대로). 작업자가 받아 쓴다
 

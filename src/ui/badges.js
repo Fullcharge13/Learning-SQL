@@ -5,7 +5,9 @@ import { esc } from "./dom.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
 
 const ART = {
-  first_print: ["teal", ">_"], ch1: ["teal", "1장"], ch2: ["teal", "2장"], ch3: ["teal", "3장"],
+  first_query: ["teal", "SQL"],
+  // 장 묶음 배지(설계 §7): 1~5장 장부 읽기 · 6~9장 셈 도깨비 · 10~13장 조인 장인 · 14~17장 분석 도깨비(마지막 묶음은 금색)
+  book_reader: ["teal", "장부"], count_dokkaebi: ["teal", "셈"], join_master: ["teal", "조인"], analyst: ["sun", "분석"],
   streak7: ["coral", "7일"], streak30: ["coral", "30일"], streak100: ["coral", "100"],
   fixer: ["navy", "fix"], hintfree10: ["navy", "10"], perfectionist: ["sun", "★"],
   reviewer: ["navy", "30"], collector: ["sun", "3벌"], night_owl: ["navy", "☾"],

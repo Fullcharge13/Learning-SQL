@@ -1,4 +1,4 @@
-// 작업 12. 바이트 경제 시뮬레이션 — 가상 학습자 30일 × 12판(씨앗 1~12)
+// 작업 12. 엽전 경제 시뮬레이션 — 가상 학습자 30일 × 12판(씨앗 1~12)
 // 실행: node tests/sim/economy.js
 // 실제 규칙 모듈(src/rules.js, src/quests.js, src/shop.js, src/badges.js)을 고치지 않고 그대로 부른다.
 //
@@ -10,15 +10,15 @@
 //   힌트 없이 통과 50%(오류 여부와 따로).
 //   틀린 문제는 markConcept(wrong) 후 다시 풀어 맞힘(재도전은 복습 퀘스트에 세지 않음). 맞힌 문제는 markConcept(right).
 // - 실제 레슨 표(data/lessons/ch*.js)를 차례로(--lessons N 이면 앞의 N개; 15면 v0.1 재현). 다 끝낸 뒤 한 판은 복습 목록이 있으면 복습(5문제, 5 XP),
-//   없으면 처음 레슨부터 다시 하기(XP 절반, 바이트 0).
+//   없으면 처음 레슨부터 다시 하기(XP 절반, 엽전 0).
 // - 레슨마다 id, isExam, 쓰기 문제의 개념만 읽어 쓴다(터치 문제도 그 개념으로 표시).
-// - 쇼핑은 학습한 날 끝에: 보호권이 0개이고 200바이트 이상이면 보호권 1개를 먼저, 그다음 살 수 있는 가장 싼 의상.
+// - 쇼핑은 학습한 날 끝에: 보호권이 0개이고 200엽전 이상이면 보호권 1개를 먼저, 그다음 살 수 있는 가장 싼 의상.
 //   (「strict」 방식: 보호권이 0개면 의상을 사지 않고 보호권 값을 먼저 모음 — 비교용으로만 계산)
 // - 심화(v0.7, --advanced / { advanced: true }): 장 평가를 끝내면 다음 차례에 그 장 심화 3개를 먼저 한다(새 본 과정 레슨보다 앞).
 //   장 파일의 ADVANCED를 쓰고, v0.7 계획의 1~6장 중 아직 ADVANCED가 없는 장은 자리 표시 3개(N-A1..3, 개념은 그 장 평가의 것)로 채운다.
 //   보상은 rules.js lessonReward({ isAdvanced: true }) 그대로. 배지 「깊이 파는 사람」은 이 심화 목록 전부가 기준.
 // - 매일 도전(v0.9, --daily / { daily: true }): 1장(1-5)을 끝낸 뒤 학습한 날마다 DAILY_P 확률로 그날 레슨 뒤에 도전 3문제를 끝냄.
-//   보상은 src/daily.js finishDaily 그대로(XP 15·바이트 10·도전 7일마다 +20, XP 퀘스트·하루 목표·연속 기록에 반영).
+//   보상은 src/daily.js finishDaily 그대로(XP 15·엽전 10·도전 7일마다 +20, XP 퀘스트·하루 목표·연속 기록에 반영).
 import { readdirSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { newSave } from "../../src/save.js";
@@ -127,7 +127,7 @@ export function runSim(seed, { policy = "plan", lessons = null, advanced = false
   let newPhaseEarned = 0, newPhaseDays = 0, lastNewDay = null;
   const daily = [];
 
-  // 바이트 변화를 따로 셈(쓰기 전)
+  // 엽전 변화를 따로 셈(쓰기 전)
   const gain = (before, after, kind) => {
     const d = after.yeopjeon - before.yeopjeon;
     if (d > 0) { earned += d; src[kind] += d; }
@@ -166,7 +166,7 @@ export function runSim(seed, { policy = "plan", lessons = null, advanced = false
     if (!writeErr && hintFree) s = markConcept(s, wc, "right");
     const perfect = wrong === 0;
 
-    const rw = lessonReward({ firstTime, perfect, hintFreeWrite: hintFree, isExam: lesson.isExam, isAdvanced: !!lesson.isAdvanced });
+    const rw = lessonReward({ firstTime, perfect, hintFreeBuild: hintFree, isExam: lesson.isExam, isAdvanced: !!lesson.isAdvanced });
     const prev = s;
     s = {
       ...s,
@@ -261,8 +261,8 @@ export function runSim(seed, { policy = "plan", lessons = null, advanced = false
     seed,
     courseLength: COURSE.length,
     activeDays,
-    bytesPerActiveDay: Math.round((earned / activeDays) * 10) / 10,
-    bytesPerNewLessonDay: Math.round((newPhaseEarned / newPhaseDays) * 10) / 10,
+    yeopjeonPerActiveDay: Math.round((earned / activeDays) * 10) / 10,
+    yeopjeonPerNewLessonDay: Math.round((newPhaseEarned / newPhaseDays) * 10) / 10,
     courseDoneDay: lastNewDay,
     goalMissDays: daily.filter((x) => x.xp < 20).length,
     firstOutfitDay,
@@ -277,7 +277,7 @@ export function runSim(seed, { policy = "plan", lessons = null, advanced = false
     dailyBest: s.daily ? s.daily.best : 0,
     skipDays: [...skips].sort((a, b) => a - b).map((x) => x + 1),
     badges: s.badges.length,
-    endBytes: s.yeopjeon,
+    endYeopjeon: s.yeopjeon,
     advancedTotal: ADV.length,
     advancedDone: Object.keys(advancedDay).length,
     advancedPlaceholders: advanced ? ADVANCED_PLACEHOLDERS : 0,
@@ -303,15 +303,15 @@ function main() {
   const runs = seeds.map((sd) => runSim(sd, { lessons }));
   const strict = seeds.map((sd) => runSim(sd, { policy: "strict", lessons }));
   const med = (f, rs = runs) => { const m = median(rs.map(f)); return m === null ? "-" : Math.round(m * 10) / 10; };
-  const head = ["seed", "B/active day", "B/day (new lessons)", "course done day", "1st outfit day", "1st outfit (strict)",
+  const head = ["seed", "Y/active day", "Y/day (new lessons)", "course done day", "1st outfit day", "1st outfit (strict)",
     "freezes bought/used", "goal-miss days", "streak broken", "final streak", "outfits", "milestones", "skip days", "yeopjeon lesson/quest/milestone"];
   const rows = runs.map((r, i) => [
-    r.seed, r.bytesPerActiveDay, r.bytesPerNewLessonDay, r.courseDoneDay, r.firstOutfitDay ?? "-", strict[i].firstOutfitDay ?? "-",
+    r.seed, r.yeopjeonPerActiveDay, r.yeopjeonPerNewLessonDay, r.courseDoneDay, r.firstOutfitDay ?? "-", strict[i].firstOutfitDay ?? "-",
     `${r.freezesBought}/${r.freezesUsed}`, r.goalMissDays, r.streakBroken, r.finalStreak, r.outfitsOwned,
     r.milestones.join(",") || "-", r.skipDays.join(","), `${r.sources.lesson}/${r.sources.quest}/${r.sources.milestone}`,
   ]);
   rows.push([
-    "**median**", med((r) => r.bytesPerActiveDay), med((r) => r.bytesPerNewLessonDay), med((r) => r.courseDoneDay),
+    "**median**", med((r) => r.yeopjeonPerActiveDay), med((r) => r.yeopjeonPerNewLessonDay), med((r) => r.courseDoneDay),
     med((r) => r.firstOutfitDay), med((r) => r.firstOutfitDay, strict),
     `${med((r) => r.freezesBought)}/${med((r) => r.freezesUsed)}`, med((r) => r.goalMissDays), med((r) => r.streakBroken),
     med((r) => r.finalStreak), med((r) => r.outfitsOwned), `7일: ${runs.filter((r) => r.milestones.includes(7)).length}/12판`, "", "",
@@ -320,11 +320,11 @@ function main() {
   console.log("|" + head.map(() => "---").join("|") + "|");
   for (const row of rows) console.log("| " + row.join(" | ") + " |");
 
-  const bpd = med((r) => r.bytesPerActiveDay);
-  const bnew = med((r) => r.bytesPerNewLessonDay);
+  const bpd = med((r) => r.yeopjeonPerActiveDay);
+  const bnew = med((r) => r.yeopjeonPerNewLessonDay);
   const fod = med((r) => r.firstOutfitDay);
   const inB = (x) => x >= 40 && x <= 50 ? "OK" : "밖";
-  console.log(`\n판정: 하루 바이트 중앙값 전체 ${bpd} (${inB(bpd)}), 새 레슨이 있는 날 ${bnew} (${inB(bnew)}) — 목표 40~50`);
+  console.log(`\n판정: 하루 엽전 중앙값 전체 ${bpd} (${inB(bpd)}), 새 레슨이 있는 날 ${bnew} (${inB(bnew)}) — 목표 40~50`);
   console.log(`      첫 의상 중앙값 ${fod}일째 (목표 3~4) ${fod >= 3 && fod <= 4 ? "OK" : "밖"}`);
   console.log("12판뿐이라 중앙값은 판마다 흔들릴 수 있음(빠지는 날 위치·정확도 무작위).");
 }
@@ -338,10 +338,10 @@ function compareAdvanced(lessons) {
   const med = (rs, f) => r1(median(rs.map(f)));
   const a0 = adv[0];
   console.log(`심화 ${a0.advancedTotal}개(자리 표시 ${a0.advancedPlaceholders}개) — 장 평가 뒤 그 장 심화를 먼저 하는 학습자, 30일 × 12판\n`);
-  console.log("| 학습자 | B/active day | B/day (new lessons) | 1st outfit day | outfits | 끝낸 심화 | 30일 동안 끝낸 본 과정 레슨 |");
+  console.log("| 학습자 | Y/active day | Y/day (new lessons) | 1st outfit day | outfits | 끝낸 심화 | 30일 동안 끝낸 본 과정 레슨 |");
   console.log("|---|---|---|---|---|---|---|");
   for (const [name, rs] of [["본 과정만", base], ["심화까지", adv]]) {
-    console.log(`| ${name} | ${med(rs, (r) => r.bytesPerActiveDay)} | ${med(rs, (r) => r.bytesPerNewLessonDay)} | ${med(rs, (r) => r.firstOutfitDay)} | `
+    console.log(`| ${name} | ${med(rs, (r) => r.yeopjeonPerActiveDay)} | ${med(rs, (r) => r.yeopjeonPerNewLessonDay)} | ${med(rs, (r) => r.firstOutfitDay)} | `
       + `${med(rs, (r) => r.outfitsOwned)} | ${med(rs, (r) => r.advancedDone)} | ${med(rs, (r) => Object.keys(r.lessonDay).length)} |`);
   }
   console.log("\n12판뿐이라 중앙값은 판마다 흔들릴 수 있음.");
@@ -355,10 +355,10 @@ function compareDaily(lessons) {
   const r1 = (x) => (x === null ? "-" : Math.round(x * 10) / 10);
   const med = (rs, f) => r1(median(rs.map(f)));
   console.log(`매일 도전: 1장 뒤 학습한 날의 ${DAILY_P * 100}%에 도전 3문제, 30일 × 12판\n`);
-  console.log("| 학습자 | B/active day | 1st outfit day | outfits | 도전한 날 | 도전 최고 연속 | 바이트 도전/레슨/퀘스트/연속 | 하루 목표 미달 |");
+  console.log("| 학습자 | Y/active day | 1st outfit day | outfits | 도전한 날 | 도전 최고 연속 | 엽전 도전/레슨/퀘스트/연속 | 하루 목표 미달 |");
   console.log("|---|---|---|---|---|---|---|---|");
   for (const [name, rs] of [["도전 없음(기준)", base], ["매일 도전", dly]]) {
-    console.log(`| ${name} | ${med(rs, (r) => r.bytesPerActiveDay)} | ${med(rs, (r) => r.firstOutfitDay)} | ${med(rs, (r) => r.outfitsOwned)} | `
+    console.log(`| ${name} | ${med(rs, (r) => r.yeopjeonPerActiveDay)} | ${med(rs, (r) => r.firstOutfitDay)} | ${med(rs, (r) => r.outfitsOwned)} | `
       + `${med(rs, (r) => r.dailyDone)} | ${med(rs, (r) => r.dailyBest)} | ${med(rs, (r) => r.sources.daily)}/${med(rs, (r) => r.sources.lesson)}/`
       + `${med(rs, (r) => r.sources.quest)}/${med(rs, (r) => r.sources.milestone)} | ${med(rs, (r) => r.goalMissDays)} |`);
   }
