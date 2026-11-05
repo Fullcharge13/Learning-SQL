@@ -20,25 +20,52 @@ function jsFiles(dir) {
   return out;
 }
 
-test("all storage keys start with dueogi-", () => {
+// 글자에서 저장 칸·캐시 이름을 모은다(작업 16에서 넓힘): localStorage·sessionStorage(…Item 부르기 첫 인자),
+// caches.open/delete/has, indexedDB.open, 서비스 작업자의 *CACHE* 상수와 key.startsWith(…) 조건.
+// 첫 인자가 이름(식별자)이면 같은 파일의 const 글자를 찾아 쓴다(내보내기 없는 const도). 템플릿 글자는 ${ 앞까지.
+// 같은 파일에서 찾을 수 없는 식별자(돌며 받는 변수 등)는 건너뛴다. *_KEY·*_PREFIX로 내보낸 상수는 쓰이는지와 상관없이 센다.
+export function storageNames(sources) {
   const names = new Map(); // 이름 -> 출처
-  const add = (n, where) => names.set(n, where);
-  const consts = []; // { id, value, where }
-  const constRe = /export\s+const\s+([A-Z_]*(?:KEY|PREFIX))\s*=\s*["'`]([^"'`]+)["'`]/g;
-  const callRe = /\.(?:getItem|setItem|removeItem)\(\s*(?:["'`]([^"'`]+)["'`]|([A-Za-z_]\w*))/g;
-  const used = new Set(); // getItem/setItem/removeItem의 첫 인자로 쓰인 상수 이름
-  for (const f of jsFiles(path.join(ROOT, "src"))) {
-    const src = fs.readFileSync(f, "utf8");
-    const where = path.relative(ROOT, f);
-    for (const m of src.matchAll(constRe)) consts.push({ id: m[1], value: m[2], where });
-    for (const m of src.matchAll(callRe)) { if (m[1]) add(m[1], where); else used.add(m[2]); }
+  const lit = String.raw`(?:"([^"]*)"|'([^']*)'|\`([^\`$]*)(?:\$\{[^\`]*)?\`)`;
+  const constRe = new RegExp(String.raw`\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*` + lit, "g");
+  const exportedRe = /export\s+const\s+([A-Z_]*(?:KEY|PREFIX))\s*=/g;
+  const callRe = new RegExp(String.raw`(?:\.(?:getItem|setItem|removeItem)|\bcaches\.(?:open|delete|has)|\bindexedDB\.(?:open|deleteDatabase))\(\s*(?:` + lit + String.raw`|([A-Za-z_$][\w$]*))`, "g");
+  const swCacheRe = /const\s+\w*CACHE\w*\s*=\s*["'`]([^"'`$]+)/g;
+  const startsRe = /key\.startsWith\(\s*["'`]([^"'`]+)["'`]\s*\)/g;
+  const val = (m, i) => (m[i] ?? m[i + 1] ?? m[i + 2]);
+  for (const { where, src } of sources) {
+    const consts = new Map();
+    for (const m of src.matchAll(constRe)) consts.set(m[1], val(m, 2));
+    for (const m of src.matchAll(exportedRe)) if (consts.has(m[1])) names.set(consts.get(m[1]), where);
+    for (const m of src.matchAll(callRe)) {
+      const v = val(m, 1);
+      if (v !== undefined) names.set(v, where);
+      else if (consts.has(m[4])) names.set(consts.get(m[4]), where);
+    }
+    for (const m of src.matchAll(swCacheRe)) names.set(m[1], where);
+    for (const m of src.matchAll(startsRe)) names.set(m[1], where);
   }
-  // 저장 칸으로 쓰이는 *_KEY 와 캐시 이름 접두사(*_PREFIX)만 본다(이름이 _KEY로 끝나도 저장 칸에 쓰이지 않는 상수는 건너뜀)
-  for (const c of consts) if (c.id.endsWith("PREFIX") || used.has(c.id)) add(c.value, c.where);
-  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
-  for (const m of sw.matchAll(/const\s+\w*CACHE\w*\s*=\s*["'`]([^"'`]+)["'`]/g)) add(m[1], "sw.js");
-  for (const m of sw.matchAll(/key\.startsWith\(\s*["'`]([^"'`]+)["'`]\s*\)/g)) add(m[1], "sw.js");
-  assert.ok(names.size >= 5, "찾은 이름이 너무 적다: " + [...names.keys()].join(", "));
+  return names;
+}
+
+test("storageNames finds cache and session names the old scan missed", () => {
+  const got = storageNames([
+    { where: "a.js", src: 'const c = await caches.open("ria-x"); await caches.delete(\'tmp-y\');' },
+    { where: "b.js", src: 'sessionStorage.setItem("seeded", "1"); const K = "plain-key"; sessionStorage.getItem(K);' },
+    { where: "c.js", src: "const NAME = `other-${v}`; caches.open(NAME); indexedDB.open('idb-z'); for (const n of xs) caches.open(n);" },
+    { where: "d.js", src: 'export const OLD_KEY = "legacy-save"; export const FOO_PREFIX = "foo-";' },
+  ]);
+  assert.deepEqual([...got.keys()].sort(), ["foo-", "idb-z", "legacy-save", "other-", "plain-key", "ria-x", "seeded", "tmp-y"]);
+  assert.equal(got.get("ria-x"), "a.js");
+});
+
+test("all storage keys start with dueogi-", () => {
+  const files = [...jsFiles(path.join(ROOT, "src")), path.join(ROOT, "sw.js")];
+  const names = storageNames(files.map((f) => ({ where: path.relative(ROOT, f), src: fs.readFileSync(f, "utf8") })));
+  assert.ok(names.size >= 6, "찾은 이름이 너무 적다: " + [...names.keys()].join(", "));
+  for (const want of ["dueogi-sql-save", "dueogi-sql-resume", "dueogi-engine-", "dueogi-game-", "dueogi-"]) {
+    assert.ok([...names.keys()].some((n) => n === want || n.startsWith(want)), want + " not found: " + [...names.keys()].join(", "));
+  }
   for (const [n, where] of names) assert.ok(n.startsWith("dueogi-"), `${where}: "${n}"는 dueogi-로 시작하지 않는다`);
   assert.equal(SAVE_KEY, "dueogi-sql-save");
   assert.equal(RESUME_KEY, "dueogi-sql-resume");
