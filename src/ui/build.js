@@ -246,8 +246,8 @@ export function mountBuild(host, {
       show(`<p class="submit-count">제출 ${st.submits}번째</p>${html}`);
       if (st.submits >= AUTO_SOLUTION_AFTER && !st.solutionSeen) revealSolution(true);
       notify();
-      // 비교 표가 있으면 그쪽으로(내 결과·기대 결과가 함께 보이게), 없으면 안내 맨 위로
-      (consoleEl.querySelector(".cmp") || consoleEl).scrollIntoView({ block: "start" });
+      // 틀린 까닭(첫 안내)부터 보이게 피드백 맨 위로. 비교 표 상자는 낮게(CSS 30vh) 두어 까닭·내 결과·기대 결과 머리가 한 화면에
+      consoleEl.scrollIntoView({ block: "start" });
     } finally { if (!st.destroyed) setBusy(false); }
   }
 

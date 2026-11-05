@@ -1189,7 +1189,7 @@ def test_build_solve():
           const th = sc.querySelector('thead th').getBoundingClientRect(); const out = { h: r0.height, vh: innerHeight,
             scrollH: sc.scrollHeight, oy: getComputedStyle(sc).overflowY, headTop: Math.round(th.top - sc.getBoundingClientRect().top) };
           sc.scrollTop = 0; return out; }""")
-        assert box["oy"] == "auto" and box["h"] <= box["vh"] * 0.4 + 1 and box["scrollH"] > box["h"], box
+        assert box["oy"] == "auto" and box["h"] <= box["vh"] * 0.3 + 1 and box["scrollH"] > box["h"], box
         assert abs(box["headTop"]) <= 3, "sticky header stays at the top of the box: %s" % box
         assert "제출 1번째" in a.page.inner_text("#console")
         stacked = a.js("() => { const c = [...document.querySelectorAll('.cmp-col')].map((e) => e.getBoundingClientRect()); return c[1].top >= c[0].bottom - 1; }")
@@ -1197,10 +1197,17 @@ def test_build_solve():
         # 앱이 스스로 비교 표로 내려 준 화면 그대로 본다(시험이 따로 스크롤하지 않음)
         a.page.wait_for_timeout(250)
         # 비교로 내려온 화면에서 기대 결과 표의 머리가 아래 고정 줄(실행·제출) 위에 보여야 한다
-        vis = a.js("""() => { const t = document.querySelector('.cmp-col:nth-child(2) .rt-scroll').getBoundingClientRect();
-          const foot = document.querySelector('#foot').getBoundingClientRect().top; return { top: Math.round(t.top), foot: Math.round(foot) }; }""")
-        print("    compare: my box %dpx of %dpx viewport, expected table top %d < foot %d" % (box["h"], box["vh"], vis["top"], vis["foot"]))
-        assert 0 <= vis["top"] and vis["top"] + 120 <= vis["foot"], "expected table must be visible above the action bar: %s" % vis
+        # 틀린 까닭 줄(h3)이 화면 안(위 머리 줄 아래, 아래 실행·제출 줄 위)에 다 보이고, 기대 결과 표 머리도 아래 줄 위에
+        vis = a.js("""() => { const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+          const why = r('#console .err-panel h3'), mine = r('.cmp-col:nth-child(1) .rt-scroll'), th = r('.cmp-col:nth-child(2) thead');
+          return { top: Math.round(r('.lesson-top').bottom), foot: Math.round(r('#foot').top),
+                   whyTop: Math.round(why.top), whyBottom: Math.round(why.bottom), mineBottom: Math.round(mine.bottom),
+                   expHeadTop: Math.round(th.top), expHeadBottom: Math.round(th.bottom) }; }""")
+        print("    compare: box %dpx of %dpx viewport | header %d, reason %d-%d, my box ends %d, expected head %d-%d, action bar %d" % (
+            box["h"], box["vh"], vis["top"], vis["whyTop"], vis["whyBottom"], vis["mineBottom"], vis["expHeadTop"], vis["expHeadBottom"], vis["foot"]))
+        assert vis["whyTop"] >= vis["top"] and vis["whyBottom"] <= vis["foot"], "reason line fully visible: %s" % vis
+        assert vis["mineBottom"] <= vis["foot"], "my result box above the action bar: %s" % vis
+        assert vis["expHeadTop"] < vis["foot"] and vis["expHeadBottom"] <= vis["foot"], "expected table header above the action bar: %s" % vis
         a.shot("build-wrong-compare.png")
         shutil.copy(os.path.join(OUT, "build-wrong-compare.png"), os.path.join(_shot_dir(), "build-3-wrong-compare.png"))
         shots.append("build-3-wrong-compare.png")

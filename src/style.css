@@ -503,9 +503,8 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 .cmp-col { min-width: 0; }
 .cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; margin-bottom: 8px; }
 .cmp .err-panel { margin-bottom: 0; }
-.cmp { scroll-margin-top: calc(var(--sat) + 64px); }
-/* 비교 표는 높이를 줄이고 표 상자 안에서 위아래로 밀린다(머리 줄은 상자 안에 붙어 있음) */
-.cmp .rt-scroll { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+/* 비교 표는 높이를 줄이고(까닭 줄·내 결과·기대 결과 머리가 아이폰 한 화면에) 표 상자 안에서 위아래로 밀린다(머리 줄은 상자 안에 붙어 있음) */
+.cmp .rt-scroll { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
 
 /* ---------- 완료 ---------- */
 .done main { padding-top: calc(var(--sat) + 20px); padding-bottom: calc(110px + var(--sab)); }
