@@ -92,9 +92,9 @@ export const LESSONS = [
         type: "blank", concept: "isnull",
         q: "나이 칸이 빈 손님만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, age\nFROM customers\nWHERE age IS ___",
-        chips: ["NULL", "0", "NOT"],
+        chips: ["NULL", "=", "NOT"],
         answer: 0,
-        explain: "IS 다음에 NULL이 와야 「빈칸이다」예요. 0을 넣으면 0살 손님을 찾아 아무도 안 나오고, NOT만 넣으면 오류가 나요.",
+        explain: "IS 다음에 NULL이 와야 「빈칸이다」예요. IS 뒤에 = 를 넣거나 NOT만 넣으면 오류가 나요.",
       },
       {
         type: "choice", concept: "isnull",
@@ -485,6 +485,17 @@ export const LESSONS = [
       },
       {
         type: "choice", concept: "coalesce",
+        q: "앞뒤를 바꾼 COALESCE(0, stock) 은 무엇을 보여 줄까요?",
+        options: [
+          "언제나 0",
+          "재고 칸이 비었으면 0, 아니면 재고",
+          "언제나 재고(빈칸이면 NULL)",
+        ],
+        answer: 0,
+        explain: "COALESCE는 앞에서부터 보고 처음 나온 빈칸 아닌 값을 내요. 맨 앞 0은 빈칸이 아니라서 늘 0이에요. 열을 앞에 써요.",
+      },
+      {
+        type: "choice", concept: "coalesce",
         q: "이 SQL에서 한지의 stock_or_zero 칸은 얼마일까요?",
         code: "SELECT name,\n  COALESCE(stock, 0) AS stock_or_zero\nFROM items\nWHERE shop_id = 5",
         options: ["0", "NULL", "6"],
@@ -546,9 +557,9 @@ export const LESSONS = [
         type: "choice", concept: "coalesce",
         q: "도깨비 국밥집(1번 가게) 물건의 재고를, 모르면 0으로 채워 보여 준 결과는?",
         options: [
-          { sql: "SELECT name,\n  COALESCE(stock, 0) AS stock_or_zero\nFROM items\nWHERE shop_id = 1" },
-          { sql: "SELECT name, stock\nFROM items\nWHERE shop_id = 1" },
-          { sql: "SELECT name,\n  COALESCE(stock, 0) AS stock_or_zero\nFROM items\nWHERE shop_id = 1\n  AND stock IS NOT NULL" },
+          { sql: "SELECT name,\n  COALESCE(stock, 0) AS shown\nFROM items\nWHERE shop_id = 1" },
+          { sql: "SELECT name, stock AS shown\nFROM items\nWHERE shop_id = 1" },
+          { sql: "SELECT name,\n  COALESCE(stock, 0) AS shown\nFROM items\nWHERE shop_id = 1\n  AND stock IS NOT NULL" },
         ],
         answer: 0, tables: ["items"],
         explain: "5행이고 메밀전 칸이 0인 표가 정답이에요. 채우지 않으면 메밀전이 NULL이고, IS NOT NULL을 붙이면 메밀전이 빠져 4행이에요.",
@@ -715,15 +726,15 @@ export const LESSONS = [
       },
       {
         id: "6-5-b1", type: "build", concept: "isnull",
-        q: "나이 모르는 손님을 보여 줘",
-        cards: ["SELECT", "*", "FROM", "customers", "WHERE", "age", "IS", "NULL"],
-        extra: ["=", "NOT", "items"],
+        q: "나이 모르는 손님의 이름과 종류를 보여 줘",
+        cards: ["SELECT", "name", ",", "kind", "FROM", "customers", "WHERE", "age", "IS", "NULL"],
+        extra: ["=", "NOT"],
         tables: ["customers"],
         hints: [
-          "나이 칸이 빈 손님만 남겨요. 빈칸은 = 로 못 찾아요.",
-          "WHERE age 다음에 IS와 NULL을 놓아요.",
+          "나이 칸이 빈 손님만 남기고, 이름과 종류 열을 보여요. 빈칸은 = 로 못 찾아요.",
+          "SELECT 다음에 name, 쉼표, kind를, WHERE age 다음에 IS와 NULL을 놓아요.",
         ],
-        explain: "6장의 대표 문제, 나이 모르는 손님 5명을 다시 찾았어요. = NULL이 아니라 IS NULL, 완벽해요!",
+        explain: "6장의 대표 문제, 나이 모르는 손님 5명을 다시 찾았어요. 사람 4명에 도깨비 돌쇠 하나예요. = NULL이 아니라 IS NULL, 완벽해요!",
       },
       {
         id: "6-5-b2", type: "build", concept: "isnull",
@@ -795,7 +806,7 @@ export const TEMPLATES = [
     q: "이 SQL의 결과로 알맞은 표는?",
     sql: "SELECT name,\n  COALESCE(stock, 0) AS stock_or_zero\nFROM items\nWHERE shop_id = {S}",
     wrong: [
-      "SELECT name, stock\nFROM items\nWHERE shop_id = {S}",
+      "SELECT name, stock AS stock_or_zero\nFROM items\nWHERE shop_id = {S}",
       "SELECT name,\n  COALESCE(stock, 0) AS stock_or_zero\nFROM items\nWHERE shop_id = {S}\n  AND stock IS NOT NULL",
     ],
     vars: { S: [1, 5, 8] },

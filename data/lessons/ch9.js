@@ -12,6 +12,8 @@
 //   LENGTH(이 장터 SQLite는 글자 수): 방망이 손잡이 7(띄어쓰기 포함), 작은 방망이 6, 도깨비방망이 6, 금방망이·은방망이 4, 약초 주머니 6, 국밥 2.
 //     다섯 자 이상인 물건 7가지(약초 주머니, 비단 주머니, 도깨비방망이, 방망이 손잡이, 작은 방망이, 다듬이방망이, 빨래방망이 5).
 //   SUBSTR(name, 1, 2): 도깨비방망이 → 도깨, 빨래방망이 → 빨래. SUBSTR(name, 1, 3): 도깨비방망이 → 도깨비.
+//     7번 가게 SUBSTR(name, 1, 2): 도깨·금방·은방·방망·작은(9-5-b3). 6번 가게 ABS(price - 100): 갓 10·담뱃대 67·복주머니 72·노리개 55·보따리 84(9-5-b2).
+// - 장 평가 조립은 앞 조립을 그대로 되풀이하지 않는다: 9-5-b1만 대표 문제(9-2-b1과 같은 과제)이고, 9-5-b2는 ABS, 9-5-b3은 SUBSTR로 새로 냈다.
 //   REPLACE(name, '방망이', '봉'): 도깨비봉, 금봉, 은봉, 봉 손잡이, 작은 봉. UPPER(name)은 한글이라 그대로(장터 데이터에 영어 글자 값은 하나도 없다).
 //   ||: 국밥 || ' ' || 12 → '국밥 12'. price || '엽전' → '12엽전'.
 //   나누기: 1번 가게 price / 2 → 국밥 6, 수육 12, 도토리묵 4, 막걸리 5, 메밀전 4. CAST(price AS REAL) / 2와 price * 1.0 / 2 → 6, 12.5, 4, 5, 4.5.
@@ -306,11 +308,11 @@ export const LESSONS = [
     summary: [
       "LENGTH 글자 수, SUBSTR 잘라 내기",
       "REPLACE 바꾸기, || 이어 붙이기",
-      "UPPER는 영어만 바꿔요, 한글은 그대로",
+      "대·소문자가 없는 한글은 UPPER도 그대로",
     ],
     cards: [
       {
-        say: "LENGTH(렝스)는 글자 수, 띄어쓰기도 한 자! SUBSTR은 몇째 자부터 몇 자를 잘라요(아래는 1째부터 2자). REPLACE는 바꾸기! 이 장터는 한글 한 자를 1로 세요. MySQL의 LENGTH는 저장 크기를 세서 한 자가 보통 3이에요.",
+        say: "LENGTH(렝스)는 글자 수, 띄어쓰기도 한 자! SUBSTR은 몇째 글자부터 몇 자를 잘라요(아래는 첫째부터 2자). REPLACE는 바꾸기! 이 장터는 한글 한 자를 1로 세요. MySQL의 LENGTH는 저장 크기라 한 자가 보통 3이에요.",
         sql: "SELECT name, LENGTH(name) AS len,\n  SUBSTR(name, 1, 2) AS head,\n  REPLACE(name, '방망이', '봉')\n    AS short\nFROM items\nWHERE shop_id = 7",
       },
       {
@@ -351,7 +353,7 @@ export const LESSONS = [
         code: "SELECT SUBSTR(name, 1, 3) AS head\nFROM items\nWHERE item_id = 31",
         options: ["도깨비", "도깨", "방망이"],
         answer: 0,
-        explain: "1째 자부터 3자라 도깨비예요. 2자였다면 도깨, 4째 자부터 3자였다면 방망이예요.",
+        explain: "첫째 글자부터 3자라 도깨비예요. 2자였다면 도깨, 넷째 글자부터 3자였다면 방망이예요.",
       },
       {
         type: "blank", concept: "strfunc",
@@ -386,7 +388,7 @@ export const LESSONS = [
         code: "SELECT UPPER(name) AS up\nFROM items\nWHERE item_id = 26",
         options: ["갓", "GAT", "NULL"],
         answer: 0,
-        explain: "UPPER는 영어 소문자만 대문자로 바꿔요. 한글에는 대·소문자가 없어서 갓 그대로예요.",
+        explain: "UPPER는 소문자를 대문자로 바꿔요. 대·소문자가 없는 한글은 그대로라 갓이에요.",
       },
       {
         type: "choice", concept: "strfunc",
@@ -424,7 +426,7 @@ export const LESSONS = [
           "값(숫자) 뒤에 글자 '엽전'을 이어 붙인 열을 만들어 이름을 붙여요.",
           "price, ||, '엽전', AS price_tag 차례로 놓아요.",
         ],
-        explain: "국밥은 12엽전, 금방망이는 400엽전처럼 나와요. OR를 놓으면 참·거짓(1·0)이 돼요. MySQL에서 ||가 바로 그렇게 읽혀요!",
+        explain: "국밥은 12엽전, 금방망이는 400엽전처럼 나와요. 이 장터에서는 ||가 글자 잇기예요. OR를 놓으면 참·거짓(1·0)인데, MySQL은 기본 설정에서 ||를 그렇게 읽어요!",
       },
       {
         type: "check", concept: "strfunc",
@@ -435,7 +437,7 @@ export const LESSONS = [
           "글자 함수는 SELECT에만 쓸 수 있고 WHERE에는 못 쓴다",
         ],
         answer: 0,
-        explain: "글자 함수는 SELECT 열에도, WHERE 조건에도 써요. UPPER·LOWER는 영어 글자만 바꿔요.",
+        explain: "글자 함수는 SELECT 열에도, WHERE 조건에도 써요. UPPER·LOWER는 대·소문자만 바꿔서, 대·소문자가 없는 한글은 그대로예요.",
       },
     ],
   },
@@ -453,7 +455,7 @@ export const LESSONS = [
         sql: "SELECT name, price / 2 AS half,\n  CAST(price AS REAL) / 2 AS exact,\n  price * 1.0 / 2 AS also_exact\nFROM items\nWHERE shop_id = 1",
       },
       {
-        say: "ROUND(라운드)는 반올림이에요. 뒤 숫자 1은 소수 첫째 자리까지, 빼면 정수로! ABS는 부호를 떼요. 아래 gap은 평균 나이가 40살에서 얼마나 먼지예요. 조립 채점은 어차피 소수 넷째 자리까지 견주니, ROUND는 보기 좋게 할 때 써요.",
+        say: "ROUND(라운드)는 반올림이에요. 뒤 숫자 1은 소수 첫째 자리까지, 빼면 정수로! ABS는 부호를 떼요. 아래 gap은 평균 나이가 40살에서 얼마나 먼지예요. ROUND는 보기 좋게 자리를 줄일 때 써요.",
         sql: "SELECT kind,\n  ROUND(AVG(age), 1) AS avg_age,\n  ROUND(ABS(AVG(age) - 40), 1) AS gap\nFROM customers\nGROUP BY kind",
       },
     ],
@@ -513,7 +515,7 @@ export const LESSONS = [
         type: "choice", concept: "numfunc",
         q: "ROUND에 대해 맞는 말은?",
         options: [
-          "보기 좋게 자리를 줄인다. 조립 채점은 어차피 소수 넷째 자리까지 견준다",
+          "보기 좋게 자리를 줄인다",
           "ROUND를 안 하면 소수가 있는 결과는 오류가 난다",
           "ROUND는 값을 늘 올린다",
         ],
@@ -567,7 +569,7 @@ export const LESSONS = [
           "값을 그냥 나누면 이 장터에서는 소수점 아래가 버려져요. 먼저 실수로 바꿔요.",
           "CAST(price AS REAL), /, 2, AS half 차례로 놓아요.",
         ],
-        explain: "수육 12.5, 메밀전 4.5처럼 나와요. price나 INTEGER로 나누면 12, 4로 소수점 아래가 버려져요.",
+        explain: "수육 12.5, 메밀전 4.5처럼 나와요. 이 장터에서는 price나 INTEGER로 나누면 12, 4로 소수점 아래가 버려져요.",
       },
       {
         type: "check", concept: "numfunc",
@@ -578,7 +580,7 @@ export const LESSONS = [
           "ABS는 값을 소수 첫째 자리까지 다듬는다",
         ],
         answer: 0,
-        explain: "CAST는 자료형을 바꾸고, ROUND는 반올림하고, ABS는 부호를 떼요. 나눗셈 결과는 데이터베이스마다 다르니 실수로 바꿔 두면 어디서나 같아요.",
+        explain: "CAST는 자료형을 바꾸고, ROUND는 반올림하고, ABS는 부호를 떼요. 나눗셈 결과는 데이터베이스마다 다르니 실수로 바꿔 두면 대부분의 데이터베이스에서 같아요.",
       },
     ],
   },
@@ -664,14 +666,14 @@ export const LESSONS = [
         code: "SELECT SUBSTR(name, 1, 2) AS head\nFROM items\nWHERE item_id = 37",
         options: ["빨래", "빨래방", "방망이"],
         answer: 0,
-        explain: "1째 자부터 2자라 빨래예요. 3자였다면 빨래방이에요.",
+        explain: "첫째 글자부터 2자라 빨래예요. 3자였다면 빨래방이에요.",
       },
       {
         type: "choice", concept: "strfunc",
         q: "장터 물건 이름에 UPPER를 쓰면?",
         options: ["한글이라 이름이 그대로 나온다", "한글 이름이 영어로 바뀐다", "오류가 난다"],
         answer: 0,
-        explain: "UPPER·LOWER는 영어 대·소문자만 바꿔요. 한글에는 대·소문자가 없어 그대로예요.",
+        explain: "UPPER·LOWER는 대·소문자를 바꿔요. 대·소문자가 없는 한글은 그대로예요.",
       },
       {
         type: "choice", concept: "numfunc",
@@ -712,27 +714,27 @@ export const LESSONS = [
       },
       {
         id: "9-5-b2", type: "build", concept: "numfunc",
-        q: "물건마다 이름과, 값의 절반을 소수까지 half라는 이름으로 보여 줘",
-        cards: ["SELECT", "name", ",", "price * 1.0", "/", "2", "AS half", "FROM", "items"],
-        extra: ["price * 1", "CAST(price AS INTEGER)"],
+        q: "바람 보따리(6번 가게) 물건마다 이름과, 값이 100엽전에서 얼마나 먼지 gap이라는 이름으로 보여 줘",
+        cards: ["SELECT", "name", ",", "ABS(price - 100)", "AS gap", "FROM", "items", "WHERE", "shop_id = 6"],
+        extra: ["price - 100", "ABS(price) - 100"],
         tables: ["items"],
         hints: [
-          "그냥 나누면 소수점 아래가 버려져요. 나누기 전에 실수를 곱해 실수로 만들어요.",
-          "price * 1.0, /, 2, AS half 차례로 놓아요.",
+          "6번 가게 물건만 남기고, 값과 100의 차이를 부호 없이 낸 열에 이름을 붙여요.",
+          "name 쉼표 다음에 ABS(price - 100)과 AS gap을, WHERE 다음에 shop_id = 6을 놓아요.",
         ],
-        explain: "수육 12.5, 메밀전 4.5예요. 1을 곱하거나 INTEGER로 바꾸면 정수 그대로라 소수점 아래가 버려져요.",
+        explain: "갓 10, 노리개 55, 보따리 84엽전처럼 모두 0 이상이에요. 빼기만 하면 100보다 싼 물건은 -84처럼 음수가 되고, ABS(price) - 100도 빼기가 밖이라 음수예요.",
       },
       {
         id: "9-5-b3", type: "build", concept: "strfunc",
-        q: "이름이 다섯 자 이상인 물건의 이름을 보여 줘",
-        cards: ["SELECT", "name", "FROM", "items", "WHERE", "LENGTH(name) >= 5"],
-        extra: ["LENGTH(name) > 5", "LENGTH(price) >= 3"],
+        q: "방망이 대장간(7번 가게) 물건마다 이름과, 이름의 앞 두 글자를 head라는 이름으로 보여 줘",
+        cards: ["SELECT", "name", ",", "SUBSTR(name, 1, 2)", "AS head", "FROM", "items", "WHERE", "shop_id = 7"],
+        extra: ["SUBSTR(name, 2, 2)", "SUBSTR(name, 1, 3)", "LENGTH(name)"],
         tables: ["items"],
         hints: [
-          "이름의 글자 수로 행을 걸러요. 띄어쓰기도 한 자예요.",
-          "WHERE 뒤에 LENGTH(name) >= 5를 놓아요.",
+          "7번 가게 물건만 남기고, 이름을 첫째 글자부터 두 글자만 잘라 낸 열에 이름을 붙여요.",
+          "name 쉼표 다음에 SUBSTR(name, 1, 2)와 AS head를, WHERE 다음에 shop_id = 7을 놓아요.",
         ],
-        explain: "빨래방망이(5자)까지 7가지예요. LENGTH(price)는 값의 자릿수라 세 자리 값 물건이 나와요.",
+        explain: "도깨비방망이는 도깨, 방망이 손잡이는 방망, 작은 방망이는 작은이에요. SUBSTR(name, 2, 2)는 둘째 글자부터, (name, 1, 3)은 세 글자예요.",
       },
       {
         type: "check", concept: "case",

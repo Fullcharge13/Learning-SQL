@@ -6,7 +6,7 @@
 //   8장은 7장처럼 표 하나로 정직하게 셀 수 있는 것으로 대신한다.
 //   ① 가게별 「재고 값어치」 = items를 shop_id로 묶은 SUM(price * stock)(엽전, 7장 7-4의 stock_value를 가게마다). 8-2-b1.
 //   ② 1만 엽전 넘는 가게 = HAVING SUM(price * stock) > 10000 → 6·7·8번(10525·36890·15620, 그다음은 4번 3748). 8-4-b1·8-5-b1.
-//   ③ 매출로 가는 걸음 = order_items를 item_id로 묶은 SUM(qty)(물건별 주문 수량, 38행). 8-3-b1.
+//   ③ 물건별 주문 수량 = order_items를 item_id로 묶은 SUM(qty)(38행, 취소된 주문 포함). 8-3 객관식·8-4.
 //   카드·해설·평가 객관식에서 「재고 값어치는 남은 물건의 값이지 매출(팔린 엽전)이 아니고, 매출은 10장에서 표를 이어 구한다」고 밝힌다.
 //   (참고로 조인으로 확인한 완료 주문 가게별 매출: 1번 4436, 2번 1778, 3번 7706, 4번 6289, 5번 4070, 6번 8738, 7번 13440, 8번 11030엽전.
 //    1만 엽전 넘는 가게는 7·8번이다. 레슨에는 쓰지 않음. 10장 작가가 「재고 값어치로는 6·7·8번, 매출로는 7·8번」으로 갚을 수 있다.)
@@ -23,17 +23,19 @@
 //     도깨비만: 큰바위마을 5, 솔바위골 5, 느티나무골 4, … / 사람만 4명 이상: 버드나무고개 4, 은행나무마을 4.
 //   WHERE age > 70 OR age IS NULL을 age로 묶음: NULL 5, 72 3, 73 4, 75 1(빈칸끼리 한 묶음).
 //   orders를 status로 묶음: 완료 542·취소 49, COUNT(DISTINCT customer_id) 57·28, MIN(ordered_on) 2026-01-14·2026-01-22.
-//   order_items를 item_id로 묶음: 38행(10번 꿀떡, 30번 보따리는 팔린 적 없음), SUM(qty) 100 넘는 것 12번 115·6번 108·16번 107(그다음 1번 91).
+//   order_items를 item_id로 묶음: 38행(10번 꿀떡, 30번 보따리는 주문된 적 없음), SUM(qty) 100 넘는 것 12번 115·6번 108·16번 107(그다음 1번 91).
 // - 엔진마다 다른 것(판정 R36): SELECT에 묶지 않은 열을 놓는 것(SELECT name, COUNT(*) … GROUP BY shop_id)은 이 장터(SQLite)만 받아 주고
 //   표준 SQL·PostgreSQL은 오류라 「이 장터에서는 돌지만 많은 데이터베이스에서 오류라 쓰지 않는다」로만 쓰고 카드 SQL에 넣지 않는다.
 //   HAVING에서 SELECT의 별칭을 부르는 것(HAVING n >= 9)도 SQLite·MySQL은 받지만 PostgreSQL은 오류라, HAVING에는 언제나 COUNT(*)처럼 셈을 다시 적는다.
 //   NULL끼리 한 묶음, WHERE 안 모아 세기 오류, HAVING이 GROUP BY 뒤라는 것은 어디서나 같아 붙이지 않는다.
-// - 조립 카드(판정 R38): GROUP·BY는 SELECT·FROM처럼 한 장씩. 함수 부르기(SUM(price * stock))는 한 장, 별칭(AS n) 한 장,
-//   HAVING 조건(SUM(price * stock) > 10000)은 한 장. 「SELECT 열 , 셈 AS 이름 FROM 표 GROUP BY 열」이 이미 10장이라
-//   WHERE와 GROUP BY를 함께 쓰거나 묶음을 ORDER BY로 줄 세우는 조립은 더미 12장 안에 들어가지 않는다. 그런 것은 터치 문제(줄 놓기·빈자리·객관식)로 가르치고,
-//   HAVING 조립은 셈을 SELECT에 보이지 않는 짧은 모양(SELECT shop_id … HAVING …)으로 쓴다.
+// - 조립 카드(판정 R38·R40): SELECT·FROM·WHERE·HAVING은 한 장씩, GROUP BY·ORDER BY는 두 낱말이지만 한 장(R40).
+//   함수 부르기(SUM(price * stock))는 한 장, 별칭(AS n) 한 장, HAVING 조건(SUM(price * stock) > 10000)은 한 장.
+//   WHERE나 ORDER BY까지 넣는 조립은 셈과 별칭을 한 장(COUNT(*) AS n, SUM(price) AS total)으로 붙여 더미 12장 안에 넣는다:
+//   8-3-b1(GROUP BY + ORDER BY, 가게마다 값 합이 모두 달라 shop_id 둘째 기준 없이도 차례가 하나), 8-3-b2(WHERE + GROUP BY),
+//   8-5-b2(WHERE + GROUP BY + HAVING). 셈이 SELECT에 없는 HAVING 조립은 짧은 모양(SELECT shop_id … HAVING …)으로 쓴다.
 // - 헷갈림 카드에 열 이름(kind, name 등)을 쓰지 않았다: 한 자리만 바꾸면 SQLite가 묶지 않은 열로 받아 「돌아가는」 모양이 생기기 때문이다.
-//   표 이름(없는 열 → 단서), 다른 셈(결과가 다름), WHERE(HAVING 자리 → 단서)로 만든다.
+//   표 이름 카드는 끼우면 표 별칭이 될 뿐이라 쓰지 않고, 다른 셈·다른 조건(결과가 다름), WHERE(HAVING 자리 → 단서)로 만든다.
+//   8-3-b1의 total은 열 이름이 아니라 별칭이고 total DESC 자리에 놓으면 차례가 뒤집힌다.
 // - 결과 표 보기(choice {sql})의 셈 열에는 함수 이름이 머리에 보이지 않게 별칭(AS n, AS age_value)을 붙인다(쓰기 안내 3절에 한 줄 더함).
 export const CHAPTER = { id: 8, title: "묶어서 세기" };
 
@@ -133,26 +135,26 @@ export const LESSONS = [
       {
         id: "8-1-b1", type: "build", concept: "groupby",
         q: "마을마다 손님이 몇 명인지 n이라는 이름으로 세어 줘",
-        cards: ["SELECT", "village", ",", "COUNT(*)", "AS n", "FROM", "customers", "GROUP", "BY", "village"],
-        extra: ["orders", "SUM(age)"],
+        cards: ["SELECT", "village", ",", "COUNT(*)", "AS n", "FROM", "customers", "GROUP BY", "village"],
+        extra: ["COUNT(age)", "SUM(age)"],
         tables: ["customers"],
         hints: [
           "손님 표를 마을로 묶고, 묶음마다 행을 세요. 어느 마을인지도 함께 보여요.",
           "SELECT 다음에 village, 쉼표, COUNT(*) AS n을, 맨 끝에 GROUP BY village를 놓아요.",
         ],
-        explain: "마을 8곳이 한 행씩 나왔어요. 큰바위마을이 11명으로 가장 많아요. 묶은 열 village를 SELECT에도 놓아 이름표가 됐어요!",
+        explain: "마을 8곳이 한 행씩 나왔어요. 큰바위마을이 11명으로 가장 많아요. COUNT(age)면 나이 모르는 손님이 빠져요. 묶은 열 village를 SELECT에도 놓아 이름표가 됐어요!",
       },
       {
         id: "8-1-b2", type: "build", concept: "groupby",
         q: "주문을 상태마다 몇 건인지 n이라는 이름으로 세어 줘",
-        cards: ["SELECT", "status", ",", "COUNT(*)", "AS n", "FROM", "orders", "GROUP", "BY", "status"],
-        extra: ["order_items", "MIN(ordered_on)"],
+        cards: ["SELECT", "status", ",", "COUNT(*)", "AS n", "FROM", "orders", "GROUP BY", "status"],
+        extra: ["COUNT(DISTINCT customer_id)", "MIN(ordered_on)"],
         tables: ["orders"],
         hints: [
           "주문 표를 상태로 묶고, 묶음마다 행을 세어 이름을 붙여요.",
           "SELECT 다음에 status, 쉼표, COUNT(*)와 AS n을, 끝에 GROUP BY status를 놓아요.",
         ],
-        explain: "완료 542건, 취소 49건이에요. 7장에서는 WHERE로 하나씩 셌는데 GROUP BY는 한 번에 묶음마다 세요. order_items에는 status 열이 없어요.",
+        explain: "완료 542건, 취소 49건이에요. 7장에서는 WHERE로 하나씩 셌는데 GROUP BY는 한 번에 묶음마다 세요. COUNT(DISTINCT customer_id)면 주문한 손님 수(57·28)가 나와요.",
       },
       {
         type: "check", concept: "groupby",
@@ -177,11 +179,11 @@ export const LESSONS = [
     ],
     cards: [
       {
-        say: "묶음마다 SUM·AVG·MIN·MAX도 돼요. 8장 대표 문제 「가게별 매출」의 첫걸음! 가게마다 값 × 재고를 더한 재고 값어치(엽전)예요. 진짜 매출은 팔린 수량 × 값이라 표를 이어야 해서 10장에서 구해요.",
+        say: "묶음마다 SUM·AVG·MIN·MAX도 돼요. 8장 대표 문제 「가게별 매출」과 같은 모양으로, 오늘은 재고 값어치를 구해요. 가게마다 값 × 재고를 더한 엽전이에요. 진짜 매출은 팔린 수량 × 값이라 10장에서 표를 이어 구해요.",
         sql: "SELECT shop_id,\n  SUM(price * stock) AS stock_value\nFROM items\nGROUP BY shop_id",
       },
       {
-        say: "SELECT에는 묶은 열과 모아 세기만 놓아요. 물건 이름(name)은 한 묶음에 다섯 개라 하나를 고를 수 없거든요. 이 장터에서는 돌지만 많은 데이터베이스에서 오류라 쓰지 않아요. 아래는 묶음마다 셈 셋!",
+        say: "SELECT에는 묶은 열과 모아 세기만 놓아요. 손님 이름(name)은 한 종류에 여러 명이라 하나를 고를 수 없거든요. 이 장터에서는 돌지만 많은 데이터베이스에서 오류라 쓰지 않아요. 아래는 묶음마다 셈 셋!",
         sql: "SELECT kind, COUNT(*) AS n,\n  MIN(age) AS youngest,\n  MAX(age) AS oldest\nFROM customers\nGROUP BY kind",
       },
     ],
@@ -266,27 +268,27 @@ export const LESSONS = [
       },
       {
         id: "8-2-b1", type: "build", concept: "groupby",
-        q: "가게별 매출의 첫걸음, 가게마다 값 × 재고를 더해 stock_value라는 이름으로 보여 줘",
-        cards: ["SELECT", "shop_id", ",", "SUM(price * stock)", "AS stock_value", "FROM", "items", "GROUP", "BY", "shop_id"],
-        extra: ["SUM(price)", "shops"],
+        q: "가게별 매출과 같은 모양으로, 오늘은 재고 값어치를 가게마다 stock_value라는 이름으로 보여 줘",
+        cards: ["SELECT", "shop_id", ",", "SUM(price * stock)", "AS stock_value", "FROM", "items", "GROUP BY", "shop_id"],
+        extra: ["SUM(price)", "AVG(price * stock)"],
         tables: ["items"],
         hints: [
           "물건 표를 가게 번호로 묶고, 묶음마다 값과 재고를 곱한 것을 더해 이름을 붙여요.",
           "SELECT 다음에 shop_id, 쉼표, SUM(price * stock)과 AS stock_value를, 끝에 GROUP BY shop_id를 놓아요.",
         ],
-        explain: "8장의 대표 문제 첫걸음이에요! 가게 8곳의 재고 값어치가 나왔어요. 7번 방망이 대장간이 36890엽전으로 가장 커요. 팔린 엽전(매출)은 10장에서 표를 이어 구해요.",
+        explain: "8장 대표 문제와 같은 모양이에요! 가게 8곳의 재고 값어치가 나왔어요. 7번 방망이 대장간이 36890엽전으로 가장 커요. AVG면 평균이에요. 팔린 엽전(매출)은 10장에서 표를 이어 구해요.",
       },
       {
         id: "8-2-b2", type: "build", concept: "groupby",
         q: "손님 종류마다 평균 나이를 avg_age라는 이름으로 보여 줘",
-        cards: ["SELECT", "kind", ",", "AVG(age)", "AS avg_age", "FROM", "customers", "GROUP", "BY", "kind"],
-        extra: ["SUM(age)", "items"],
+        cards: ["SELECT", "kind", ",", "AVG(age)", "AS avg_age", "FROM", "customers", "GROUP BY", "kind"],
+        extra: ["SUM(age)", "MAX(age)"],
         tables: ["customers"],
         hints: [
           "손님 표를 종류로 묶고, 묶음마다 나이의 평균을 구해 이름을 붙여요.",
           "SELECT 다음에 kind, 쉼표, AVG(age)와 AS avg_age를, 끝에 GROUP BY kind를 놓아요.",
         ],
-        explain: "도깨비 약 44.3, 사람 43.5, 여우 약 38.3살이에요. 7장에서는 WHERE로 종류마다 한 번씩 냈던 평균이 한 번에 나왔어요!",
+        explain: "도깨비 약 44.3, 사람 43.5, 여우 약 38.3살이에요. 7장에서는 WHERE로 종류마다 한 번씩 냈던 평균이 한 번에 나왔어요! MAX면 가장 나이 많은 손님이에요.",
       },
       {
         type: "check", concept: "groupby",
@@ -336,11 +338,11 @@ export const LESSONS = [
       },
       {
         type: "choice", concept: "groupby",
-        q: "나이 모르는 손님을 종류로 묶어 셌어요. 이 SQL의 결과는 몇 행일까요?",
-        code: "SELECT kind, COUNT(*) AS n\nFROM customers\nWHERE age IS NULL\nGROUP BY kind",
-        options: ["2행", "3행", "5행"],
+        q: "70살 이상 손님을 종류로 묶어 셌어요. 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT kind, COUNT(*) AS n\nFROM customers\nWHERE age >= 70\nGROUP BY kind",
+        options: ["2행", "3행", "8행"],
         answer: 0,
-        explain: "나이 모르는 5명은 사람 4명, 도깨비 1명이에요. 여우는 남은 행이 없어 묶음도 없어요. 그래서 2행이에요.",
+        explain: "70살 이상은 도깨비 5명, 사람 3명이에요. 여우는 남은 행이 없어 묶음도 없어요. 그래서 2행이에요. 8은 남은 손님 수예요.",
       },
       {
         type: "choice", concept: "groupby",
@@ -395,28 +397,36 @@ export const LESSONS = [
         explain: "행을 거르고(WHERE), 묶고(GROUP BY), 묶음을 줄 세워요(ORDER BY). 모두 FROM 뒤에 와요.",
       },
       {
+        type: "choice", concept: "groupby",
+        q: "물건마다 주문된 수량을 더했어요. 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT item_id, SUM(qty) AS sold\nFROM order_items\nGROUP BY item_id",
+        options: ["38행", "40행", "1241행"],
+        answer: 0,
+        explain: "주문된 적 있는 물건 38가지만 묶음이 돼요. 꿀떡·보따리는 주문 내역에 없어서 묶음도 없어요. 12번 인삼차가 115개 주문으로 가장 많아요(취소 포함).",
+      },
+      {
         id: "8-3-b1", type: "build", concept: "groupby",
-        q: "가게별 매출로 가는 걸음, 물건마다 주문된 수량을 더해 sold라는 이름으로 보여 줘",
-        cards: ["SELECT", "item_id", ",", "SUM(qty)", "AS sold", "FROM", "order_items", "GROUP", "BY", "item_id"],
-        extra: ["COUNT(*)", "orders"],
-        tables: ["order_items"],
+        q: "가게마다 물건 값의 합을 total이라는 이름으로 내서, 합이 큰 가게부터 보여 줘",
+        cards: ["SELECT", "shop_id", ",", "SUM(price) AS total", "FROM", "items", "GROUP BY", "shop_id", "ORDER BY", "total DESC"],
+        extra: ["total", "SUM(price) AS n"],
+        tables: ["items"],
         hints: [
-          "주문 내역 표를 물건 번호로 묶고, 묶음마다 수량을 더해 이름을 붙여요.",
-          "SELECT 다음에 item_id, 쉼표, SUM(qty)와 AS sold를, 끝에 GROUP BY item_id를 놓아요.",
+          "물건 표를 가게로 묶어 묶음마다 값을 더하고, 묶음을 그 합이 큰 차례로 줄 세워요.",
+          "SELECT 다음에 shop_id, 쉼표, SUM(price) AS total을, GROUP BY shop_id 뒤에 ORDER BY total DESC를 놓아요.",
         ],
-        explain: "팔린 적 있는 물건 38가지가 나왔어요. 12번 인삼차가 115개로 가장 많아요. 값을 곱하고 가게로 모으는 건 10장에서 표를 이어서 해요!",
+        explain: "7번 1330, 8번 1100엽전 … 2번 35엽전 차례예요. 가게마다 합이 모두 달라 동점이 없어요. 같은 합이 있을 수 있으면 shop_id를 둘째 기준으로 붙여요. DESC가 없으면 작은 합부터예요.",
       },
       {
         id: "8-3-b2", type: "build", concept: "groupby",
-        q: "손님 종류마다 나이를 아는 손님 수를 known_age라는 이름으로 세어 줘",
-        cards: ["SELECT", "kind", ",", "COUNT(age)", "AS known_age", "FROM", "customers", "GROUP", "BY", "kind"],
-        extra: ["COUNT(*)", "items"],
+        q: "나이 모르는 손님만 남겨 종류마다 몇 명인지 n이라는 이름으로 세어 줘",
+        cards: ["SELECT", "kind", ",", "COUNT(*) AS n", "FROM", "customers", "WHERE", "age IS NULL", "GROUP BY", "kind"],
+        extra: ["age IS NOT NULL", "kind = '여우'"],
         tables: ["customers"],
         hints: [
-          "손님 표를 종류로 묶고, 묶음마다 나이 칸에 값이 있는 행만 세어요.",
-          "SELECT 다음에 kind, 쉼표, COUNT(age)와 AS known_age를, 끝에 GROUP BY kind를 놓아요.",
+          "먼저 나이 칸이 빈 손님만 걸러 내고, 남은 손님을 종류로 묶어 세어요.",
+          "WHERE 다음에 age IS NULL을, 그 뒤에 GROUP BY kind를 놓아요.",
         ],
-        explain: "도깨비 23, 사람 20, 여우 12명이에요. COUNT(*)였다면 24, 24, 12예요. 빈칸 빼고 세기를 묶음마다 했어요!",
+        explain: "사람 4명, 도깨비 1명이에요. 여우는 남은 행이 없어 묶음도 없어요. WHERE가 먼저 거르고 GROUP BY가 묶어요. IS NOT NULL이면 나이를 아는 55명이 묶여요.",
       },
       {
         type: "check", concept: "groupby",
@@ -531,7 +541,7 @@ export const LESSONS = [
       {
         id: "8-4-b1", type: "build", concept: "having",
         q: "재고 값어치(값 × 재고 합)가 1만 엽전 넘는 가게 번호를 보여 줘",
-        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP", "BY", "shop_id", "HAVING", "SUM(price * stock) > 10000"],
+        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP BY", "shop_id", "HAVING", "SUM(price * stock) > 10000"],
         extra: ["WHERE", "SUM(price) > 10000"],
         tables: ["items"],
         hints: [
@@ -543,7 +553,7 @@ export const LESSONS = [
       {
         id: "8-4-b2", type: "build", concept: "having",
         q: "100개 넘게 주문된 물건 번호를 보여 줘",
-        cards: ["SELECT", "item_id", "FROM", "order_items", "GROUP", "BY", "item_id", "HAVING", "SUM(qty) > 100"],
+        cards: ["SELECT", "item_id", "FROM", "order_items", "GROUP BY", "item_id", "HAVING", "SUM(qty) > 100"],
         extra: ["WHERE", "COUNT(*) > 100"],
         tables: ["order_items"],
         hints: [
@@ -680,31 +690,31 @@ export const LESSONS = [
       {
         id: "8-5-b1", type: "build", concept: "having",
         q: "재고 값어치(값 × 재고 합)가 1만 엽전 넘는 가게 번호를 보여 줘",
-        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP", "BY", "shop_id", "HAVING", "SUM(price * stock) > 10000"],
-        extra: ["WHERE", "AVG(price * stock) > 10000", "shops"],
+        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP BY", "shop_id", "HAVING", "SUM(price * stock) > 10000"],
+        extra: ["WHERE", "AVG(price * stock) > 10000", "SUM(price * stock) > 1000"],
         tables: ["items"],
         hints: [
           "가게로 묶은 뒤, 묶음의 값 × 재고 합으로 묶음을 걸러요.",
           "GROUP BY shop_id 다음에 HAVING과 SUM(price * stock) > 10000을 놓아요.",
         ],
-        explain: "8장의 대표 문제, 6·7·8번 가게를 다시 찾았어요! AVG였다면 1만 넘는 가게가 없어요. 매출로 고르는 건 10장에서 해요.",
+        explain: "8장의 대표 문제, 6·7·8번 가게를 다시 찾았어요! AVG였다면 1만 넘는 가게가 없고, 1000으로 낮추면 8곳이 다 나와요. 매출로 고르는 건 10장에서 해요.",
       },
       {
-        id: "8-5-b2", type: "build", concept: "groupby",
-        q: "주문 상태마다 주문한 손님 수를 겹치지 않게 buyers라는 이름으로 세어 줘",
-        cards: ["SELECT", "status", ",", "COUNT(DISTINCT customer_id)", "AS buyers", "FROM", "orders", "GROUP", "BY", "status"],
-        extra: ["COUNT(customer_id)", "order_items"],
-        tables: ["orders"],
+        id: "8-5-b2", type: "build", concept: "having",
+        q: "도깨비 손님이 4명 이상 사는 마을 이름을 보여 줘",
+        cards: ["SELECT", "village", "FROM", "customers", "WHERE", "kind = '도깨비'", "GROUP BY", "village", "HAVING", "COUNT(*) >= 4"],
+        extra: ["kind = '사람'", "COUNT(*) > 4"],
+        tables: ["customers"],
         hints: [
-          "주문 표를 상태로 묶고, 묶음마다 손님 번호를 겹치지 않게 세어 이름을 붙여요.",
-          "SELECT 다음에 status, 쉼표, COUNT(DISTINCT customer_id)와 AS buyers를 놓아요.",
+          "도깨비 손님만 먼저 걸러 마을로 묶고, 묶음의 손님 수로 다시 걸러요.",
+          "WHERE 다음에 kind = '도깨비', GROUP BY village 다음에 HAVING과 COUNT(*) >= 4를 놓아요.",
         ],
-        explain: "완료 57명, 취소 28명이에요. 겹침을 빼지 않으면 주문 건수 542·49가 나와요. 7장의 DISTINCT 세기를 묶음마다 했어요!",
+        explain: "느티나무골·솔바위골·큰바위마을, 3곳이에요. WHERE는 행을, HAVING은 묶음을 걸러요. > 4면 딱 4명인 느티나무골이 빠지고, 사람 손님이면 2곳이에요.",
       },
       {
         id: "8-5-b3", type: "build", concept: "having",
         q: "나이 모르는 손님이 있는 손님 종류를 보여 줘",
-        cards: ["SELECT", "kind", "FROM", "customers", "GROUP", "BY", "kind", "HAVING", "COUNT(age) < COUNT(*)"],
+        cards: ["SELECT", "kind", "FROM", "customers", "GROUP BY", "kind", "HAVING", "COUNT(age) < COUNT(*)"],
         extra: ["WHERE", "COUNT(age) = COUNT(*)"],
         tables: ["customers"],
         hints: [
