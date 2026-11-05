@@ -28,15 +28,15 @@ test("다른 씨앗은 다른 결과를 낼 수 있음", () => {
   assert.ok(new Set(rs).size > 1);
 });
 
-// 레슨 표를 쓰는지: 코스 길이 = tests/fixtures/lessons/ch*.js(시험용 가짜 레슨, R3)의 레슨 수, --lessons N 이면 앞의 N개
+// 레슨 표를 쓰는지: 코스 길이 = data/lessons/ch*.js(실제 17장 85레슨, 작업 17)의 레슨 수, --lessons N 이면 앞의 N개
 test("코스 길이는 실제 레슨 수, lessons 옵션은 앞 N개로 자름", async () => {
   const { readdirSync } = await import("node:fs");
-  const dir = new URL("../fixtures/lessons/", import.meta.url);
+  const dir = new URL("../../data/lessons/", import.meta.url);
   let total = 0;
   for (const f of readdirSync(dir).filter((x) => /^ch\d+\.js$/.test(x))) {
     total += (await import(new URL(f, dir).href)).LESSONS.length;
   }
-  assert.equal(total, 30);
+  assert.equal(total, 85);
   assert.equal(runSim(1).courseLength, total);
   assert.equal(runSim(1, { lessons: 15 }).courseLength, 15);
 });

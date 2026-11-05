@@ -39,11 +39,12 @@ const HINTFREE_P = 0.5;
 const WRITE_ERROR_P = 0.3;
 const DAILY_P = 0.85;
 
-// 레슨 표(기본 tests/fixtures/lessons/ch*.js, 환경변수 SIM_LESSONS_DIR로 바꿈; 실제 레슨이 채워지면 data/lessons로)를 장 번호순으로 읽는다. 경제에는 id·장 평가 여부·쓰기 문제의 개념만 쓰인다.
+// 레슨 표(기본 data/lessons/ch*.js — 작업 17에서 실제 85레슨으로 바꿈, 환경변수 SIM_LESSONS_DIR로 바꿀 수 있음)를 장 번호순으로 읽는다.
+// 경제에는 id·장 평가 여부·카드 조립(build) 문제의 개념만 쓰인다.
 const ADVANCED_LIST = [];
 let ADVANCED_PLACEHOLDERS = 0;
 async function loadCourse() {
-  const dir = process.env.SIM_LESSONS_DIR ? pathToFileURL(process.env.SIM_LESSONS_DIR.replace(/\/?$/, "/")) : new URL("../fixtures/lessons/", import.meta.url);
+  const dir = process.env.SIM_LESSONS_DIR ? pathToFileURL(process.env.SIM_LESSONS_DIR.replace(/\/?$/, "/")) : new URL("../../data/lessons/", import.meta.url);
   const files = readdirSync(dir).filter((f) => /^ch\d+\.js$/.test(f))
     .sort((a, b) => parseInt(a.slice(2)) - parseInt(b.slice(2)));
   const course = [];
@@ -51,7 +52,7 @@ async function loadCourse() {
     try {
       const mod = await import(new URL(f, dir).href);
       const n = parseInt(f.slice(2));
-      const concept = (l) => { const w = (l.items || []).find((it) => it.type === "write"); return [w ? w.concept : "print"]; };
+      const concept = (l) => { const w = (l.items || []).find((it) => it.type === "build") || (l.items || [])[0]; return [w ? w.concept : "select"]; };
       for (const l of mod.LESSONS) course.push({ id: l.id, isExam: !!l.isExam, concepts: concept(l) });
       const adv = Array.isArray(mod.ADVANCED) ? mod.ADVANCED : [];
       if (adv.length) {
