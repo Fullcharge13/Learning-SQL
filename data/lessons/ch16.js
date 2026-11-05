@@ -27,12 +27,18 @@
 //     DATEDIFF(expr1, expr2) = expr1 − expr2 날 수(앞이 늦으면 양수). §11.5 Expressions 「Temporal Intervals」 — date + INTERVAL expr unit(unit DAY 등).
 //     https://dev.mysql.com/doc/refman/8.4/en/date-and-time-functions.html · https://dev.mysql.com/doc/refman/8.4/en/expressions.html
 //   PostgreSQL 18 문서 §9.8 to_char(timestamp, text) → text(YYYY 연도, MM 01–12 달), §9.9 date - date → integer(지난 날 수),
-//     date + interval → timestamp(날짜와 시각), date_trunc('month', …) → 그달 첫 시각(timestamp, date는 저절로 timestamp로 바뀜).
+//     date + interval → timestamp(날짜와 시각), date_trunc('month', …) → 그달 첫 시각.
+//     date를 넣으면 timestamp와 timestamptz 두 판 중 날짜·시각 무리의 「먼저 고르는 형」(preferred type)인 timestamptz 판이 골라져
+//     결과가 timestamp with time zone이다. §9.9.2의 괄호 「date는 timestamp로 바뀐다」는 이 점에서 부정확하다고 Tom Lane이 답했다
+//     (pgsql-bugs BUG #7886 「date_trunc(date) returning timestamptz instead of timestamp」, https://www.postgresql.org/message-id/18305.1360966493%40sss.pgh.pa.us, 2026-11-05 확인).
+//     카드·문제는 결과 형을 말하지 않고 「그달 첫날로 자른다」로만 쓴다.
 //     https://www.postgresql.org/docs/current/functions-formatting.html · https://www.postgresql.org/docs/current/functions-datetime.html
 //   PostgreSQL의 날짜 + INTERVAL '7 days'는 날짜가 아니라 시각까지 붙은 값(timestamp)이 된다. 날짜만 원하면 + 7(date + integer → date)이지만,
 //   MySQL 카드와 짝을 맞추려고 INTERVAL 모양을 보이고 말풍선에서는 「7일 뒤」로만 말한다.
 // - 덩어리 카드(R47): 「strftime('%Y-%m', ordered_on)」(29칸)은 한 장. 중간 표는 「WITH m AS (SELECT」 … 「FROM orders GROUP BY month),」로 열고 닫는다.
 //   LAG로 지난달을 붙이는 조립은 OVER 안에 「(ORDER BY month)」만 둔다 — 달(month)은 묶은 뒤 한 행씩이라 고유하다.
+//   16-3-b2·16-5-b1의 「SELECT month, ROUND((n - prev)」 카드는 식 가운데(ROUND 괄호 안)에서 다음 카드 「* 100.0 / prev, 1) AS pct」로 나뉜다.
+//   한 장 30칸·더미 12장(R47) 안에 넣으려고 받아들인 나눔이다(검토 2026-11-05). 헷갈림 「* 100 / prev, 1) AS pct」가 바로 이 뒤 반쪽이라 나눔이 연습거리이기도 하다.
 export const CHAPTER = { id: 16, title: "날짜와 시계열" };
 
 // 장터 예 「월별 매출과 증감률」 (16-3 첫 카드·16-5 카드)
@@ -478,7 +484,7 @@ export const LESSONS = [
         q: "MySQL의 DATEDIFF('2026-12-31', ordered_on)과 같은 일을 이 장터에서 하려면?",
         options: ["JULIANDAY(…)끼리 빼기", "날짜 글자끼리 그냥 빼기", "date()에 두 날짜 넣기"],
         answer: 0,
-        explain: "DATEDIFF는 앞 날짜에서 뒤 날짜까지의 날 수예요. 이 장터에서는 JULIANDAY('2026-12-31') - JULIANDAY(ordered_on)이에요.",
+        explain: "DATEDIFF는 앞 날짜에서 뒤 날짜를 뺀 날 수예요. 이 장터에서는 JULIANDAY('2026-12-31') - JULIANDAY(ordered_on)이에요.",
       },
       {
         type: "choice", concept: "datefunc",

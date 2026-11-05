@@ -175,7 +175,7 @@ export const LESSONS = [
         sql: "SELECT name, price,\n  ROW_NUMBER() OVER (\n    ORDER BY price, item_id) AS rn,\n  RANK() OVER (ORDER BY price) AS rk,\n  DENSE_RANK() OVER (\n    ORDER BY price) AS drk\nFROM items\nWHERE price BETWEEN 6 AND 8\nORDER BY price, item_id",
       },
       {
-        say: "73살 도깨비 손님이 넷이에요. RANK는 넷 다 1위, 다음 72살 어슬렁은 5위! DENSE_RANK는 어슬렁이 2위예요. 내 앞에 몇 명이 있는지는 RANK, 몇 번째로 많은 나이인지는 DENSE_RANK로 봐요.",
+        say: "73살 도깨비 손님이 넷이에요. RANK는 넷 다 1위, 다음 72살 어슬렁은 5위! DENSE_RANK는 어슬렁이 2위예요. 나보다 나이 많은 손님 수 + 1이 RANK, 몇 번째로 많은 나이인지는 DENSE_RANK예요.",
         sql: "SELECT name, age,\n  RANK() OVER (\n    ORDER BY age DESC) AS rk,\n  DENSE_RANK() OVER (\n    ORDER BY age DESC) AS drk\nFROM customers\nWHERE kind = '도깨비' AND age >= 57\nORDER BY age DESC, customer_id",
       },
     ],

@@ -1,4 +1,5 @@
 // 17장 「장터 분석 실전」 (설계 §6: 코호트 재방문율, 함께 산 물건, 종합 문제 / 장터 예: 3월 첫 손님의 재방문율). 과정의 마지막 장.
+// 설계의 「함께 산 물건」은 레슨에서 「함께 담긴 물건」으로 쓴다: 짝 셈에 취소 주문도 들어가는데 15장이 「취소된 주문은 산 것이 아니라」고 가르쳤기 때문(검토 2026-11-05).
 // 쓰기 안내: docs/lesson-writing-guide.md · 점검: node tests/content.js --chapter 17
 // 17장은 새 낱말이 없다(data/grammar.js 17: []). 앞 장 낱말만으로 분석한다. 분석 도깨비 묶음(14~17장)의 마지막 장이고, 17-5가 과정 전체의 마지막 평가다.
 // - 코호트(무리)의 정의: customers.first_visit(첫 방문일)의 연-월이 같은 손님끼리 한 무리. 주문 없는 손님(2월 임바다·6월 표다솜·9월 돌쇠)도
@@ -25,13 +26,19 @@
 //   10번 주문: 수육(2)·비단 주머니(23)·복주머니(28). 12번: 도라지(16)·비단 주머니(23)·노리개(29).
 //   많이 함께 담긴 짝: 인삼차(12)·복주머니(28) 9번(하나뿐인 1등), 8번 여섯 짝 인절미-송편·인절미-도라지·인절미-짚신·인삼차-도라지·인삼차-익모초·인삼차-부채,
 //   그다음 7번(국밥-인삼차 …) → LIMIT 7이면 동점을 자르지 않는다. 완료 주문만 세면 9번 짝이 없고 인삼차-도라지·인삼차-익모초가 8번 동점이라 취소까지 셌다.
+//   그래서 짝 셈·공방 줄 셈은 「산」이 아니라 「담긴」으로 쓰고, 17-3 둘째 카드·「가장 자주 함께 담긴 짝」·공방 객관식·17-4-b1 해설에 「취소된 주문도 셌다」를 밝힌다.
 //   인삼차(12번)와 함께 담긴 물건 35가지(인삼차가 든 줄 72). 이때는 짝 상대가 12보다 작은 것(국밥·수육·인절미 …)도 있어 <> 12를 쓴다(< 12면 10가지만).
 //   복주머니(28번)와 함께 담긴 물건: 인삼차 9·인절미 7 ….
 // - 숨은 무늬(설계 §5-2) 넷: ① 3월 첫 손님 재방문율 100%(17-2) ② 약재 매출 비중이 6~8월에 높다 ③ 공방은 줄이 적고 한 줄 금액이 크다 ④ 12월에 주문이 몰린다.
-//   ② 달마다 완료 매출 3571·3017·1888·3825·3347·5173·6334·2833·3214·4567·5682·14036, 약재 487·490·424·1068·1156·1795·2213·1249·499·898·1299·2417
-//     → 약재 비중 13.6·16.2·22.5·27.9·34.5·34.7·34.9·44.1·15.5·19.7·22.9·17.2. 약재 매출 자체는 12월(2417)이 가장 크다 — 12월은 모든 가게가 많이
-//     팔리는 달이라 비중으로 견줘야 여름 무늬가 보인다. 비중 1~3위가 8·7·6월(5월 34.5와 6월 34.7은 차이가 작다 → 「8월이 가장 높다」로만 묻는다).
-//   ③ 주문 내역(order_items, 취소 포함) 가게 종류마다 줄 수·한 줄 평균 금액: 공방 113줄 249.6, 약재 424줄 36.5, 잡화 309줄 44.3, 먹거리 395줄 16.9.
+//   ② 17-4 첫 카드는 완료 주문 내역의 「줄 수」 비중으로 본다(검토 2026-11-05에 금액 비중에서 바꿈).
+//     달마다 줄 수(total) 58·41·50·86·74·85·115·79·77·93·122·253, 약재 줄(herb) 16·12·13·30·25·39·59·37·19·25·40·71
+//     → 약재 줄 비중 27.6·29.3·26·34.9·33.8·45.9·51.3·46.8·24.7·26.9·32.8·28.1. 6~8월만 45%를 넘고 나머지 달은 모두 35% 아래, 1위 7월 51.3.
+//     약재 줄 수 자체는 12월(71)이 가장 많다 — 12월은 모든 가게가 많이 팔리는 달이라 비중으로 견줘야 여름 무늬가 보인다.
+//     금액 비중(완료 매출 3571·…·14036 중 약재 487·…·2417 → 13.6·16.2·22.5·27.9·34.5·34.7·34.9·44.1·15.5·19.7·22.9·17.2)은 5월(34.5)과 6월(34.7)이
+//     거의 같고, 8월 1위(44.1)는 8월 전체 매출이 2833으로 줄어든 탓도 커서 「6~8월이 높다」고 말하기 어렵다. 그래서 줄 수 비중을 쓴다.
+//     이 카드가 조건 세기 SUM(CASE WHEN … THEN 1 ELSE 0 END)를 처음 보여 준다 → 같은 모양의 취소율 조립(17-4-b3)은 이 카드 뒤에 둔다
+//     (예전에는 17-2-b2였는데 카드보다 먼저 나와 쓰기 안내 §4에 어긋났다).
+//   ③ 주문 내역(order_items, 취소 주문의 줄도 포함) 가게 종류마다 줄 수·한 줄 평균 금액: 공방 113줄 249.6, 약재 424줄 36.5, 잡화 309줄 44.3, 먹거리 395줄 16.9.
 //     가게마다(i.shop_id): 1번 209줄 22.48, 2번 186줄 10.63, 3번 203줄 42.50, 4번 221줄 30.95, 5번 175줄 25.10, 6번 134줄 69.33, 7번 60줄 276.5, 8번 53줄 219.06.
 //     완료 주문만이어도 공방 100줄 244.7, 먹거리 366줄 17.0로 같은 무늬.
 //   ④ 달마다 주문 수 29·23·30·48·39·45·59·47·39·47·61·124(16장 머리 주석과 같음).
@@ -54,6 +61,11 @@
 // - 덩어리 카드(R47): 창 함수가 든 중앙값 조립은 「WITH r AS (SELECT age,」 … 「WHERE kind = '여우')」로 중간 표를 열고 닫고,
 //   바깥은 「SELECT AVG(age) AS median」·「FROM r」·「WHERE rn BETWEEN cnt / 2.0」·「AND cnt / 2.0 + 1」 덩어리로 둔다(14장 「SELECT * FROM ranked」와 같은 꼴).
 //   창 함수 없는 조립은 SELECT·FROM·WHERE를 한 장씩 둔다.
+//   17-4-b2·17-5-b3의 「AS rn, COUNT(*) OVER () AS cnt」 카드는 중간 표의 SELECT 열 목록 가운데에서 나뉜다(앞 카드 「(ORDER BY age, customer_id)」의
+//   창 함수 별칭과 다음 열이 한 장). 한 장 30칸·더미 12장(R47) 안에 넣으려고 받아들인 나눔이다(검토 2026-11-05).
+// - 17-2-b2(검토 2026-11-05에 바꿈): 물건 40가지 중 한 번에 3개 이상 담긴 적 있는 물건 비율 = 28 × 100.0 ÷ 40 = 70(취소 주문의 줄도 셈).
+//   17-2-b1과 같은 뼈대(LEFT JOIN + ON의 AND 조건 + COUNT(DISTINCT) 두 개). AND oi.qty < 3이나 조건 없이는 95, DISTINCT 없이 줄을 세면 357.5.
+//   * 100 /은 28 × 100 / 40 = 70으로 나눠떨어져 정답과 같아지므로 헷갈림 카드로 쓰지 않는다.
 export const CHAPTER = { id: 17, title: "장터 분석 실전" };
 
 // 17-1 카드
@@ -71,7 +83,7 @@ const PAIRS_ONE = "SELECT a.item_id AS a_id,\n  b.item_id AS b_id\nFROM order_it
 const TOP_PAIRS = "WITH p AS (\n  SELECT a.item_id AS a_id,\n    b.item_id AS b_id,\n    COUNT(*) AS n\n  FROM order_items a\n  JOIN order_items b\n    ON b.order_id = a.order_id\n    AND a.item_id < b.item_id\n  GROUP BY a.item_id, b.item_id)\nSELECT x.name AS item_a,\n  y.name AS item_b, p.n\nFROM p\nJOIN items x ON x.item_id = p.a_id\nJOIN items y ON y.item_id = p.b_id\nORDER BY p.n DESC, p.a_id, p.b_id\nLIMIT 7";
 const pairCount = (op) => `SELECT COUNT(*) AS pairs\nFROM order_items a\nJOIN order_items b\n  ON b.order_id = a.order_id\n  AND a.item_id ${op} b.item_id`;
 // 17-4 카드
-const HERB = "WITH m AS (\n  SELECT strftime('%m', o.ordered_on)\n      AS month,\n    SUM(oi.qty * i.price) AS sales,\n    SUM(CASE WHEN s.category = '약재'\n      THEN oi.qty * i.price\n      ELSE 0 END) AS herb\n  FROM orders o\n  JOIN order_items oi\n    ON oi.order_id = o.order_id\n  JOIN items i\n    ON i.item_id = oi.item_id\n  JOIN shops s\n    ON s.shop_id = i.shop_id\n  WHERE o.status = '완료'\n  GROUP BY month)\nSELECT month, sales, herb,\n  ROUND(herb * 100.0 / sales, 1)\n    AS herb_pct\nFROM m\nORDER BY month";
+const HERB = "WITH m AS (\n  SELECT strftime('%m', o.ordered_on)\n      AS month,\n    COUNT(*) AS total,\n    SUM(CASE WHEN s.category = '약재'\n      THEN 1 ELSE 0 END) AS herb\n  FROM orders o\n  JOIN order_items oi\n    ON oi.order_id = o.order_id\n  JOIN items i\n    ON i.item_id = oi.item_id\n  JOIN shops s\n    ON s.shop_id = i.shop_id\n  WHERE o.status = '완료'\n  GROUP BY month)\nSELECT month, total, herb,\n  ROUND(herb * 100.0 / total, 1)\n    AS herb_pct\nFROM m\nORDER BY month";
 const MEDIAN_ROWS = "WITH r AS (\n  SELECT name, age,\n    ROW_NUMBER() OVER (\n      ORDER BY age, customer_id)\n      AS rn,\n    COUNT(*) OVER () AS cnt\n  FROM customers\n  WHERE kind = '여우')\nSELECT name, age, rn, cnt\nFROM r\nWHERE rn BETWEEN cnt / 2.0\n  AND cnt / 2.0 + 1\nORDER BY rn";
 const medianShop3 = (div) => `WITH r AS (\n  SELECT price,\n    ROW_NUMBER() OVER (\n      ORDER BY price, item_id)\n      AS rn,\n    COUNT(*) OVER () AS cnt\n  FROM items\n  WHERE shop_id = 3)\nSELECT AVG(price) AS median\nFROM r\nWHERE rn BETWEEN cnt / ${div}\n  AND cnt / 2.0 + 1`;
 
@@ -138,7 +150,7 @@ export const LESSONS = [
         q: "둘째 카드에서 「다시 왔다」를 가르는 조건은?",
         options: ["2월 1일부터의 주문이 있다(첫 방문 달보다 나중 달)", "주문이 두 건 넘게 있다", "첫 방문 날 주문했다"],
         answer: 0,
-        explain: "1월 무리의 나중 달은 2월부터예요. 첫 달에 여러 번 산 것은 「다시 온」 것으로 치지 않아요.",
+        explain: "1월 무리의 나중 달은 2월부터예요. 첫 달에 여러 번 주문한 것은 「다시 온」 것으로 치지 않아요.",
       },
       {
         type: "choice", concept: "cohort",
@@ -218,7 +230,7 @@ export const LESSONS = [
         sql: MARKET,
       },
       {
-        say: "다른 달 무리와 견줘 봐요. 주문 연-월이 첫 방문 연-월보다 크면 나중 달! 다른 달은 33.3~50%인데 3월만 100%예요. 장터에 숨은 무늬를 찾았어요. 12월 무리는 다시 올 달이 아직 없어서 0이에요.",
+        say: "다른 달 무리와 견줘 봐요. 주문 연-월이 첫 방문 연-월보다 크면 나중 달! 12월을 빼면 다른 달은 33.3~50%인데 3월만 100%예요. 장터에 숨은 무늬를 찾았어요. 12월 무리는 다시 올 달이 아직 없어서 0이에요.",
         sql: ALL_COHORTS,
       },
     ],
@@ -257,7 +269,7 @@ export const LESSONS = [
         q: "둘째 카드의 결과에서 재방문율이 가장 높은 무리는?",
         options: ["2026-03 (100)", "2026-01 (50)", "2026-11 (33.3)"],
         answer: 0,
-        explain: "3월 무리만 8명 모두 다시 왔어요. 다른 달은 33.3~50%예요. 이렇게 무리끼리 견줘야 3월이 특별한 게 보여요.",
+        explain: "3월 무리만 8명 모두 다시 왔어요. 12월을 빼면 다른 달은 33.3~50%예요. 이렇게 무리끼리 견줘야 3월이 특별한 게 보여요.",
       },
       {
         type: "choice", concept: "cohort",
@@ -302,16 +314,16 @@ export const LESSONS = [
         explain: "산삼 약방·방망이 대장간·뚝딱 공방, 8곳 중 3곳이라 37.5예요. 대표 문제 「3월 첫 손님의 재방문율」과 같은 뼈대예요! * 100이면 이 장터에서는 37, < 120이면 모든 가게라 100이에요.",
       },
       {
-        id: "17-2-b2", type: "build", concept: "analysis",
-        q: "주문 중 취소된 주문이 몇 %인지 소수 첫째 자리까지 보여 줘",
-        cards: ["SELECT", "ROUND(SUM(CASE WHEN", "status = '취소'", "THEN 1 ELSE 0 END)", "* 100.0 / COUNT(*), 1)", "AS cancel_rate", "FROM", "orders"],
-        extra: ["* 100 / COUNT(*), 1)", "status = '완료'"],
-        tables: ["orders"],
+        id: "17-2-b2", type: "build", concept: "cohort",
+        q: "물건 40가지 중 한 번에 3개 이상 담긴 적 있는 물건이 몇 %인지 보여 줘",
+        cards: ["SELECT", "COUNT(DISTINCT oi.item_id)", "* 100.0 /", "COUNT(DISTINCT i.item_id)", "AS rate", "FROM", "items i", "LEFT JOIN order_items oi", "ON oi.item_id = i.item_id", "AND oi.qty >= 3"],
+        extra: ["AND oi.qty < 3", "COUNT(oi.item_id)"],
+        tables: ["items", "order_items"],
         hints: [
-          "취소면 1, 아니면 0으로 바꿔 더하면 취소 건수예요. 그것을 전체 주문 수로 나눠 100을 곱해요.",
-          "ROUND(SUM(CASE WHEN, status = '취소', THEN 1 ELSE 0 END), * 100.0 / COUNT(*), 1), AS cancel_rate예요.",
+          "물건마다 3개 이상 담긴 줄만 짝지어 붙이고, 짝 있는 물건 수를 전체 물건 수로 나눠요.",
+          "LEFT JOIN order_items oi, ON 다음 AND oi.qty >= 3, 위에는 COUNT(DISTINCT …) 두 개 사이에 * 100.0 /예요.",
         ],
-        explain: "591건 중 49건이라 8.3이에요. 재방문율처럼 「부분 × 100.0 ÷ 전체」예요. * 100이면 이 장터에서는 소수점 아래가 버려져 8, 완료면 91.7이에요.",
+        explain: "40가지 중 28가지라 70이에요. 대표 문제와 같은 뼈대예요. 취소된 주문의 줄도 담긴 것으로 셌어요. < 3이면 95, DISTINCT 없이 세면 한 물건의 줄이 여러 번 세어져 100을 넘어요.",
       },
       {
         type: "check", concept: "cohort",
@@ -327,7 +339,7 @@ export const LESSONS = [
     ],
   },
   {
-    id: "17-3", chapter: 17, title: "함께 산 물건 찾기",
+    id: "17-3", chapter: 17, title: "함께 담긴 물건 찾기",
     goal: "주문 내역을 자기 자신과 이어 함께 담긴 물건 짝을 센다",
     summary: [
       "같은 표를 별칭 둘로 JOIN(셀프 조인)",
@@ -340,7 +352,7 @@ export const LESSONS = [
         sql: PAIRS_ONE,
       },
       {
-        say: "모든 주문의 짝을 세어 많은 짝부터 봐요. 인삼차와 복주머니가 9번으로 가장 자주 함께 담겼어요! 8번 담긴 짝도 여섯이라 LIMIT 7로 동점을 자르지 않았어요. 물건 이름은 items를 두 번 이어 붙였어요.",
+        say: "모든 주문의 짝을 세면 인삼차와 복주머니가 9번으로 가장 자주 함께 담겼어요! 취소된 주문도 장바구니에 함께 담긴 것으로 셌어요. 8번 짝이 여섯이라 LIMIT 7, 이름은 items를 두 번 이었어요.",
         sql: TOP_PAIRS,
       },
     ],
@@ -395,7 +407,7 @@ export const LESSONS = [
         q: "둘째 카드의 결과에서 가장 자주 함께 담긴 짝은?",
         options: ["인삼차와 복주머니 (9번)", "인절미와 송편 (8번)", "국밥과 인삼차 (7번)"],
         answer: 0,
-        explain: "인삼차와 복주머니가 9번으로 하나뿐인 1등이에요. 인절미와 송편은 8번, 국밥과 인삼차는 7번이에요.",
+        explain: "인삼차와 복주머니가 9번으로 하나뿐인 1등이에요. 인절미와 송편은 8번, 국밥과 인삼차는 7번이에요. 취소된 주문에 함께 담긴 것까지 센 수예요.",
       },
       {
         type: "choice", concept: "basket",
@@ -466,7 +478,7 @@ export const LESSONS = [
     ],
     cards: [
       {
-        say: "달마다 완료 매출(sales)과 그중 약재 매출(herb)을 냈어요. herb만 보면 12월이 가장 크지만 12월은 다 많이 팔린 달이에요. 비중(herb_pct)으로 보면 6~8월이 높고 8월이 44.1%! 약재는 여름에 잘 나가요.",
+        say: "달마다 완료 주문 내역의 줄 수(total)와 약재 줄 수(herb)예요. 약재면 1, 아니면 0을 SUM으로 더하면 약재 줄만 세어져요! herb는 12월이 가장 많지만, 비중(herb_pct)은 6~8월만 45%를 넘어요.",
         sql: HERB,
       },
       {
@@ -478,30 +490,30 @@ export const LESSONS = [
       {
         type: "choice", concept: "analysis",
         q: "첫 카드의 결과에서 약재 비중(herb_pct)이 가장 높은 달은?",
-        options: ["08 (44.1)", "12 (17.2)", "01 (13.6)"],
+        options: ["07 (51.3)", "12 (28.1)", "04 (34.9)"],
         answer: 0,
-        explain: "8월이 44.1%로 가장 높고 7월 34.9, 6월 34.7이 뒤따라요. 12월은 약재 매출은 크지만 비중은 17.2%예요.",
+        explain: "7월이 51.3%로 가장 높고 8월 46.8, 6월 45.9가 뒤따라요. 다른 달은 모두 35% 아래예요. 12월은 약재 줄이 71줄로 가장 많지만 비중은 28.1%예요.",
       },
       {
         type: "choice", concept: "analysis",
         q: "첫 카드에서 herb가 가장 큰 12월의 비중이 낮은 까닭은?",
-        options: ["12월에는 모든 가게가 많이 팔려 전체 매출(sales)이 훨씬 커서", "12월에는 약재가 하나도 안 팔려서", "12월 주문이 모두 취소라서"],
+        options: ["12월에는 모든 가게가 많이 팔려 전체 줄 수(total)가 훨씬 커서", "12월에는 약재가 하나도 안 팔려서", "12월 주문이 모두 취소라서"],
         answer: 0,
-        explain: "12월 매출 14036엽전 중 약재는 2417엽전이에요. 전체가 함께 커진 달은 금액보다 비중으로 견줘야 무늬가 보여요.",
+        explain: "12월 내역 253줄 중 약재는 71줄이에요. 전체가 함께 커진 달은 수보다 비중으로 견줘야 무늬가 보여요.",
       },
       {
         type: "choice", concept: "analysis",
-        q: "첫 카드에서 herb를 만든 SUM(CASE WHEN … ELSE 0 END)이 하는 일은?",
-        options: ["약재 줄의 금액만 더하고 다른 줄은 0으로 더한다", "약재 줄의 수를 센다", "약재가 아닌 줄의 금액을 더한다"],
+        q: "첫 카드에서 herb를 만든 SUM(CASE WHEN … THEN 1 ELSE 0 END)이 하는 일은?",
+        options: ["약재 줄은 1, 다른 줄은 0으로 바꿔 더해 약재 줄 수를 센다", "약재 줄의 금액을 더한다", "약재가 아닌 줄의 수를 센다"],
         answer: 0,
-        explain: "CASE(9장)가 약재 줄은 금액, 나머지는 0으로 바꾸고 SUM이 더해요. 한 번 묶은 표에서 전체와 일부를 함께 셀 수 있어요.",
+        explain: "CASE(9장)가 약재 줄은 1, 나머지는 0으로 바꾸고 SUM이 더해요. 조건에 맞는 줄만 세는 모양이라, 한 번 묶은 표에서 전체와 일부를 함께 셀 수 있어요.",
       },
       {
         type: "choice", concept: "analysis",
         q: "주문 내역을 가게 종류마다 세면 줄은 가장 적은데 한 줄 금액 평균은 가장 큰 종류는?",
         options: ["공방", "약재", "먹거리"],
         answer: 0,
-        explain: "공방은 113줄뿐인데 한 줄 평균이 249.6엽전이에요. 방망이가 비싸서 드물게 팔려도 크게 남아요. 먹거리는 395줄에 16.9엽전이에요.",
+        explain: "공방은 113줄뿐인데 한 줄 평균이 249.6엽전이에요. 방망이가 비싸 드물게 담겨도 금액이 커요. 먹거리는 395줄에 16.9엽전이에요. 취소된 주문의 줄도 셌어요.",
       },
       {
         type: "choice", concept: "analysis",
@@ -509,13 +521,6 @@ export const LESSONS = [
         options: ["2026-12 (124건)", "2026-11 (61건)", "2026-07 (59건)"],
         answer: 0,
         explain: "12월에 주문이 몰려 124건, 둘째인 11월의 두 배쯤이에요(16장). 약재 비중을 비율로 본 까닭도 이 12월이에요.",
-      },
-      {
-        type: "choice", concept: "analysis",
-        q: "값 9, 1, 2의 중앙값은?",
-        options: ["2", "4", "1"],
-        answer: 0,
-        explain: "줄 세우면 1, 2, 9라 가운데는 2예요. 4는 평균(12 ÷ 3)이에요. 큰 값 9가 평균만 끌어올려요.",
       },
       {
         type: "choice", concept: "analysis",
@@ -564,7 +569,7 @@ export const LESSONS = [
           "주문 내역에 물건 값을 붙이고, 가게 번호로 묶어 줄 수와 금액 평균을 내요.",
           "AVG(oi.qty * i.price) AS amt, JOIN items i, ON 물건 번호 짝, GROUP BY i.shop_id예요.",
         ],
-        explain: "공방인 7·8번은 60·53줄로 가장 적은데 한 줄 평균이 276.5·219.1엽전으로 가장 커요. SUM이면 합계, oi.item_id로 묶으면 물건마다예요.",
+        explain: "공방인 7·8번은 60·53줄로 가장 적은데 한 줄 평균이 276.5·219.1엽전으로 가장 커요. 취소된 주문의 줄도 셌어요. SUM이면 합계, oi.item_id로 묶으면 물건마다예요.",
       },
       {
         id: "17-4-b2", type: "build", concept: "analysis",
@@ -579,21 +584,33 @@ export const LESSONS = [
         explain: "39.5예요. 12명이라 6·7번째 38과 41의 평균이에요. rn = cnt / 2면 6번째 38만, 번호 차례로 매기면 나이 가운데가 아니에요.",
       },
       {
+        id: "17-4-b3", type: "build", concept: "analysis",
+        q: "주문 중 취소된 주문이 몇 %인지 소수 첫째 자리까지 보여 줘",
+        cards: ["SELECT", "ROUND(SUM(CASE WHEN", "status = '취소'", "THEN 1 ELSE 0 END)", "* 100.0 / COUNT(*), 1)", "AS cancel_rate", "FROM", "orders"],
+        extra: ["* 100 / COUNT(*), 1)", "status = '완료'"],
+        tables: ["orders"],
+        hints: [
+          "취소면 1, 아니면 0으로 바꿔 더하면 취소 건수예요. 그것을 전체 주문 수로 나눠 100을 곱해요.",
+          "ROUND(SUM(CASE WHEN, status = '취소', THEN 1 ELSE 0 END), * 100.0 / COUNT(*), 1), AS cancel_rate예요.",
+        ],
+        explain: "591건 중 49건이라 8.3이에요. 첫 카드의 약재 줄처럼 취소면 1을 더해 세고, 「부분 × 100.0 ÷ 전체」로 나눠요. * 100이면 이 장터에서는 소수점 아래가 버려져 8, 완료면 91.7이에요.",
+      },
+      {
         type: "check", concept: "analysis",
         q: "17-4에서 배운 것으로 맞는 말은?",
         options: [
           "모두 많이 팔린 달은 비중으로 견주고, 중앙값은 번호와 전체 수로 가운데 행을 골라 평균한다",
-          "약재 매출이 가장 큰 달이 늘 약재가 잘 팔린 달이다",
+          "약재 줄이 가장 많은 달이 늘 약재 비중도 가장 높다",
           "중앙값은 언제나 평균과 같다",
         ],
         answer: 0,
-        explain: "금액만 보면 12월에 가려지는 무늬를 비중이 드러내요. 중앙값은 끝값에 덜 흔들리는 가운데 값이에요.",
+        explain: "수만 보면 12월에 가려지는 무늬를 비중이 드러내요. 중앙값은 끝값에 덜 흔들리는 가운데 값이에요.",
       },
     ],
   },
   {
     id: "17-5", chapter: 17, title: "17장 평가", isExam: true,
-    goal: "재방문율, 함께 산 물건, 중앙값과 앞 장을 모두 써 본다",
+    goal: "재방문율, 함께 담긴 물건, 중앙값과 앞 장을 모두 써 본다",
     summary: [
       "무리 → LEFT JOIN → × 100.0 ÷ 무리",
       "셀프 조인 + a.item_id < b.item_id",
@@ -669,7 +686,7 @@ export const LESSONS = [
         type: "choice", concept: "analysis",
         q: "17장에서 장터를 분석해 찾은 것으로 맞는 것은?",
         options: [
-          "3월 첫 손님은 모두 다시 왔고, 약재는 6~8월에 매출 비중이 높다",
+          "3월 첫 손님은 모두 다시 왔고, 약재는 6~8월에 주문 줄 비중이 높다",
           "공방은 주문 내역 줄이 가장 많다",
           "12월에는 주문이 가장 적다",
         ],
@@ -707,7 +724,7 @@ export const LESSONS = [
           "2월 무리 손님에게 3월부터의 주문만 짝지어 붙이고, 짝 있는 손님을 한 번씩 보여요.",
           "JOIN orders o, ON 다음 손님 번호 짝, AND ordered_on >= '2026-03-01', WHERE에 2월 조건이에요.",
         ],
-        explain: "바람돌이·신아람 2명, 5명 중 2명이라 재방문율 40이에요. 대표 문제와 같은 뼈대예요. 3월 전이면 첫 달에 산 4명, LEFT JOIN이면 5명 모두 나와요.",
+        explain: "바람돌이·신아람 2명, 5명 중 2명이라 재방문율 40이에요. 대표 문제와 같은 뼈대예요. 3월 전이면 첫 달에 주문한 4명, LEFT JOIN이면 5명 모두 나와요.",
       },
       {
         id: "17-5-b2", type: "build", concept: "basket",
@@ -737,12 +754,12 @@ export const LESSONS = [
         type: "check", concept: "analysis",
         q: "17장에서 배운 것으로 맞는 말은?",
         options: [
-          "무리마다 재방문율을 내고, 셀프 조인으로 함께 산 물건을 세고, 중앙값으로 가운데를 본다",
+          "무리마다 재방문율을 내고, 셀프 조인으로 함께 담긴 물건을 세고, 중앙값으로 가운데를 본다",
           "재방문율은 JOIN으로 다시 온 손님만 남겨 센다",
-          "함께 산 물건은 <>로 짝마다 한 번씩 센다",
+          "함께 담긴 물건은 <>로 짝마다 한 번씩 센다",
         ],
         answer: 0,
-        explain: "분석 도깨비 끝, 17장 모두 해냈어요! 실무에서는 쇼핑몰 분석가가 이 SQL로 주문 표에서 가입 달별 재구매율, 함께 산 상품, 매출 중앙값을 뽑아 보고해요.",
+        explain: "분석 도깨비 끝, 17장 모두 해냈어요! 실무에서는 쇼핑몰 분석가가 이 SQL로 주문 표에서 가입 달별 재구매율, 함께 담긴 상품, 매출 중앙값을 뽑아 보고해요.",
       },
     ],
   },

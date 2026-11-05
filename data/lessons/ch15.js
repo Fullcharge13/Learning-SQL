@@ -21,6 +21,8 @@
 // - 이동 평균: AVG(…) OVER (ORDER BY … ROWS BETWEEN 2 PRECEDING AND CURRENT ROW). 앞 행이 모자란 처음 두 행은 있는 행만으로 평균한다.
 //   ROUND(…, 1)로 소수 첫째 자리까지. 날마다 주문 수(12월 20~28일, 9일 모두 주문이 있음): n 1·2·7·4·7·3·7·7·5 → avg3 1·1.5·3.3·4.3·6·4.7·5.7·5.7·6.3.
 //   주문이 없는 날은 행이 없어서 「앞 두 행」이 「앞 이틀」과 다를 수 있다 — 고른 9일은 빠진 날이 없다.
+//   이 말은 15-4 「앞 두 행과 함께 본 평균」 해설에 적었고, 15-5 실무 한 줄에도 「주문 없는 날도 0원 행으로 채워 둔다」를 붙였다(창 틀 ROWS는 날이 아니라 행을 센다).
+//   15-5-b3은 15-4-b1과 같은 조립이 되지 않게 7번 가게 물건 값의 앞뒤 한 행 평균(1 PRECEDING ~ 1 FOLLOWING)으로 둔다: 165·203.3·260·333.3·360.
 //   여우 손님 12명은 first_visit이 모두 달라(도깨비·사람은 같은 날 첫 방문이 있음) 처음 온 차례가 하나로 정해지고 나이 빈칸도 없다:
 //   여름이 42·해랑 18·초롱 42·구미 38·솔아 41·단비 34·백설 36·보람 59·미르 35·연화 59·하연 43·은호 13
 //   → avg3 42·30·34·32.7·40.3·37.7·37·43·43.3·51·45.7·38.3, 처음부터(avg_all) 42·30·34·35·36.2·…, 앞뒤 한 행씩(avg_near) 30·34·32.7·…
@@ -495,14 +497,14 @@ export const LESSONS = [
       },
       {
         type: "choice", concept: "moving",
-        q: "12월 20일부터 날마다 들어온 주문 수에, 앞 두 날과 함께 본 평균을 붙인 결과는?",
+        q: "12월 20일부터 날마다 들어온 주문 수에, 앞 두 행과 함께 본 평균을 붙인 결과는?",
         options: [
           { sql: "WITH daily AS (\n  SELECT ordered_on, COUNT(*) AS n\n  FROM orders\n  WHERE ordered_on >= '2026-12-20'\n  GROUP BY ordered_on)\nSELECT ordered_on, n,\n  ROUND(AVG(n) OVER (\n    ORDER BY ordered_on\n    ROWS BETWEEN 2 PRECEDING\n      AND CURRENT ROW), 1) AS avg3\nFROM daily\nORDER BY ordered_on" },
           { sql: "WITH daily AS (\n  SELECT ordered_on, COUNT(*) AS n\n  FROM orders\n  WHERE ordered_on >= '2026-12-20'\n  GROUP BY ordered_on)\nSELECT ordered_on, n,\n  ROUND(AVG(n) OVER (\n    ORDER BY ordered_on\n    ROWS BETWEEN 1 PRECEDING\n      AND CURRENT ROW), 1) AS avg3\nFROM daily\nORDER BY ordered_on" },
           { sql: "WITH daily AS (\n  SELECT ordered_on, COUNT(*) AS n\n  FROM orders\n  WHERE ordered_on >= '2026-12-20'\n  GROUP BY ordered_on)\nSELECT ordered_on, n,\n  ROUND(AVG(n) OVER (\n    ORDER BY ordered_on\n    ROWS BETWEEN UNBOUNDED PRECEDING\n      AND CURRENT ROW), 1) AS avg3\nFROM daily\nORDER BY ordered_on" },
         ],
         answer: 0, tables: ["orders"],
-        explain: "22일이 (1 + 2 + 7) ÷ 3 = 3.3, 23일이 4.3인 표가 정답이에요. 1 PRECEDING은 두 행 평균(23일 5.5), UNBOUNDED는 20일부터의 평균(23일 3.5)이에요.",
+        explain: "22일이 (1 + 2 + 7) ÷ 3 = 3.3, 23일이 4.3인 표가 정답이에요. 1 PRECEDING은 두 행 평균, UNBOUNDED는 20일부터의 평균이에요. 주문 없는 날은 행이 없어 앞 두 행이 앞 이틀과 다를 수 있어요.",
       },
       {
         type: "blank", concept: "moving",
@@ -622,7 +624,7 @@ export const LESSONS = [
         explain: "감초 앞에는 행이 없어 LAG가 빈칸이고, 빈칸과의 빼기도 빈칸이에요. 0으로 보이려면 COALESCE나 LAG(price, 1, 0)를 써요.",
       },
       {
-        type: "choice", concept: "laglead",
+        type: "choice", concept: "running",
         q: "누적 합이 300엽전 넘는 행만 보려고 쓴 이 SQL은 어떻게 될까요?",
         code: "SELECT name, price,\n  SUM(price) OVER (\n    ORDER BY price, item_id\n  ) AS running\nFROM items\nWHERE shop_id = 8\n  AND running > 300",
         options: ["오류가 난다", "놋그릇·쇠솥·장승 3행이 나온다", "5행이 모두 나온다"],
@@ -687,15 +689,15 @@ export const LESSONS = [
       },
       {
         id: "15-5-b3", type: "build", concept: "moving",
-        q: "여우 손님을 처음 온 차례로 세우고, 자기와 바로 앞 두 손님의 평균 나이를 소수 첫째 자리까지 보여 줘",
-        cards: ["SELECT", "name, age,", "ROUND(AVG(age) OVER", "(ORDER BY first_visit", "ROWS BETWEEN 2 PRECEDING", "AND CURRENT ROW), 1) AS avg3", "FROM", "customers", "WHERE", "kind = '여우'"],
-        extra: ["ROWS BETWEEN 1 PRECEDING", "AND 2 FOLLOWING), 1) AS avg3"],
-        tables: ["customers"],
+        q: "7번 가게 물건을 싼 차례로 세우고, 자기와 바로 앞·뒤 물건의 평균 값을 소수 첫째 자리까지 보여 줘",
+        cards: ["SELECT", "name, price,", "ROUND(AVG(price) OVER", "(ORDER BY price, item_id", "ROWS BETWEEN 1 PRECEDING", "AND 1 FOLLOWING), 1) AS near3", "FROM", "items", "WHERE", "shop_id = 7"],
+        extra: ["ROWS BETWEEN 2 PRECEDING", "AND CURRENT ROW), 1) AS near3"],
+        tables: ["items"],
         hints: [
-          "여우 손님을 처음 온 날짜 차례로 세우고, 앞 두 행부터 지금 행까지를 창 틀로 잡아요.",
-          "ROUND(AVG(age) OVER 다음 「(ORDER BY first_visit」, ROWS BETWEEN 2 PRECEDING, AND CURRENT ROW 카드예요.",
+          "7번 가게 물건을 싼 차례로 세우고, 바로 앞 한 행부터 바로 뒤 한 행까지를 창 틀로 잡아요.",
+          "ROUND(AVG(price) OVER 다음 「(ORDER BY price, item_id」, ROWS BETWEEN 1 PRECEDING, AND 1 FOLLOWING 카드예요.",
         ],
-        explain: "여름이 42, 해랑 30, 초롱 34 … 은호 38.3이에요. 1 PRECEDING이면 두 행 평균, 2 FOLLOWING이면 뒤 두 손님까지 넣은 평균이에요.",
+        explain: "방망이 손잡이 165, 작은 방망이 203.3, 은방망이 260, 도깨비방망이 333.3, 금방망이 360이에요. 맨 앞·맨 뒤는 두 행 평균이에요. CURRENT ROW에서 끝내면 뒤 물건이 빠진 앞쪽 평균이에요.",
       },
       {
         type: "check", concept: "running",
@@ -706,7 +708,7 @@ export const LESSONS = [
           "LAG·LEAD는 가져올 행이 없으면 오류를 낸다",
         ],
         answer: 0,
-        explain: "분석 도깨비 두 걸음째 끝! 실무에서는 이 창 함수들로 쇼핑몰의 주문 표에서 고객별 누적 구매액(멤버십 등급), 지난 주문 대비 변화, 일별 매출의 7일 이동 평균을 봐요.",
+        explain: "분석 도깨비 두 걸음째 끝! 실무에서는 이 창 함수들로 쇼핑몰의 주문 표에서 고객별 누적 구매액(멤버십 등급), 지난 주문 대비 변화, 일별 매출의 7일 이동 평균을 봐요(행을 세니 주문 없는 날도 0원 행으로 채워 둬요).",
       },
     ],
   },
