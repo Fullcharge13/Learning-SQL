@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { startFlow, current, nextCard, answer } from "../../src/lessonflow.js";
-import { newSession, touchResult, writePass, writeWrong, writeHint, logSubmit, finishInfo } from "../../src/session.js";
+import { newSession, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../../src/session.js";
 import { RESUME_KEY, RESUME_MAX_MS, packResume, readResume, writeResume, clearResume, restoreSession, hasProgress } from "../../src/resume.js";
 import { finishLesson } from "../../src/finish.js";
 import { newSave } from "../../src/save.js";
@@ -12,23 +12,23 @@ function memStore() {
 }
 const T0 = Date.UTC(2026, 10, 1, 3, 0);
 
-// 카드 2장, choice 3개, write 1개, check 1개
+// 카드 2장, choice 3개, build 1개, check 1개
 function lesson(id = "1-2") {
   const ch = (n, c) => ({ type: "choice", id: n, concept: c, options: ["a", "b"], answer: 0 });
   return {
     id, chapter: 1, cards: [{ say: "1" }, { say: "2" }],
     items: [ch(1, "print"), ch(2, "string"), ch(3, "print"),
-      { type: "write", concept: "string", tests: [] },
+      { type: "build", concept: "string", cards: ["SELECT", "1"], extra: [], tables: [], hints: ["a", "b"] },
       { type: "check", concept: "print", options: ["a", "b"], answer: 0 }],
   };
 }
 
-// 화면 대신 같은 순수 함수로 끝까지 푼다. script: 문제 번호 → 답 차례(터치: true/false 목록, write: 동작 목록)
+// 화면 대신 같은 순수 함수로 끝까지 푼다. script: 문제 번호 → 답 차례(터치: true/false 목록, build: 동작 목록)
 // interruptAt: 이 걸음 뒤에 저장 → JSON → 다시 읽어 이어 감(null이면 끊지 않음)
 function play(L, interruptAt = null) {
   const store = memStore();
   let S = newSession(L);
-  let W = null;                // 지금 write 문제의 화면 상태(힌트·제출 수 등)
+  let W = null;                // 지금 조립 문제의 화면 상태(힌트·제출 수 등)
   const touch = { 0: [false, true], 1: [true], 2: [false, false, true], 4: [false, true] };
   const writeScript = ["hint", "wrong", "pass"];
   let wpos = 0;
@@ -38,7 +38,7 @@ function play(L, interruptAt = null) {
     steps++;
     if (steps !== interruptAt) return;
     const cur = current(S.flow, L);
-    const item = cur.kind === "item" && cur.item.type === "write" && W ? { index: cur.index, code: "print(1)", ...W } : null;
+    const item = cur.kind === "item" && cur.item.type === "build" && W ? { index: cur.index, line: [1, 0], ...W } : null;
     assert.ok(writeResume(store, packResume({ lessonId: L.id, S, item, now: T0 })));
     const rec = readResume(store, { now: T0 + 60_000, exists: (id) => id === L.id });
     assert.ok(rec, "다시 읽힘");
@@ -51,14 +51,14 @@ function play(L, interruptAt = null) {
     const cur = current(S.flow, L);
     if (cur.kind === "done") break;
     if (cur.kind === "card") { S.flow = nextCard(S.flow); maybeInterrupt(); continue; }
-    if (cur.item.type === "write") {
+    if (cur.item.type === "build") {
       W = W || { hintsShown: 0, solutionSeen: false, submits: 0, hadError: false };
       const act = writeScript[wpos++];
-      if (act === "hint") { W.hintsShown++; writeHint(S, cur); }
-      else if (act === "wrong") { W.submits++; W.hadError = true; logSubmit(S, L.id, cur.index, false, "t"); writeWrong(S, cur); }
+      if (act === "hint") { W.hintsShown++; buildHint(S, cur); }
+      else if (act === "wrong") { W.submits++; W.hadError = true; logSubmit(S, L.id, cur.index, false, "t"); buildWrong(S, cur); }
       else {
         W.submits++; logSubmit(S, L.id, cur.index, true, "t");
-        const r = writePass(S, cur, { solutionSeen: W.solutionSeen, hintUsed: W.hintsShown > 0, hadError: W.hadError, firstSubmit: W.submits === 1 });
+        const r = buildPass(S, cur, { solutionSeen: W.solutionSeen, hintUsed: W.hintsShown > 0, hadError: W.hadError, firstSubmit: W.submits === 1 });
         S.flow = answer(S.flow, r.flowCorrect); W = null;
       }
       maybeInterrupt();
@@ -86,8 +86,8 @@ test("resume: 어느 걸음에서 끊고 이어도 보상·저장이 끊지 않�
   }
 });
 
-test("resume: write 문제 중간(힌트·틀린 제출 뒤)에 끊어도 정답 처리와 표시가 같음", () => {
-  // 걸음 6·7이 write의 hint·wrong 뒤 (카드 2 + 첫 터치 3 = 5, 재도전은 write 뒤로 감)
+test("resume: 조립 문제 중간(힌트·틀린 제출 뒤)에 끊어도 정답 처리와 표시가 같음", () => {
+  // 걸음 6·7이 build의 hint·wrong 뒤 (카드 2 + 첫 터치 3 = 5, 재도전은 build 뒤로 감)
   const L = lesson();
   const whole = play(L);
   for (const k of [6, 7]) assert.deepEqual(play(L, k).result, whole.result);
@@ -146,15 +146,16 @@ test("resume: 진행이 있어야 저장할 가치가 있음", () => {
   assert.equal(hasProgress(nextCard(S.flow)), true);
 });
 
-test("resume: 기록 모양 — 칸 이름·초안·저장 시각", () => {
+test("resume: 기록 모양 — 칸 이름·놓은 카드·저장 시각", () => {
   const L = lesson();
   const S = newSession(L); S.flow = nextCard(S.flow);
-  const rec = packResume({ lessonId: L.id, S, item: { index: 3, code: "print(2)", hintsShown: 1, solutionSeen: false, submits: 0, hadError: false }, now: T0 });
+  const rec = packResume({ lessonId: L.id, S, item: { index: 3, line: [2, 0, -1, 1.5, "x", 4], hintsShown: 1, solutionSeen: false, submits: 0, hadError: false }, now: T0 });
   assert.equal(RESUME_KEY, "dueogi-sql-resume");
   assert.equal(rec.lessonId, "1-2");
   assert.equal(rec.mode, "lesson");
   assert.equal(rec.savedAt, T0);
-  assert.equal(rec.item.code, "print(2)");
+  assert.deepEqual(rec.item.line, [2, 0, 4], "카드 id(0 이상 정수)만 남김");
+  assert.equal(rec.item.code, undefined);
   assert.equal(rec.flow._lesson, undefined);   // 레슨 내용은 넣지 않음
   JSON.stringify(rec);
 });

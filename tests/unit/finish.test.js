@@ -8,7 +8,7 @@ const L11 = { id: "1-1", chapter: 1 };
 const at = (h = 10) => new Date(2026, 9, 29, h, 0);
 const base = (over = {}) => ({
   lesson: L11, mode: "lesson", perfect: true, accuracy: 1, marks: [["print", "right"]],
-  write: { passed: true, hintUsed: false, solutionSeen: false, fixedError: false },
+  build: { passed: true, hintUsed: false, solutionSeen: false, fixedError: false },
   itemsSolved: 7, reviewCorrect: 0, logs: [{ lesson: "1-1", item: 5, pass: true, at: "x" }],
   nextLessonId: "1-2", nextChapter: 1, ...over,
 });
@@ -51,7 +51,7 @@ test("finish_replay: 다시 하기 보상은 rules.js 그대로, 기록 유지",
 test("finish_not_perfect_hint: 실수·힌트 → 보너스 없음, 개념 표시", () => {
   const { save, result } = finishLesson(newSave(), base({
     perfect: false, marks: [["print", "wrong"], ["print", "hint"]],
-    write: { passed: true, hintUsed: true, solutionSeen: false, fixedError: true },
+    build: { passed: true, hintUsed: true, solutionSeen: false, fixedError: true },
   }), at());
   const r = lessonReward({ firstTime: true, perfect: false, hintFreeWrite: false, isExam: false });
   assert.equal(result.xp, r.xp);
@@ -71,7 +71,7 @@ test("finish_review: 복습 → reviewReward, 복습 통계, 완료 목록은 �
   const s0 = { ...newSave(), review_queue: ["print"], weak_concepts: { print: 2 } };
   const { save, result } = finishLesson(s0, base({
     lesson: { id: "review" }, mode: "review", marks: [["print", "right"]],
-    write: null, reviewCorrect: 5, itemsSolved: 5, logs: [],
+    build: null, reviewCorrect: 5, itemsSolved: 5, logs: [],
   }), at());
   assert.equal(result.xp, reviewReward().xp);
   assert.equal(result.lessonBytes, reviewReward().yeopjeon);
@@ -92,7 +92,7 @@ import { applyGoalChange } from "../../src/finish.js";
 
 test("finish_fixed_needs_no_solution: 정답을 보고 통과하면 오류 해결로 치지 않음", () => {
   const { save } = finishLesson(newSave(), base({
-    write: { passed: true, hintUsed: true, solutionSeen: true, fixedError: true },
+    build: { passed: true, hintUsed: true, solutionSeen: true, fixedError: true },
   }), at());
   assert.equal(save.stats.fixed, 0);
   assert.ok(!save.quests.progress.q_fixerr);

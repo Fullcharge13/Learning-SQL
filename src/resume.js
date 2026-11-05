@@ -1,7 +1,7 @@
 // 하던 레슨 이어 하기 (v0.6.2 다, 판정 C44)
 // 본 저장(dueogi-sql-save)과 따로 localStorage 한 칸(RESUME_KEY)에 둔다. 모든 읽기·쓰기는 try/catch.
-// 기록: { v, lessonId, mode: "lesson", flow(레슨 내용 뺀 진행 상태), combo, marks, logs, marked, write,
-//        reviewCorrect, itemsSolved, item: 지금 write 문제 { index, code(초안), hintsShown, solutionSeen,
+// 기록: { v, lessonId, mode: "lesson", flow(레슨 내용 뺀 진행 상태), combo, marks, logs, marked, build,
+//        reviewCorrect, itemsSolved, item: 지금 조립 문제 { index, line(놓은 카드 id 차례), hintsShown, solutionSeen,
 //        submits, hadError } | null, savedAt(ms) }
 // 레슨을 끝냄·「처음부터」·「그만두기」·24시간 지남·없는 레슨이면 지운다.
 // 터치 문제 보기 순서는 이어 할 때 다시 섞여도 된다. 문제 차례와 결과는 그대로.
@@ -9,10 +9,10 @@
 export const RESUME_KEY = "dueogi-sql-resume";
 export const RESUME_MAX_MS = 24 * 60 * 60 * 1000;
 const VER = 1;
-const FLOW_KEYS = ["cards", "cardPos", "main", "mainPos", "check", "checkPos", "attempts", "firstTry", "solved", "gaveUp", "perfect", "answered", "phase", "_items"];
-const S_KEYS = ["combo", "marks", "logs", "marked", "write", "reviewCorrect", "itemsSolved"];
+const FLOW_KEYS = ["cards", "cardPos", "main", "mainPos", "check", "checkPos", "attempts", "firstTry", "solved", "gaveUp", "skipped", "perfect", "answered", "phase", "_items"];
+const S_KEYS = ["combo", "marks", "logs", "marked", "build", "reviewCorrect", "itemsSolved"];
 
-const clone = (v) => JSON.parse(JSON.stringify(v));
+const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 
 /** 카드를 하나라도 넘겼거나 문제를 하나라도 풀었나 */
 export function hasProgress(flow) {
@@ -26,7 +26,7 @@ export function packResume({ lessonId, S, item = null, now = Date.now() }) {
   for (const k of S_KEYS) rec[k] = clone(S[k] === undefined ? null : S[k]);
   if (item && Number.isInteger(item.index)) {
     rec.item = {
-      index: item.index, code: String(item.code ?? ""),
+      index: item.index, line: Array.isArray(item.line) ? item.line.filter(isInt) : [],
       hintsShown: Math.max(0, item.hintsShown | 0), solutionSeen: !!item.solutionSeen,
       submits: Math.max(0, item.submits | 0), hadError: !!item.hadError,
     };
@@ -52,10 +52,11 @@ function wellFormed(r) {
   if (!isObj(f) || !isInt(f.cards) || !isInt(f.cardPos) || !isInt(f.mainPos) || !isInt(f.checkPos) || !isInt(f.answered)) return false;
   if (!Array.isArray(f.main) || !Array.isArray(f.check) || !Array.isArray(f._items) || !Array.isArray(f.gaveUp)) return false;
   if (!isObj(f.attempts) || !isObj(f.firstTry) || !isObj(f.solved) || typeof f.perfect !== "boolean") return false;
+  if (f.skipped !== undefined && !(Array.isArray(f.skipped) && f.skipped.every(isInt))) return false;
   if (!Array.isArray(r.marks) || !Array.isArray(r.logs) || !isObj(r.marked)) return false;
   if (!isInt(r.combo) || !isInt(r.reviewCorrect) || !isInt(r.itemsSolved)) return false;
-  if (r.write !== null && !isObj(r.write)) return false;
-  if (r.item !== null && !(isObj(r.item) && isInt(r.item.index) && typeof r.item.code === "string")) return false;
+  if (r.build !== null && !isObj(r.build)) return false;
+  if (r.item !== null && !(isObj(r.item) && isInt(r.item.index) && Array.isArray(r.item.line) && r.item.line.every(isInt))) return false;
   return true;
 }
 

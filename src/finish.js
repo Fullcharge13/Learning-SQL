@@ -12,7 +12,7 @@ const num = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0
 /**
  * @param save  현재 저장(바꾸지 않음)
  * @param info  { lesson, mode: "lesson"|"review", perfect, accuracy, marks: [concept, outcome][],
- *               write: { passed, hintUsed, solutionSeen, fixedError } | null,
+ *               build: { passed, hintUsed, solutionSeen, fixedError } | null  (조립 문제 기록),
  *               itemsSolved, reviewCorrect, logs, nextLessonId, nextChapter,
  *               advancedIds: 지금 과정의 심화 id 전부(배지 「깊이 파는 사람」) }
  * @param now   Date
@@ -28,7 +28,7 @@ export function finishLesson(save, info, now = new Date()) {
     if (concept) s = markConcept(s, concept, outcome);
   }
 
-  const w = info.write || null;
+  const w = info.build || null;
   const firstTime = !isReview && !s.completed_lessons.includes(lesson.id);
   const hintFreeWrite = !isReview && !!(w && w.passed && !w.hintUsed && !w.solutionSeen);
   const fixedError = !isReview && !!(w && w.passed && w.fixedError && !w.solutionSeen);

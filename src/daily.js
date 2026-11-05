@@ -1,12 +1,12 @@
 // 매일 도전 (v0.9 작업 2, 설계 docs/specs/2026-10-31-심화학습-설계.md §2, 판정 C53·C54). 순수 함수만.
 //
 // - 열림: 1장 본 과정 레슨을 모두 끝낸 뒤.
-// - 하루 3문제: 터치 2(본 과정을 다 끝낸 장의 「틀」 TEMPLATES에서, 씨앗 0~99) + 직접 작성 1(끝낸 본 과정 레슨의
-//   write 문제 그대로, C53). 복습 목록(review_queue) 개념이 든 장·레슨은 3배 자주.
+// - 하루 3문제: 터치 2(본 과정을 다 끝낸 장의 「틀」 TEMPLATES에서, 씨앗 0~99) + 카드 조립 1(끝낸 본 과정 레슨의
+//   build 문제 그대로, C53). (작업 11에서 틀을 SQL로 바꾼다) 복습 목록(review_queue) 개념이 든 장·레슨은 3배 자주.
 // - 같은 날·같은 학습 기록 → 같은 3문제(날짜 + 끝낸 레슨 목록으로 정하는 난수). 고른 문제는 저장 daily에 고정해
 //   그날 레슨을 더 끝내도 바뀌지 않는다.
 // - 저장 칸 daily = { date, picks, done, streak, best, last_done_date } (saveVer 2 그대로, 없으면 newDaily()).
-//   picks: [{ kind: "tpl", id: "1-T2", chapter: 1, seed }, …, { kind: "write", lesson: "2-3", chapter: 2 }]
+//   picks: [{ kind: "tpl", id: "1-T2", chapter: 1, seed }, …, { kind: "build", lesson: "2-3", chapter: 2 }]
 //   done: 푼 문제 번호(picks의 자리). 문제마다 바로 기록 → 그날 안에는 남은 문제부터 이어서.
 // - 보상(3문제 끝): XP 15(하루 목표·연속 기록·이정표·XP 퀘스트에 그대로) · 바이트 10. 도전 연속(따로 셈)이
 //   7의 배수인 날 +20바이트. 레슨 퀘스트·진도·레슨 수에는 세지 않는다.
@@ -41,7 +41,7 @@ const LESSON_ID = /^[1-9]\d*-[1-9]\d*$/;
 function goodPick(p) {
   if (!isObj(p) || !Number.isInteger(p.chapter) || p.chapter < 1) return false;
   if (p.kind === "tpl") return typeof p.id === "string" && TPL_ID.test(p.id) && Number.isInteger(p.seed) && p.seed >= 0 && p.seed < TEMPLATE_SEEDS;
-  if (p.kind === "write") return typeof p.lesson === "string" && LESSON_ID.test(p.lesson);
+  if (p.kind === "build") return typeof p.lesson === "string" && LESSON_ID.test(p.lesson);
   return false;
 }
 
@@ -52,7 +52,7 @@ export function cleanDaily(raw) {
   d.date = isDate(raw.date) ? raw.date : null;
   const picks = Array.isArray(raw.picks) ? raw.picks : [];
   d.picks = picks.length >= 1 && picks.length <= 3 && picks.every(goodPick)
-    ? picks.map((p) => (p.kind === "tpl" ? { kind: "tpl", id: p.id, chapter: p.chapter, seed: p.seed } : { kind: "write", lesson: p.lesson, chapter: p.chapter }))
+    ? picks.map((p) => (p.kind === "tpl" ? { kind: "tpl", id: p.id, chapter: p.chapter, seed: p.seed } : { kind: "build", lesson: p.lesson, chapter: p.chapter }))
     : [];
   const done = Array.isArray(raw.done) ? raw.done : [];
   d.done = [...new Set(done.filter((i) => Number.isInteger(i) && i >= 0 && i < Math.max(d.picks.length, 3)))].sort((a, b) => a - b);
@@ -100,12 +100,12 @@ export function pickDaily(index, save, today) {
     picks.push({ kind: "tpl", id, chapter: e.c.id, seed: Math.floor(rng() * TEMPLATE_SEEDS) });
     chapters = chapters.filter((x) => x.left.length);
   }
-  // 직접 작성: 끝낸 본 과정 레슨(C53), 복습 개념이 든 레슨은 3배
+  // 카드 조립: 끝낸 본 과정 레슨(C53), 복습 개념이 든 레슨은 3배
   const lessons = (index || []).flatMap((c) => (c.lessons || []).filter((l) => doneSet.has(l.id))
     .map((l) => ({ l, c, w: hasWeak(l) ? WEAK_WEIGHT : 1 })));
   if (lessons.length) {
     const e = weightedPick(rng, lessons);
-    picks.push({ kind: "write", lesson: e.l.id, chapter: e.c.id });
+    picks.push({ kind: "build", lesson: e.l.id, chapter: e.c.id });
   }
   return picks;
 }
@@ -143,11 +143,11 @@ export function dailyStatus(save, today, index) {
   return { state, done: state === "done" ? total : Math.min(done, total), total, streak };
 }
 
-/** 레슨 흐름(lessonflow)에서 끝난 문제 번호: 맞힘·세 번 틀림·직접 작성은 제출해 넘어감 */
+/** 레슨 흐름(lessonflow)에서 끝난 문제 번호: 맞힘·세 번 틀림·카드 조립은 제출해 넘어감 */
 export function finishedItems(flow) {
   const out = [];
   (flow._items || []).forEach((t, i) => {
-    if ((flow.solved || {})[i] || (flow.gaveUp || []).includes(i) || (t === "write" && ((flow.attempts || {})[i] || 0) >= 1)) out.push(i);
+    if ((flow.solved || {})[i] || (flow.gaveUp || []).includes(i) || (t === "build" && ((flow.attempts || {})[i] || 0) >= 1)) out.push(i);
   });
   return out;
 }

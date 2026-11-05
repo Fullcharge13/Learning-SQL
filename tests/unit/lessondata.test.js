@@ -13,7 +13,7 @@ const mod = (n, k = 2) => ({
     cards: [{ say: `카드 ${n}-${i + 1}`, code: "print(1)", out: "1" }],
     items: [
       { type: "choice", concept: `c${n}a`, q: `문제 ${n}-${i + 1}`, options: ["a", "b"], answer: 0 },
-      { type: "write", concept: `c${n}b`, task: `작성 ${n}-${i + 1}`, tests: [] },
+      { type: "build", concept: `c${n}b`, q: `조립 ${n}-${i + 1}`, cards: ["SELECT", "1"], extra: [], tables: [], hints: ["a", "b"] },
       { type: "check", concept: `c${n}a`, q: "확인", options: ["a", "b"], answer: 1 },
     ],
   })),
@@ -116,7 +116,7 @@ test("dev_mode: 장 파일 표가 없으면 불러온 모듈을 그대로 씀(�
   assert.deepEqual(d.index.map((c) => c.id), [1, 2]);
   assert.deepEqual(d.fileList(), []);
   const l = await d.getLesson("2-1");
-  assert.equal(l.items[1].task, "작성 2-1");
+  assert.equal(l.items[1].q, "조립 2-1");
   assert.equal(f.calls.length, 0);
 });
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { startFlow, current, nextCard, answer, summary, MAX_ATTEMPTS } from "../../src/lessonflow.js";
+import { startFlow, current, nextCard, answer, skip, summary, MAX_ATTEMPTS } from "../../src/lessonflow.js";
 
 // 개념 카드 1장, 터치 문제 5개(번호 1~5), 이해도 확인 1문
 function lesson() {
@@ -99,9 +99,9 @@ test("flow_check_wrong: 확인 문제를 틀리면 확인 문제를 다시", () 
   assert.equal(summary(s).perfect, false);
 });
 
-test("flow_write_not_requeued: 직접 작성 문제는 다시 넣지 않지만 perfect는 false", () => {
+test("flow_build_not_requeued: 카드 조립 문제는 다시 넣지 않지만 perfect는 false", () => {
   const l = lesson();
-  l.items.splice(5, 0, { type: "write", id: "w", concept: "print" });
+  l.items.splice(5, 0, { type: "build", id: "w", concept: "print" });
   let s = nextCard(startFlow(l));
   const seq = [];
   while (current(s).kind !== "done") {
@@ -138,4 +138,25 @@ test("flow_no_cards_no_check: 복습처럼 카드·확인 문제 없는 묶음",
   assert.equal(current(s).retry, true);
   s = answer(s, true);
   assert.equal(current(s).kind, "done");
+});
+
+test("flow_skip_unknown: 모르는 종류는 건너뛰되 정답으로 치지 않음(맞힘·정답률·perfect 그대로)", () => {
+  const l = lesson();
+  l.items.splice(2, 0, { type: "mystery", id: "m", concept: "print" });
+  let s = nextCard(startFlow(l));
+  const seq = [];
+  while (current(s).kind !== "done") {
+    const it = current(s).item;
+    seq.push(String(it.id));
+    s = it.type === "mystery" ? skip(s) : answer(s, true);
+  }
+  assert.deepEqual(seq, ["1", "2", "m", "3", "4", "5", "check"]);
+  const sum = summary(s);
+  assert.equal(s.solved[2], undefined);
+  assert.equal(s.firstTry[2], undefined);
+  assert.equal(s.answered, 7, "넘긴 것도 진행 걸음(이어 하기 판단)");
+  assert.equal(sum.perfect, true);
+  assert.equal(sum.total, 6, "건너뛴 문제는 정답률 분모에서 빠짐");
+  assert.equal(sum.accuracy, 1);
+  assert.equal(sum.progress, 1);
 });

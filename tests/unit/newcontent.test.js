@@ -88,7 +88,7 @@ test("save: 저장했다 불러도 그대로", () => {
 // ── 끝낼 때 기록 (다시 하기·처음·이어 하기 모두 finishLesson을 지난다) ─────────
 const at = new Date(2026, 10, 1, 10, 0);
 const info = (lesson, over = {}) => ({
-  lesson, mode: "lesson", perfect: false, accuracy: 1, marks: [], write: null,
+  lesson, mode: "lesson", perfect: false, accuracy: 1, marks: [], build: null,
   itemsSolved: 3, reviewCorrect: 0, logs: [], nextLessonId: null, nextChapter: null, ...over,
 });
 

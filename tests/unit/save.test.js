@@ -365,7 +365,7 @@ test("migrate v0.9: 깨진 daily 값은 고침, 맞는 값은 그대로", () => 
   assert.deepEqual(bad.daily, { date: null, picks: [], done: [1], streak: 7, best: 7, last_done_date: null });
   assert.deepEqual(migrate({ ...LEDGER_SHAPE, daily: [] }).daily, LEDGER_SHAPE.daily);
   const good = { date: "2026-11-05", picks: [{ kind: "tpl", id: "2-T1", chapter: 2, seed: 99 }, { kind: "tpl", id: "1-T3", chapter: 1, seed: 0 },
-    { kind: "write", lesson: "1-2", chapter: 1 }], done: [0, 2], streak: 6, best: 10, last_done_date: "2026-11-04" };
+    { kind: "build", lesson: "1-2", chapter: 1 }], done: [0, 2], streak: 6, best: 10, last_done_date: "2026-11-04" };
   assert.deepEqual(migrate({ ...LEDGER_SHAPE, daily: good }).daily, good);
   // 저장 → 읽기 왕복
   const st = fakeStorage();

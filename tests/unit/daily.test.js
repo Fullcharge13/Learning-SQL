@@ -35,14 +35,14 @@ test("열림: 1장 본 과정 5레슨을 모두 끝내야", () => {
   assert.equal(dailyOpen([], ids(1)), false);
 });
 
-test("pickDaily: 터치 틀 2개(서로 다름) + 직접 작성 1개, 씨앗은 0~99", () => {
+test("pickDaily: 터치 틀 2개(서로 다름) + 조립 1개, 씨앗은 0~99", () => {
   const s = save({ completed_lessons: [...ids(1), ...ids(2)] });
   const p = pickDaily(INDEX, s, "2026-11-05");
   assert.equal(p.length, 3);
   assert.equal(p[0].kind, "tpl");
   assert.equal(p[1].kind, "tpl");
   assert.notEqual(p[0].id, p[1].id);
-  assert.equal(p[2].kind, "write");
+  assert.equal(p[2].kind, "build");
   for (const x of p.slice(0, 2)) assert.ok(Number.isInteger(x.seed) && x.seed >= 0 && x.seed < TEMPLATE_SEEDS);
   assert.ok(s.completed_lessons.includes(p[2].lesson));
 });
@@ -79,7 +79,7 @@ test("pickDaily: 틀이 하나뿐이면 같은 틀을 두 번 쓰지 않음 → 
   const one = [ch(1, [["print"], ["string"], ["arith"], ["comment"], ["print"]], 1)];
   const p = pickDaily(one, save({ completed_lessons: ids(1) }), "2026-11-05");
   assert.equal(p.length, 2);
-  assert.deepEqual(p.map((x) => x.kind), ["tpl", "write"]);
+  assert.deepEqual(p.map((x) => x.kind), ["tpl", "build"]);
 });
 
 test("pickDaily 가중: 복습 개념이 든 장의 틀이 약 3배 더 자주", () => {
@@ -128,10 +128,10 @@ test("ensureDaily: 오늘 문제가 지금 내용에 없는 틀·레슨을 가�
   assert.equal(ensureDaily(doneBad, "2026-11-05", INDEX), doneBad);
 });
 
-test("finishedItems: 맞힘·세 번 틀림·직접 작성 제출 끝", () => {
-  const flow = { _items: ["choice", "blank", "write"], solved: { 0: true }, gaveUp: [1], attempts: { 0: 1, 1: 3, 2: 1 } };
+test("finishedItems: 맞힘·세 번 틀림·조립 제출 끝", () => {
+  const flow = { _items: ["choice", "blank", "build"], solved: { 0: true }, gaveUp: [1], attempts: { 0: 1, 1: 3, 2: 1 } };
   assert.deepEqual(finishedItems(flow), [0, 1, 2]);
-  assert.deepEqual(finishedItems({ _items: ["choice", "write"], solved: {}, gaveUp: [], attempts: { 0: 1 } }), []);
+  assert.deepEqual(finishedItems({ _items: ["choice", "build"], solved: {}, gaveUp: [], attempts: { 0: 1 } }), []);
 });
 
 test("recordDaily: 푼 문제 번호를 합치고(중복 없음), 개념 점수를 바로 반영", () => {
@@ -249,6 +249,6 @@ test("cleanDaily: 깨진 값은 기본값으로(저장 옮기기)", () => {
   assert.equal(c.best, 2);
   assert.equal(c.last_done_date, null);
   const good = { date: "2026-11-05", picks: [{ kind: "tpl", id: "1-T1", chapter: 1, seed: 5 }, { kind: "tpl", id: "1-T2", chapter: 1, seed: 0 },
-    { kind: "write", lesson: "1-3", chapter: 1 }], done: [1], streak: 3, best: 9, last_done_date: "2026-11-04" };
+    { kind: "build", lesson: "1-3", chapter: 1 }], done: [1], streak: 3, best: 9, last_done_date: "2026-11-04" };
   assert.deepEqual(cleanDaily(good), good);
 });

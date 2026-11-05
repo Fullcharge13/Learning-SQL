@@ -22,7 +22,7 @@ const lesson = (id, n, extra = {}) => ({
   cards: [{ say: `카드 ${id}`, code: "print(1)", out: "1" }],
   items: [
     { type: "choice", concept: `c${n}`, q: `문제 ${id}`, options: ["a", "b"], answer: 0 },
-    { type: "write", concept: `w${id}`, task: `작성 ${id}`, tests: [] },
+    { type: "build", concept: `w${id}`, q: `조립 ${id}`, cards: ["SELECT", "1"], extra: [], tables: [], hints: ["a", "b"] },
     { type: "check", concept: `c${n}`, q: "확인", options: ["a", "b"], answer: 1 },
   ],
   ...extra,
@@ -167,7 +167,7 @@ const saveAfter = (done) => {
   return { ...s, completed_lessons: done, current_lesson: "2-1", current_chapter: 2 };
 };
 const info = (l, over = {}) => ({
-  lesson: l, mode: "lesson", perfect: false, accuracy: 0.8, marks: [], write: { passed: true, hintUsed: true, solutionSeen: false, fixedError: false },
+  lesson: l, mode: "lesson", perfect: false, accuracy: 0.8, marks: [], build: { passed: true, hintUsed: true, solutionSeen: false, fixedError: false },
   itemsSolved: 3, reviewCorrect: 0, logs: [], nextLessonId: "2-1", nextChapter: 2, advancedIds: advancedIds(IDX), ...over,
 });
 
@@ -252,7 +252,7 @@ test("adv_review_pool: 복습 문제는 본 과정 + 끝낸 심화에서만, che
   const pool = reviewPool(chs, ["c1", "w1-A1"], ["1-A1"]);
   const from = [...new Set(pool.map((p) => p.from))].sort();
   assert.deepEqual(from, ["1-1", "1-2", "1-3", "1-4", "1-5", "1-A1"], "1-A2·1-A3(안 끝냄) 빠짐");
-  assert.ok(pool.every((p) => p.type !== "check" && p.type !== "write"));
+  assert.ok(pool.every((p) => p.type !== "check" && p.type !== "build"));
   assert.ok(pool.some((p) => p.from === "1-A1" && p.concept === "c1"));
 });
 
