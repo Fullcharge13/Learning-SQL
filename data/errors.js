@@ -69,6 +69,12 @@ export const ERRORS = {
     body: "음, 값 하나와 비교할 자리에 여러 값이 묶여 들어왔어. 괄호 안 SELECT가 열 하나만 돌려주는지 볼까?",
     detective: "값 하나와 맞대야 할 자리에 여러 값이 한 묶음으로 들어왔어요. 괄호 안 SELECT의 열이 하나인지 확인해 봐요.",
   },
+  // UNION·UNION ALL 양쪽 SELECT의 열 개수가 다름: 「SELECTs to the left and right of UNION do not have the same number of result columns」
+  "UNION columns": {
+    match: /^SELECTs to the left and right of UNION/,
+    body: "어라, UNION 위아래 SELECT가 고른 열의 개수가 달라. 행을 아래로 쌓으려면 양쪽 열 개수가 같아야 해. 두 SELECT 뒤의 열을 하나씩 세어 볼까?",
+    detective: "UNION 위아래 증거의 열 개수가 맞지 않아요. 행을 쌓으려면 양쪽 SELECT의 열이 같은 수여야 해요. 열을 하나씩 대조해 봐요.",
+  },
   "syntax error": {
     match: /^near "(.*)": syntax error/,
     body: "이거 봐요, '{name}' 근처에서 문장이 막혔어. 카드 순서가 맞는지, 빠진 카드는 없는지 앞뒤를 살펴볼까?",

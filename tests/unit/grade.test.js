@@ -114,6 +114,7 @@ test("explain: every listed error has both voices and a name when it has one", (
     ["wrong number of arguments to function SUBSTR()", "SUBSTR"],
     ["1st ORDER BY term out of range - should be between 1 and 1", null],
     ["sub-select returns 2 columns - expected 1", null],
+    ["SELECTs to the left and right of UNION do not have the same number of result columns", null],
     ["read-only", null], ["timeout", null], ["worker", null], ["load", null],
   ];
   for (const [msg, name] of samples) {
@@ -144,6 +145,9 @@ const SPECIFIC = [
   ["sub-select returns 2 columns - expected 1", "sub-select columns"],
   ["1st GROUP BY term out of range - should be between 1 and 1", "GROUP BY term"],
   ["misuse of aggregate function SUM()", "misuse of aggregate"],
+  // 13장 UNION 양쪽 열 개수가 다름(작업 14d에서 sql.js 1.15.2로 뽑음)
+  ["SELECTs to the left and right of UNION do not have the same number of result columns", "UNION columns"],
+  ["SELECTs to the left and right of UNION ALL do not have the same number of result columns", "UNION columns"],
 ];
 
 test("explain: 실제 SQLite 오류 문장이 자기 설명으로 감 (대체 문장 아님)", () => {
