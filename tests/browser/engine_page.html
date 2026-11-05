@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>engine test page</title>
+</head>
+<body>
+<p id="status">loading</p>
+<script type="module">
+  // 시험용 페이지: tests/engine_browser.py가 저장소 뿌리에서 띄운 로컬 서버로 연다.
+  // wasm·sql-wasm.js는 node_modules/sql.js/dist/, 장터 데이터는 data/market.sql에서 받는다.
+  window.pageErrors = [];
+  try {
+    const { SqlRun } = await import("../../src/sqlrun.js");
+    const marketSql = await (await fetch("/data/market.sql")).text();
+    const runner = new SqlRun({
+      wasmURL: "/node_modules/sql.js/dist/sql-wasm.wasm",
+      workerURL: new URL("../../src/worker.js", import.meta.url),
+      marketSql,
+      timeoutMs: 1000,
+    });
+    runner.onstatus = (s, phase) => { document.getElementById("status").textContent = s + " (" + phase + ")"; };
+    window.runner = runner;
+    window.readyPromise = runner.ready.then(() => "ready", (e) => { window.pageErrors.push(String(e)); return "error"; });
+  } catch (e) {
+    window.pageErrors.push(String((e && e.message) || e));
+    window.readyPromise = Promise.resolve("error");
+  }
+</script>
+</body>
+</html>
