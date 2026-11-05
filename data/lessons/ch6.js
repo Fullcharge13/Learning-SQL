@@ -14,15 +14,17 @@
 // - 엔진마다 다른 것(판정 R36): 빈칸의 줄 세우기 자리(SQLite·MySQL은 ASC에서 맨 위, PostgreSQL은 맨 아래)와 IFNULL
 //   (PostgreSQL에는 없음)은 「이 장터에서는」을 붙인다. = NULL이 0행인 것, 빈칸과의 셈이 NULL인 것, COALESCE는 붙이지 않는다.
 // - COALESCE의 둘째 값은 열과 같은 종류(숫자)만 쓴다. COALESCE(age, '모름')처럼 숫자와 글자를 섞으면 PostgreSQL은 오류다.
-// - 조립 카드 수(카드 하나에 낱말·기호 하나, 더미 12장 이하): SELECT * FROM 표 WHERE 가 5장, 열 IS NULL이 3장이라
-//   조건을 AND·OR로 하나 더 이으면(비교 3장 + AND 1장) 정답이 12장이 되어 헷갈림 카드 2장을 둘 수 없다. 그래서 AND·OR는
-//   이 장에서도 터치 문제로만 쓴다(판정 R34 「더미가 허락하면」에 맞지 않음). COALESCE ( 열 , 0 )도 카드 6장이라
-//   SELECT name , COALESCE … FROM items 가 11장이 되어 넘친다. 그래서 COALESCE 조립은 SELECT COALESCE ( stock , 0 ) FROM items
-//   (9장)이고, 이 장터에서 열 이름은 쓴 식 그대로다(2-2와 같은 말).
-// - 헷갈림 카드: = 0 조립에 IS를 두지 않는다. SQLite는 stock IS 0을 stock = 0처럼 읽어 결과가 같아진다.
-// - IS NOT NULL 조립(6-2-b1, 6-5-b2)에는 need: ["IS"]를 둔다. SQLite는 IS를 뺀 stock NOT NULL도 같은 뜻으로 읽어
-//   drop-one에 걸린다. 그 모양은 가르치지 않으므로 과제 문장에 「IS NOT NULL로」를 적고 IS 카드를 꼭 쓰게 한다.
+// - 조립 카드(판정 R38): 6~13장은 1~3토큰 구절 카드를 쓸 수 있고 SELECT·FROM·WHERE는 한 장씩 둔다. 그래서
+//   IS NULL을 AND·OR로 잇는 조립이 더미 12장 안에 들어간다(6-1-b2·6-2-b1·6-3-b1·6-5-b2). 6-1-b1·6-2-b2·6-5-b1은
+//   IS·NULL을 낱장으로 놓아 모양을 연습한다. COALESCE(stock, 0)은 괄호까지 한 장, 별칭은 AS stock_or_zero 한 장.
+// - 헷갈림 구절은 정답과 닮고 결과가 다르게: stock <> NULL·stock = NULL(0행 또는 빈칸이 안 불림), OR ↔ AND,
+//   COALESCE(stock, 1)(빈칸이 1), kind = '여우'(0행). 연산자가 든 구절이라 표 이름 뒤에 끼워도 별칭이 되지 않는다(R33).
+// - 헷갈림 카드: = 0 조립에 IS를 두지 않는다. SQLite는 stock IS 0을 stock = 0처럼 읽어 결과가 같아진다. 대신
+//   COALESCE(stock, 0)을 두어 stock 자리에 놓으면 빈칸까지 4가지가 걸리는 것을 보인다(6-4-b2).
+// - IS·NOT·NULL을 낱장으로 둔 IS NOT NULL 조립은 SQLite가 IS 없는 stock NOT NULL도 받아 drop-one에 걸린다.
+//   그래서 IS NOT NULL은 늘 구절 카드 stock IS NOT NULL 한 장으로 쓴다.
 // - 6-3-b2(stock + 10 AS plus_ten)는 계산 열이라 별칭을 붙이고 need: ["AS"]를 둔다(쓰기 안내 7절).
+// - 빈칸의 줄 세우기 자리는 엔진마다 달라 조립 정답으로 쓰지 않고 터치 문제·틀(6-T4)로만 다룬다.
 export const CHAPTER = { id: 6, title: "빈칸 다루기" };
 
 export const LESSONS = [
@@ -141,15 +143,15 @@ export const LESSONS = [
       },
       {
         id: "6-1-b2", type: "build", concept: "isnull",
-        q: "재고를 모르는 물건을 보여 줘",
-        cards: ["SELECT", "*", "FROM", "items", "WHERE", "stock", "IS", "NULL"],
-        extra: ["=", "price", "customers"],
-        tables: ["items"],
+        q: "나이 모르는 손님 중 사람 손님만 보여 줘",
+        cards: ["SELECT", "*", "FROM", "customers", "WHERE", "age IS NULL", "AND", "kind = '사람'"],
+        extra: ["OR", "kind = '여우'"],
+        tables: ["customers"],
         hints: [
-          "물건 표에서 재고(stock) 칸이 비어 있는 행만 남겨요.",
-          "WHERE stock 다음에 IS와 NULL을 놓아요.",
+          "나이 칸이 빈 것, 종류가 사람인 것. 두 조건을 모두 맞는 손님만 남겨요.",
+          "WHERE 다음에 age IS NULL, AND, kind = '사람' 카드를 놓아요.",
         ],
-        explain: "메밀전·한지·장승, 재고 칸이 빈 물건 3가지예요. 2장부터 자꾸 보이던 그 빈칸들이죠!",
+        explain: "황소담·안여울·조은솔·표다솜, 4명이에요. IS NULL도 보통 조건처럼 AND로 묶여요. OR였다면 사람 손님 24명에 돌쇠까지 25명이에요.",
       },
       {
         type: "check", concept: "null",
@@ -270,16 +272,15 @@ export const LESSONS = [
       },
       {
         id: "6-2-b1", type: "build", concept: "isnull",
-        q: "재고를 아는 물건만 IS NOT NULL로 보여 줘",
-        cards: ["SELECT", "*", "FROM", "items", "WHERE", "stock", "IS", "NOT", "NULL"],
-        extra: ["=", "0"],
-        need: ["IS"],
+        q: "도깨비 국밥집(1번 가게) 물건 중 재고를 아는 것만 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "WHERE", "shop_id = 1", "AND", "stock IS NOT NULL"],
+        extra: ["stock <> NULL", "OR"],
         tables: ["items"],
         hints: [
-          "재고 칸에 값이 적힌 행만 남겨요. 빈칸이 「아닌」 행이에요.",
-          "WHERE stock 다음에 IS, NOT, NULL을 놓아요.",
+          "1번 가게 물건이면서 재고 칸이 빈칸이 아닌 것만 남겨요. 빈칸인지는 IS로 물어요.",
+          "WHERE 다음에 shop_id = 1, AND, stock IS NOT NULL 카드를 놓아요.",
         ],
-        explain: "물건 40가지 중 빈칸 3가지가 빠진 37가지예요. 재고가 0인 짚신은 아는 값이라 그대로 남았어요!",
+        explain: "국밥·수육·도토리묵·막걸리, 4가지예요. 빈칸인 메밀전만 빠졌어요. stock <> NULL을 놓으면 답이 늘 「모른다」라 0행이에요.",
       },
       {
         id: "6-2-b2", type: "build", concept: "isnull",
@@ -409,15 +410,15 @@ export const LESSONS = [
       },
       {
         id: "6-3-b1", type: "build", concept: "null",
-        q: "물건을 재고 작은 값부터, 같으면 번호 차례로 보여 줘",
-        cards: ["SELECT", "*", "FROM", "items", "ORDER", "BY", "stock", ",", "item_id"],
-        extra: ["DESC", "price"],
+        q: "재고가 5개 미만이거나 재고를 모르는 물건을 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "WHERE", "stock < 5", "OR", "stock IS NULL"],
+        extra: ["AND", "stock = NULL"],
         tables: ["items"],
         hints: [
-          "재고 열로 줄 세우고, 재고가 같은 물건은 번호로 한 번 더 세워요.",
-          "ORDER BY stock 다음에 쉼표와 item_id를 놓아요.",
+          "5개 미만 조건만으로는 빈칸 물건이 빠져요. 빈칸을 따로 불러, 둘 중 하나만 맞아도 남겨요.",
+          "WHERE 다음에 stock < 5, OR, stock IS NULL 카드를 놓아요.",
         ],
-        explain: "이 장터에서는 빈칸인 메밀전·한지·장승이 맨 위, 그다음 재고 0인 짚신이에요. 빈칸끼리도 번호로 차례가 정해졌어요!",
+        explain: "5개 미만 5가지(산삼·인삼차·짚신·빨래방망이·놋그릇)에 빈칸 3가지, 8가지예요. AND면 0행, stock = NULL이면 빈칸이 안 불려 5가지예요.",
       },
       {
         id: "6-3-b2", type: "build", concept: "null",
@@ -554,27 +555,27 @@ export const LESSONS = [
       },
       {
         id: "6-4-b1", type: "build", concept: "coalesce",
-        q: "물건마다 재고를 보여 주되, 모르는 재고는 0으로 채워 줘",
-        cards: ["SELECT", "COALESCE", "(", "stock", ",", "0", ")", "FROM", "items"],
-        extra: ["NULL", "IS", "price"],
+        q: "물건 이름과 재고를 보여 주되, 모르는 재고는 0으로 채워 줘",
+        cards: ["SELECT", "name", ",", "COALESCE(stock, 0)", "AS stock_or_zero", "FROM", "items"],
+        extra: ["COALESCE(stock, 1)", "stock IS NULL"],
         tables: ["items"],
         hints: [
-          "재고 열을 보여 주되, 빈칸일 때 대신 보여 줄 값을 정해요.",
-          "COALESCE 다음에 괄호 안에 stock, 쉼표, 0을 놓아요.",
+          "이름 열 옆에, 빈칸일 때 대신 보여 줄 값을 정한 재고 열을 놓고 이름을 붙여요.",
+          "name 쉼표 다음에 COALESCE(stock, 0)과 AS stock_or_zero 카드를 놓아요.",
         ],
-        explain: "재고 40칸 중 빈칸 3칸이 0으로 채워졌어요! 이 장터에서는 별칭이 없으면 쓴 식 그대로가 열 이름이에요.",
+        explain: "메밀전·한지·장승이 0으로 채워졌어요. COALESCE(stock, 1)이면 1로 보여요. AS가 없으면 이 장터에서는 쓴 식 그대로가 열 이름이라 별칭을 붙였어요.",
       },
       {
         id: "6-4-b2", type: "build", concept: "null",
         q: "다 팔려서 재고가 0인 물건을 보여 줘",
         cards: ["SELECT", "*", "FROM", "items", "WHERE", "stock", "=", "0"],
-        extra: ["NULL", "<"],
+        extra: ["COALESCE(stock, 0)", "NULL"],
         tables: ["items"],
         hints: [
-          "재고 칸에 0이 적힌 행만 남겨요. 빈칸은 0이 아니에요.",
-          "WHERE stock 다음에 = 과 0을 놓아요.",
+          "재고 칸에 0이 적힌 행만 남겨요. 빈칸을 0으로 채운 것과는 달라요.",
+          "WHERE 다음에 stock, =, 0을 놓아요.",
         ],
-        explain: "짚신 하나만 나왔어요. 채우기 전의 장부에서는 빈칸이 0과 달라서 메밀전·한지·장승은 = 0에 안 걸려요.",
+        explain: "짚신 하나만 나왔어요. stock 대신 COALESCE(stock, 0)을 놓으면 빈칸도 0이 되어 메밀전·한지·장승까지 4가지가 걸려요. 채운 0은 진짜 0이 아니에요!",
       },
       {
         type: "check", concept: "coalesce",
@@ -726,28 +727,27 @@ export const LESSONS = [
       },
       {
         id: "6-5-b2", type: "build", concept: "isnull",
-        q: "재고를 아는 물건의 이름만 IS NOT NULL로 보여 줘",
-        cards: ["SELECT", "name", "FROM", "items", "WHERE", "stock", "IS", "NOT", "NULL"],
-        extra: ["=", "price"],
-        need: ["IS"],
+        q: "구름 잡화점(5번 가게) 물건 중 재고를 아는 것의 이름만 보여 줘",
+        cards: ["SELECT", "name", "FROM", "items", "WHERE", "shop_id = 5", "AND", "stock IS NOT NULL"],
+        extra: ["stock <> NULL", "OR", "stock IS NULL"],
         tables: ["items"],
         hints: [
-          "재고 칸이 빈칸이 아닌 물건만 남기고, 이름 열만 보여요.",
-          "WHERE stock 다음에 IS, NOT, NULL을 놓아요.",
+          "5번 가게 물건이면서 재고 칸에 값이 적힌 것만 남기고, 이름 열만 보여요.",
+          "WHERE 다음에 shop_id = 5, AND, stock IS NOT NULL 카드를 놓아요.",
         ],
-        explain: "물건 37가지의 이름이 나왔어요. 재고가 0인 짚신도 아는 값이라 들어 있어요!",
+        explain: "짚신·부채·비단 주머니·등불, 4가지예요. 재고 0인 짚신은 아는 값이라 남고, 빈칸인 한지만 빠졌어요!",
       },
       {
         id: "6-5-b3", type: "build", concept: "coalesce",
-        q: "물건마다 재고를 보여 주되, 모르는 재고는 0으로 채워 줘",
-        cards: ["SELECT", "COALESCE", "(", "stock", ",", "0", ")", "FROM", "items"],
-        extra: ["NULL", "age"],
+        q: "뚝딱 공방(8번 가게) 물건 이름과 재고를, 모르는 재고는 0으로 채워 보여 줘",
+        cards: ["SELECT", "name", ",", "COALESCE(stock, 0)", "AS stock_or_zero", "FROM", "items", "WHERE", "shop_id = 8"],
+        extra: ["COALESCE(stock, 1)", "stock = NULL"],
         tables: ["items"],
         hints: [
-          "빈칸일 때 대신 보여 줄 값을 정하는 낱말을 써요.",
-          "COALESCE 다음 괄호 안에 stock, 쉼표, 0을 놓아요.",
+          "8번 가게 물건만 남기고, 이름 옆에 빈칸을 0으로 채운 재고 열을 이름 붙여 놓아요.",
+          "name 쉼표 다음에 COALESCE(stock, 0), AS stock_or_zero를, WHERE 다음에 shop_id = 8을 놓아요.",
         ],
-        explain: "빈칸 3칸이 0으로 채워졌어요. 채운 0은 진짜로 센 재고가 아니라는 것, 잊지 않았죠?",
+        explain: "장승만 0으로 채워지고 나머지 4가지는 원래 재고 그대로예요. 채운 0은 진짜로 센 재고가 아니라는 것, 잊지 않았죠?",
       },
       {
         type: "check", concept: "coalesce",
