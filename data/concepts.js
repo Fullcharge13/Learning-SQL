@@ -1,146 +1,79 @@
-// 개념 목록 (설계서 4-1). 문제의 concept 칸과 취약 개념 집계(weak_concepts, review_queue)에 쓴다.
-// chapter: 그 개념을 처음 배우는 장. id는 바꾸지 않는다(저장 파일에 남음).
+// 개념 목록 (설계 §4-1·§6). 문제의 concept 칸과 취약 개념 집계(weak_concepts, review_queue), 복습 문제 고르기,
+// 매일 도전 틀의 concept 칸에 쓴다. 화면(홈 「복습할 개념」, 배지 화면 「약한 개념」)에는 name이 보인다.
+//
+// - chapter: 그 개념을 처음 배우는 장. 레슨·틀은 자기 장 이하의 개념만 쓸 수 있다(tests/content.js `shape`).
+// - id는 바꾸지 않는다(학습자 저장의 weak_concepts·review_queue에 남음). 새 개념은 더하기만 한다.
+// - 뒤 장 레슨이 앞 장 개념을 다시 써도 된다(예: 10장 조인 문제에 where). 같은 것을 가르치면 같은 id를 쓴다.
+// - 심화 개념(advanced: true)은 심화 레슨(N-A1…)에서만 쓴다. 심화 레슨 내용은 다음 판(설계 D7)이라 지금은 없다.
+// - name은 화면 한 줄에 들어가게 짧게(16자 안팎). SQL 낱말은 대문자 그대로 쓴다.
 export const CONCEPTS = [
-  // 1장 첫 코드
-  { id: "print", name: "print로 출력하기", chapter: 1 },
-  { id: "string", name: "문자열", chapter: 1 },
-  { id: "arith", name: "숫자 계산", chapter: 1 },
-  { id: "comment", name: "주석", chapter: 1 },
-  // 2장 변수와 표현식
-  { id: "assign", name: "변수와 대입", chapter: 2 },
-  { id: "expr", name: "표현식", chapter: 2 },
-  { id: "type", name: "자료형", chapter: 2 },
-  { id: "input", name: "input으로 입력받기", chapter: 2 },
-  { id: "convert", name: "형 변환", chapter: 2 },
-  // 3장 조건문
-  { id: "if", name: "if 조건문", chapter: 3 },
-  { id: "else", name: "else로 그 밖의 경우", chapter: 3 },
-  { id: "elif", name: "elif로 여러 갈래", chapter: 3 },
+  // 1장 장터 장부 펼치기
+  { id: "table", name: "표(장부) 읽기", chapter: 1 },
+  { id: "rowcol", name: "행과 열", chapter: 1 },
+  { id: "selectall", name: "SELECT * FROM", chapter: 1 },
+  { id: "market", name: "장터의 다섯 표", chapter: 1 },
+  // 2장 원하는 칸만
+  { id: "columns", name: "열 골라 보기", chapter: 2 },
+  { id: "alias", name: "AS로 열 이름 붙이기", chapter: 2 },
+  { id: "calc", name: "계산 열", chapter: 2 },
+  // 3장 조건으로 거르기
+  { id: "where", name: "WHERE로 거르기", chapter: 3 },
   { id: "compare", name: "비교 연산", chapter: 3 },
-  { id: "logic", name: "and·or·not 논리 연산", chapter: 3 },
-  // 4장 함수
-  { id: "call", name: "함수 부르기", chapter: 4 },
-  { id: "def", name: "함수 만들기", chapter: 4 },
-  { id: "param", name: "매개변수", chapter: 4 },
-  { id: "return", name: "반환값", chapter: 4 },
-  // 5장 반복문
-  { id: "while", name: "while 반복", chapter: 5 },
-  { id: "for", name: "for 반복", chapter: 5 },
-  { id: "range", name: "range로 범위 만들기", chapter: 5 },
-  { id: "accum", name: "누적 패턴", chapter: 5 },
-  { id: "break", name: "break·continue로 멈추기·건너뛰기", chapter: 5 },
-  // 6장 문자열 다루기
-  { id: "index", name: "인덱스", chapter: 6 },
-  { id: "slice", name: "슬라이싱", chapter: 6 },
-  { id: "strmethod", name: "문자열 메서드", chapter: 6 },
-  { id: "strloop", name: "문자열 반복", chapter: 6 },
-  // 7장 리스트
-  { id: "list", name: "리스트 만들기", chapter: 7 },
-  { id: "listmod", name: "리스트 바꾸기", chapter: 7 },
-  { id: "listloop", name: "리스트 반복", chapter: 7 },
-  { id: "listfunc", name: "리스트와 내장 함수", chapter: 7 },
-  // 8장 딕셔너리
-  { id: "dict", name: "딕셔너리", chapter: 8 },
-  { id: "dictmod", name: "딕셔너리 바꾸기", chapter: 8 },
-  { id: "dictget", name: "get으로 안전하게", chapter: 8 },
-  { id: "count", name: "세기 패턴", chapter: 8 },
-  // 9장 튜플과 집합
-  { id: "tuple", name: "튜플", chapter: 9 },
-  { id: "unpack", name: "묶고 풀기", chapter: 9 },
-  { id: "items", name: "items와 정렬", chapter: 9 },
-  { id: "set", name: "집합", chapter: 9 },
-  // 10장 예외 처리
-  { id: "exc", name: "오류 읽기", chapter: 10 },
-  { id: "try", name: "try와 except", chapter: 10 },
-  { id: "excmulti", name: "여러 오류 나누기", chapter: 10 },
-  { id: "raise", name: "raise로 오류 내기", chapter: 10 },
-  // 11장 파일
-  { id: "fileread", name: "파일 열고 읽기", chapter: 11 },
-  { id: "filelines", name: "파일을 줄 단위로", chapter: 11 },
-  { id: "filewrite", name: "파일에 쓰기", chapter: 11 },
-  { id: "csv", name: "CSV 표 읽기", chapter: 11 },
-  // 12장 정규표현식
-  { id: "re", name: "search로 패턴 찾기", chapter: 12 },
-  { id: "refindall", name: "findall로 모두 찾기", chapter: 12 },
-  { id: "regroup", name: "묶음과 반복 기호", chapter: 12 },
-  { id: "resub", name: "sub로 바꾸기", chapter: 12 },
-  // 13장 네트워크 기초
-  { id: "url", name: "주소(URL) 읽기", chapter: 13 },
-  { id: "http", name: "요청과 응답", chapter: 13 },
-  { id: "html", name: "HTML에서 정보 찾기", chapter: 13 },
-  { id: "crawl", name: "링크 따라가기", chapter: 13 },
-  // 14장 웹 API와 JSON
-  { id: "json", name: "JSON 읽고 쓰기", chapter: 14 },
-  { id: "nested", name: "중첩 구조", chapter: 14 },
-  { id: "api", name: "API 부르기", chapter: 14 },
-  { id: "query", name: "쿼리 문자열 만들기", chapter: 14 },
-  // 15장 객체지향
-  { id: "class", name: "클래스와 객체", chapter: 15 },
-  { id: "init", name: "__init__와 속성", chapter: 15 },
-  { id: "method", name: "메서드 만들기", chapter: 15 },
-  { id: "inherit", name: "상속과 super", chapter: 15 },
-  // 16장 데이터베이스와 SQL
-  { id: "sqlcreate", name: "테이블 만들고 넣기", chapter: 16 },
-  { id: "sqlselect", name: "SELECT로 조회", chapter: 16 },
-  { id: "sqlagg", name: "정렬과 집계", chapter: 16 },
-  { id: "sqlpy", name: "Python으로 SQL 다루기", chapter: 16 },
-  // 17장 데이터 시각화
-  { id: "vizdata", name: "그래프용 데이터 준비", chapter: 17 },
-  { id: "bar", name: "막대 그래프", chapter: 17 },
-  { id: "line", name: "꺾은선 그래프", chapter: 17 },
-  { id: "vizstyle", name: "제목과 축 이름", chapter: 17 },
-  // 심화 레슨(v0.7~, advanced: true) — 심화 N-Ak에서만 쓴다(본 과정 레슨은 점검기 오류). A3 응용은 A1·A2 개념을 다시 쓴다.
-  // 1장 심화
-  { id: "fmtspec", name: "f-string 자릿수·정렬", chapter: 1, advanced: true },
-  { id: "multiline", name: "여러 줄 문자열", chapter: 1, advanced: true },
-  // 2장 심화
-  { id: "floaterr", name: "실수 오차와 round", chapter: 2, advanced: true },
-  { id: "divmod", name: "몫과 나머지 활용", chapter: 2, advanced: true },
-  // 3장 심화
-  { id: "condsimple", name: "조건 묶기·간단히 쓰기", chapter: 3, advanced: true },
-  { id: "match", name: "match로 경우 나누기", chapter: 3, advanced: true },
-  // 4장 심화
-  { id: "defaultarg", name: "기본값 매개변수", chapter: 4, advanced: true },
-  { id: "kwarg", name: "이름 붙여 값 넘기기", chapter: 4, advanced: true },
-  { id: "recursion", name: "재귀 함수", chapter: 4, advanced: true },
-  // 5장 심화
-  { id: "nestedloop", name: "중첩 반복", chapter: 5, advanced: true },
-  { id: "loopelse", name: "반복의 else", chapter: 5, advanced: true },
-  // 6장 심화
-  { id: "strfmt", name: "서식 고급(채우기·정렬)", chapter: 6, advanced: true },
-  { id: "strmore", name: "문자열 메서드 묶음", chapter: 6, advanced: true },
-  // 7장 심화(v0.8)
-  { id: "listcomp", name: "리스트 한 줄로 만들기", chapter: 7, advanced: true },
-  { id: "list2d", name: "2차원 리스트", chapter: 7, advanced: true },
-  // 8장 심화
-  { id: "groupcount", name: "기준별로 묶어 세기", chapter: 8, advanced: true },
-  { id: "dictlist", name: "딕셔너리 안 리스트", chapter: 8, advanced: true },
-  // 9장 심화
-  { id: "lambda", name: "lambda로 정렬 기준", chapter: 9, advanced: true },
-  { id: "setops", name: "집합 연산 응용", chapter: 9, advanced: true },
-  // 10장 심화
-  { id: "raisemsg", name: "내 오류 만들기", chapter: 10, advanced: true },
-  { id: "reraise", name: "오류 다시 던지기·finally", chapter: 10, advanced: true },
-  // 11장 심화
-  { id: "filesmerge", name: "여러 파일 합치기", chapter: 11, advanced: true },
-  { id: "csvwrite", name: "CSV 쓰기", chapter: 11, advanced: true },
-  // 12장 심화
-  { id: "namedgroup", name: "이름 붙인 묶음", chapter: 12, advanced: true },
-  { id: "backref", name: "묶음 참조로 바꾸기", chapter: 12, advanced: true },
-  // 13장 심화(v0.9)
-  { id: "queryparam", name: "요청에 값 붙이기(쿼리)", chapter: 13, advanced: true },
-  { id: "statuscode", name: "상태 코드별 처리", chapter: 13, advanced: true },
-  { id: "pagecrawl", name: "여러 페이지 모으기", chapter: 13, advanced: true },
-  // 14장 심화
-  { id: "apipaging", name: "쪽 나뉜 결과 모으기", chapter: 14, advanced: true },
-  { id: "jsonsave", name: "JSON 만들어 저장하기", chapter: 14, advanced: true },
-  // 15장 심화
-  { id: "dunder", name: "특수 메서드 __str__·__eq__", chapter: 15, advanced: true },
-  { id: "classattr", name: "클래스 속성과 묶음 관리", chapter: 15, advanced: true },
-  // 16장 심화
-  { id: "sqljoin", name: "표 두 개 합치기(JOIN)", chapter: 16, advanced: true },
-  { id: "sqlhaving", name: "묶은 결과 거르기(HAVING)", chapter: 16, advanced: true },
-  // 17장 심화
-  { id: "multichart", name: "그래프 여러 선 겹치기", chapter: 17, advanced: true },
-  { id: "filterchart", name: "데이터 골라 그리기", chapter: 17, advanced: true },
+  { id: "textval", name: "글자 값 비교", chapter: 3 },
+  // 4장 여러 조건
+  { id: "andor", name: "AND·OR로 조건 묶기", chapter: 4 },
+  { id: "not", name: "NOT으로 뒤집기", chapter: 4 },
+  { id: "in", name: "IN으로 여러 값 고르기", chapter: 4 },
+  { id: "between", name: "BETWEEN으로 범위", chapter: 4 },
+  { id: "like", name: "LIKE로 글자 찾기", chapter: 4 },
+  // 5장 줄 세우기
+  { id: "orderby", name: "ORDER BY로 줄 세우기", chapter: 5 },
+  { id: "limit", name: "LIMIT·OFFSET", chapter: 5 },
+  { id: "distinct", name: "DISTINCT로 겹침 없애기", chapter: 5 },
+  // 6장 빈칸 다루기
+  { id: "null", name: "NULL(빈칸) 이해", chapter: 6 },
+  { id: "isnull", name: "IS NULL로 빈칸 찾기", chapter: 6 },
+  { id: "coalesce", name: "COALESCE로 빈칸 채우기", chapter: 6 },
+  // 7장 모아 세기
+  { id: "count", name: "COUNT로 세기", chapter: 7 },
+  { id: "sumavg", name: "SUM·AVG 합과 평균", chapter: 7 },
+  { id: "minmax", name: "MIN·MAX", chapter: 7 },
+  // 8장 묶어서 세기
+  { id: "groupby", name: "GROUP BY로 묶기", chapter: 8 },
+  { id: "having", name: "HAVING으로 묶음 거르기", chapter: 8 },
+  // 9장 값 바꿔 보기
+  { id: "case", name: "CASE WHEN으로 나누기", chapter: 9 },
+  { id: "strfunc", name: "글자 함수", chapter: 9 },
+  { id: "numfunc", name: "숫자 함수·CAST", chapter: 9 },
+  // 10장 표 잇기 ①
+  { id: "join", name: "INNER JOIN", chapter: 10 },
+  { id: "joinkey", name: "ON으로 짝 맞추기", chapter: 10 },
+  // 11장 표 잇기 ②
+  { id: "leftjoin", name: "LEFT JOIN", chapter: 11 },
+  { id: "multijoin", name: "여러 표 잇기", chapter: 11 },
+  { id: "unmatched", name: "짝 없는 행 찾기", chapter: 11 },
+  // 12장 질문 속 질문
+  { id: "subin", name: "IN (SELECT …)", chapter: 12 },
+  { id: "subvalue", name: "값 하나 서브쿼리", chapter: 12 },
+  { id: "exists", name: "EXISTS", chapter: 12 },
+  // 13장 중간 표 만들기
+  { id: "with", name: "WITH로 중간 표", chapter: 13 },
+  { id: "fromsub", name: "FROM 안 서브쿼리", chapter: 13 },
+  { id: "union", name: "UNION으로 합치기", chapter: 13 },
+  // 14장 줄마다 순위
+  { id: "rownumber", name: "ROW_NUMBER", chapter: 14 },
+  { id: "rank", name: "RANK·DENSE_RANK", chapter: 14 },
+  { id: "partition", name: "PARTITION BY", chapter: 14 },
+  // 15장 누적과 이웃 줄
+  { id: "running", name: "누적 합", chapter: 15 },
+  { id: "laglead", name: "LAG·LEAD 이웃 줄", chapter: 15 },
+  { id: "moving", name: "이동 평균", chapter: 15 },
+  // 16장 날짜와 시계열
+  { id: "datefunc", name: "date·strftime", chapter: 16 },
+  { id: "monthly", name: "월별로 묶기", chapter: 16 },
+  { id: "change", name: "지난달 대비 증감", chapter: 16 },
+  // 17장 장터 분석 실전
+  { id: "cohort", name: "코호트 재방문율", chapter: 17 },
+  { id: "basket", name: "함께 산 물건", chapter: 17 },
+  { id: "analysis", name: "종합 분석", chapter: 17 },
 ];
