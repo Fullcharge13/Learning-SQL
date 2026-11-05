@@ -18,7 +18,7 @@ export function tablesHTML(names) {
 
 export function openTables(names, sql) {
   const p = dialog({
-    title: "쓸 표 보기",
+    title: "쓸 표 보기", cls: "tables",
     body: `<div class="tables-sheet">${tablesHTML(names)}</div>`,
     buttons: [{ label: "닫기", value: true, kind: "primary" }],
   });

@@ -1373,6 +1373,15 @@ def test_lesson():
         assert secs[1]["heads"][:2] == ["item_id/물건 번호", "shop_id/가게 번호"], secs[1]["heads"]
         a.page.wait_for_timeout(200)
         keep(a, "lesson-3-tables-sheet.png", "lesson-tables-sheet.png")
+        # 처음 열린 그대로(스크롤 없이) 닫기 단추가 화면 안에 있고, 눌러서 닫힌다
+        cb = a.js("""() => { const m = document.querySelector('.modal'); const b = document.querySelector('.modal .btn.primary').getBoundingClientRect();
+          return { top: Math.round(b.top), bottom: Math.round(b.bottom), vh: innerHeight, scrollTop: m.scrollTop, scrollable: m.scrollHeight > m.clientHeight }; }""")
+        print("    sheet close button: %s" % cb)
+        assert cb["scrollTop"] == 0 and cb["scrollable"] and cb["top"] >= 0 and cb["bottom"] <= cb["vh"], cb
+        a.page.click(".modal .btn.primary")
+        a.page.wait_for_selector(".modal-back", state="detached", timeout=3000)
+        a.page.click("#tablesbtn")
+        _sheet_checks(a, {"shops": "가게", "items": "물건"})
         a.page.keyboard.press("Escape")
         a.page.wait_for_selector(".modal-back", state="detached")
         # 맞는 보기를 눌러 확인 → 정답

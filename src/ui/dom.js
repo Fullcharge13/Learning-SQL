@@ -52,11 +52,11 @@ export function icon(name, cls = "") {
 }
 
 /** 확인 창. buttons: [{ label, value, kind }] → 누른 value로 resolve */
-export function dialog({ title, body = "", buttons }) {
+export function dialog({ title, body = "", buttons, cls = "" }) {
   return new Promise((resolve) => {
     const prev = document.activeElement;
     const wrap = el(`<div class="modal-back" role="presentation">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+      <div class="modal${cls ? " " + esc(cls) : ""}" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
         <h2 id="dlg-title">${esc(title)}</h2>
         ${body ? `<div class="modal-body">${body}</div>` : ""}
         <div class="modal-actions">${buttons.map((b, i) => `<button class="btn ${b.kind || "ghost"}" data-i="${i}">${esc(b.label)}</button>`).join("")}</div>
