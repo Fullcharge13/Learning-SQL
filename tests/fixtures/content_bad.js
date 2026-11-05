@@ -211,3 +211,22 @@ TEMPLATES.push({
   vars: { N: { min: 10, max: 90 } }, explain: "LIMIT 1은 한 행만 남겨요.",
 });
 plant("grammar", "5-T8");
+
+// ---- 작업 12a 고침 1회차 ----
+// shape: build 힌트가 3개(손으로 쓰는 힌트는 정확히 2개, 3·4단계는 앱이 함)
+L(4).items.splice(0, 0, build("bad-shape-hints3", ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "shop_id"], ["DESC", "owner"],
+  { tables: ["shops"], hints: ["하나", "둘", "셋"] }));
+plant("shape", "bad-shape-hints3");
+
+// shape: 매일 도전 틀이 6개(장마다 2~5개). 여섯째 틀 자체는 문제없는 틀
+TEMPLATES.push({ ...structuredClone(GOOD_TEMPLATES[0]), id: "5-T9" });
+plant("shape", "ch5 TEMPLATES");
+
+// shape: 장 평가의 결과 표 객관식에 tables(「쓸 표 보기」가 정답 보기와 같은 표를 보여 줘 짝 맞추기가 됨)
+L(5).items.splice(0, 0, {
+  type: "choice", id: "bad-exam-tables", concept: "orderby", q: "가게 이름을 번호 차례로 본 결과는 어느 것일까요?",
+  options: [{ sql: "SELECT name FROM shops\nORDER BY shop_id" }, { sql: "SELECT name FROM items\nORDER BY item_id" },
+    { sql: "SELECT owner FROM shops\nORDER BY shop_id" }],
+  answer: 0, tables: ["shops"], explain: "가게 표의 이름 열이에요.",
+});
+plant("shape", "bad-exam-tables 장 평가의 결과 표 객관식");

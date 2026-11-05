@@ -218,3 +218,12 @@ test("templates: a broken answer or a seed that always collides is reported with
   // 씨앗마다 같은 말을 되풀이하지 않음
   assert.ok(same.filter((i) => i.rule === "templates").length <= 2, show(same));
 });
+
+test("templates: a chapter needs 2..5 templates (shape, 작업 12a 고침 1회차)", () => {
+  const count = (templates) => checkChapter({ ...good, TEMPLATES: templates }, 5, engine, { concepts: good.CONCEPTS })
+    .filter((i) => i.rule === "shape" && i.where === "ch5 TEMPLATES");
+  assert.equal(count([T1]).length, 1, "틀 1개는 모자람");
+  assert.equal(count(undefined).length, 1, "틀이 없으면 모자람");
+  assert.equal(count(good.TEMPLATES).length, 0, "틀 3개는 괜찮음");
+  assert.match(count([T1])[0].msg, /2~5개/);
+});

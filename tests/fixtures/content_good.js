@@ -100,6 +100,9 @@ const B = {
   },
 };
 
+// 장 평가의 결과 표 객관식에는 「쓸 표 보기」(tables)를 두지 않는다(점검기 shape, 작업 12a 고침 1회차)
+const { tables: _examTables, ...examTable } = T.table;
+
 const lesson = (k, title, goal, summary, cards, items, more = {}) => ({ id: `5-${k}`, chapter: 5, title, goal, summary, ...more, cards, items });
 
 export const LESSONS = [
@@ -125,7 +128,7 @@ export const LESSONS = [
   lesson(5, "5장 평가", "줄 세우기를 모두 써 보기",
     ["ORDER BY로 줄 세운다", "LIMIT로 자른다", "DISTINCT로 겹침을 없앤다"],
     [{ say: "5장에서 배운 것을 모두 써 볼 시간이에요." }],
-    [T.kwOrder, T.kwLimit, T.kwDistinct, T.table, T.orderTop, T.blankDistinct, T.rows, B.categories, { ...B.top5, id: "g5-exam-top5" }, checkDistinct],
+    [T.kwOrder, T.kwLimit, T.kwDistinct, examTable, T.orderTop, T.blankDistinct, T.rows, B.categories, { ...B.top5, id: "g5-exam-top5" }, checkDistinct],
     { isExam: true }),
 ];
 

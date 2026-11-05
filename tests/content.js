@@ -37,7 +37,8 @@ export const RULES = [
   "table-truth",   // 설명 카드·객관식 SQL이 돌고, 결과 표 보기끼리 화면에서 다르고, 문제 SQL의 실제 결과가 정답 보기와만 맞음
   "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안. 가르치지 않는 낱말·함수, 큰따옴표 글자 값, == , 'now' 금지
   "readonly",      // INSERT·UPDATE·DELETE·CREATE·DROP·ALTER 등 데이터를 바꾸는 낱말이 없음(설계 D11)
-  "shape",         // 리아 형식 규칙 + validateLesson(작업 7): 레슨 5개, 칸 이름, summary 3줄, 글자 수·한 줄 폭, 한글, 개념, 문제 차례·수, order의 expect
+  "shape",         // 리아 형식 규칙 + validateLesson(작업 7): 레슨 5개, 칸 이름, summary 3줄, 글자 수·한 줄 폭, 한글, 개념, 문제 차례·수, order의 expect,
+                   // build 힌트 정확히 2개, 장마다 매일 도전 틀 2~5개
   "stable-order",  // build 정답이 동점·저장 순서에 기대지 않음: 거꾸로 저장한 데이터베이스, 바깥 ORDER BY에 모든 열을 더 붙인 두 판(오름·내림)에서 같은 결과
   "engine-guard",  // 앱이 실행하는 SQL이 실행기의 조회 전용 검사(SELECT/WITH로 시작하는 문장 하나)를 통과
   "blank-unique",  // blank의 오답 칩은 모두 오류이거나 정답과 다른 결과
@@ -62,6 +63,8 @@ export const SLOW_MS = 500;
 const ALIAS_PROBE = "zz_alias_probe";   // swap-extra 끼워 넣기에서 「별칭 자리」인지 알아보는 이름(표·열·낱말이 아님)       // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
 
 export const EXAM_BUILD_MAX = 3;   // 판정 R25
+export const TEMPLATES_RANGE = [2, 5];   // 장마다 매일 도전 틀 수(계획 작업 12~15)
+// build의 hints는 정확히 2개 — validateLesson(src/lessondata.js)이 알리고 여기서 shape로 옮긴다
 
 // 매일 도전 틀(작업 11). 형식은 src/template.js 머리 주석
 const TEMPLATE_KEYS = {
@@ -394,6 +397,11 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   if (lessons.length === LESSONS_PER_CHAPTER) {
     try { examCoverage(); } catch (e) { add(`ch${chapter}`, "shape", `장 평가 점검 실패(${e && e.message})`); }
   }
+  // 매일 도전 틀 수(작업 12a 고침 1회차): 장마다 TEMPLATES_RANGE개. 끝낸 장의 틀에서 하루 터치 문제 2개를 고른다
+  const nTpl = mod && Array.isArray(mod.TEMPLATES) ? mod.TEMPLATES.length : 0;
+  if (nTpl < TEMPLATES_RANGE[0] || nTpl > TEMPLATES_RANGE[1]) {
+    add(`ch${chapter} TEMPLATES`, "shape", `매일 도전 틀은 장마다 ${TEMPLATES_RANGE[0]}~${TEMPLATES_RANGE[1]}개(지금 ${nTpl}개)`);
+  }
   if (mod && mod.TEMPLATES !== undefined) {
     const start = issues.length;
     try { checkTemplates(mod.TEMPLATES); } catch (e) { add("틀", "templates", `틀 점검을 마치지 못함(${e && e.name}: ${e && e.message})`); }
@@ -450,6 +458,15 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     const [ilo, ihi] = exam ? EXAM_ITEMS_RANGE : ITEMS_RANGE;
     if (items.length < ilo || items.length > ihi) add(`${lid} items`, "shape", `문제는 ${ilo}~${ihi}개(지금 ${items.length}개)`);
     items.forEach((it, i) => checkItem(it, itemWhere(lesson, lid, i)));
+    // 장 평가의 결과 표 객관식에는 「쓸 표 보기」를 두지 않는다: 그 표가 정답 보기와 똑같이 보여 짝 맞추기가 된다(작업 12a 고침 1회차)
+    if (exam) {
+      items.forEach((it, i) => {
+        const opts = it && (it.type === "choice" || it.type === "check") && Array.isArray(it.options) ? it.options : [];
+        if ("tables" in it && opts.length && opts.every((o) => o && typeof o === "object" && typeof o.sql === "string")) {
+          add(itemWhere(lesson, lid, i), "shape", "장 평가의 결과 표 객관식에는 tables를 두지 않음(「쓸 표 보기」가 정답 보기와 같은 표를 보여 줌)");
+        }
+      });
+    }
   }
 
   function itemWhere(lesson, lid, i) {

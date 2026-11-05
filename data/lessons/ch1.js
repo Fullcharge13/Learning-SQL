@@ -20,7 +20,7 @@ export const LESSONS = [
         sql: "SELECT * FROM shops",
       },
       {
-        say: "SELECT는 「보여 줘」, * 는 「모든 열」, FROM 뒤에는 「어느 표에서」를 써요. 그래서 아래 SQL은 「items(물건) 표를 통째로 보여 줘」라는 부탁이에요.",
+        say: "SELECT는 「보여 줘」, * 는 「모든 열」, FROM 뒤에는 「어느 표에서」를 써요. 그래서 아래 SQL은 「items(물건) 표를 통째로 보여 줘」라는 부탁이에요. 셋 중 하나라도 빠지면 오류가 나요.",
         sql: "SELECT * FROM items",
       },
     ],
@@ -42,9 +42,9 @@ export const LESSONS = [
       {
         type: "choice", concept: "selectall",
         q: "SELECT * FROM shops 에서 * 는 무슨 뜻일까요?",
-        options: ["모든 열", "곱하기", "첫 번째 행만"],
+        options: ["모든 열", "곱하기", "가게 하나만"],
         answer: 0,
-        explain: "SELECT 바로 뒤의 * 는 「모든 열(칸)」이라는 뜻이에요. 그래서 표가 통째로 나와요.",
+        explain: "SELECT 바로 뒤의 * 는 「모든 열」이라는 뜻이에요. 그래서 표가 통째로 나와요. 값 사이에 쓰는 * 는 곱하기인데, 그건 2장에서 만나요.",
       },
       {
         type: "blank", concept: "selectall",
@@ -60,7 +60,7 @@ export const LESSONS = [
         code: "___ * FROM shops",
         chips: ["SELECT", "FROM", "*"],
         answer: 0,
-        explain: "SQL 부탁은 SELECT(보여 줘)로 시작해요. FROM은 표 이름 앞에 오는 낱말이에요.",
+        explain: "SELECT(보여 줘)가 FROM보다 먼저예요. FROM은 표 이름 앞에 오는 낱말이에요.",
       },
       {
         type: "choice", concept: "table",
@@ -89,10 +89,12 @@ export const LESSONS = [
         explain: "FROM이 빠지면 컴퓨터는 shops가 표 이름인지 알 수 없어요. 표 이름 앞에는 FROM을 꼭 써요.",
       },
       {
-        type: "order", concept: "selectall",
-        q: "가게 표 전체를 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT", "*", "FROM shops"],
-        explain: "SELECT(보여 줘) → *(모든 열) → FROM shops(가게 표에서) 차례예요. 줄을 나눠 써도 뜻은 같아요.",
+        type: "blank", concept: "selectall",
+        q: "표 이름 앞에 오는 낱말을 채워 보세요.",
+        code: "SELECT * ___ shops",
+        chips: ["FROM", "SELECT", "*"],
+        answer: 0,
+        explain: "표 이름 앞에는 FROM이 와요. 「shops(가게) 표에서」라는 뜻이에요.",
       },
       {
         type: "choice", concept: "table",
@@ -116,7 +118,7 @@ export const LESSONS = [
       {
         type: "check", concept: "selectall",
         q: "SELECT * FROM shops 를 바르게 읽은 것은?",
-        options: ["shops 표의 모든 열을 보여 줘", "shops 표의 첫 행만 보여 줘", "shops라는 글자를 보여 줘"],
+        options: ["shops 표의 모든 열을 보여 줘", "shops 표에서 가게 하나만 보여 줘", "shops라는 글자를 보여 줘"],
         answer: 0,
         explain: "SELECT는 보여 줘, * 는 모든 열, FROM shops는 가게 표에서예요. 표 전체가 그대로 나와요.",
       },
@@ -264,7 +266,7 @@ export const LESSONS = [
         q: "SELECT와 FROM 중에서 먼저 쓰는 낱말은?",
         options: ["SELECT", "FROM", "아무거나 먼저 써도 된다"],
         answer: 0,
-        explain: "언제나 SELECT가 먼저예요. 무엇을 보여 줄지 말한 다음 FROM으로 어느 표인지 말해요.",
+        explain: "SELECT가 FROM보다 먼저예요. 무엇을 보여 줄지 말한 다음 FROM으로 어느 표인지 말해요.",
       },
       {
         type: "choice", concept: "selectall",
@@ -337,7 +339,7 @@ export const LESSONS = [
       },
       {
         id: "1-3-b1", type: "build", concept: "selectall",
-        q: "카드를 차례대로 놓아 가게 표 전체를 보여 줘",
+        q: "가게 장부를 통째로 펼쳐 줘",
         cards: ["SELECT", "*", "FROM", "shops"],
         extra: ["orders", "customers", "items"],
         tables: ["shops"],
@@ -351,12 +353,12 @@ export const LESSONS = [
         type: "check", concept: "selectall",
         q: "SQL의 차례에 대해 맞는 말은?",
         options: [
-          "SELECT로 시작하고 FROM 뒤에 표 이름을 쓴다",
-          "FROM으로 시작하고 SELECT 뒤에 표 이름을 쓴다",
+          "SELECT를 FROM보다 먼저 쓰고, FROM 뒤에 표 이름을 쓴다",
+          "FROM을 SELECT보다 먼저 쓰고, SELECT 뒤에 표 이름을 쓴다",
           "낱말 차례는 아무렇게나 써도 된다",
         ],
         answer: 0,
-        explain: "SELECT로 시작해 무엇을 보여 줄지 말하고, FROM 뒤에 표 이름을 써요. 차례가 어긋나면 오류가 나요.",
+        explain: "SELECT로 무엇을 보여 줄지 먼저 말하고, FROM 뒤에 표 이름을 써요. 차례가 어긋나면 오류가 나요.",
       },
     ],
   },
@@ -390,7 +392,7 @@ export const LESSONS = [
         type: "choice", concept: "market",
         q: "주문이 완료됐는지 취소됐는지(status)는 어느 표에 있을까요?",
         options: ["orders (주문)", "order_items (주문 내역)", "items (물건)"],
-        answer: 0,
+        answer: 0, tables: ["orders", "order_items"],
         explain: "주문 상태는 주문 하나에 하나씩이라 orders 표의 status 열에 있어요.",
       },
       {
@@ -559,7 +561,7 @@ export const LESSONS = [
           { sql: "SELECT * FROM orders" },
           { sql: "SELECT * FROM items" },
         ],
-        answer: 0, tables: ["order_items"],
+        answer: 0,
         explain: "주문 내역 표의 열은 주문 번호·물건 번호·수량 세 개예요.",
       },
       {
@@ -573,7 +575,7 @@ export const LESSONS = [
         type: "choice", concept: "table",
         q: "표 이름을 item으로 잘못 쓰면 어떻게 될까요?",
         code: "SELECT * FROM item",
-        options: ["그런 표가 없다는 오류가 난다", "물건 표가 나온다", "첫 행만 나온다"],
+        options: ["그런 표가 없다는 오류가 난다", "물건 표가 나온다", "빈 표가 나온다"],
         answer: 0,
         explain: "물건 표의 이름은 items예요. 한 글자만 달라도 컴퓨터는 다른 이름으로 봐요.",
       },

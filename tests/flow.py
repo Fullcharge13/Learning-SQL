@@ -32,7 +32,8 @@
   → 새로고침 뒤 이어서 → 완료 화면 XP 15·엽전 10. 캡처 daily-*.png
 - test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
 - test_real_lesson_walk(작업 12): 실제 1-1을 끝까지 — 화면마다 넘침 0(열 많은 결과 표 보기 포함)
-- SKIP(까닭 출력): test_advanced_branch·test_new_content_dot(실제 레슨 필요, 작업 12)
+- test_new_content_dot: 실제 1장 1-2에 updated를 단 빌드 — 홈·설정의 「새 내용」 점, 다시 하기로 끝까지 마치면 사라짐
+- SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
 """
 
 import atexit
@@ -41,6 +42,7 @@ import functools
 import http.server
 import json
 import os
+import re
 import shutil
 import socketserver
 import subprocess
@@ -954,15 +956,33 @@ def test_advanced_branch():
 _upd_env = {}
 
 
+UPD_VER = "v0.1.1"   # 시험용 보강 판 이름(실제 판은 v0.1)
+
+
+def _lessons_with_updated(dst, updated):
+    """data/lessons를 dst에 복사하고 레슨 머리 `id: "N-k", chapter: N,` 뒤에 updated: "판"을 끼운다(시험용, 앱 코드는 그대로)"""
+    src = os.path.join(ROOT, "data", "lessons")
+    if os.path.isdir(dst):
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst)
+    for lid, ver in updated.items():
+        n = lid.split("-")[0]
+        path = os.path.join(dst, "ch%s.js" % n)
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        head = 'id: "%s", chapter: %s,' % (lid, n)
+        assert text.count(head) == 1, "lesson head %r not found once in %s" % (head, path)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text.replace(head, '%s updated: "%s",' % (head, ver)))
+    return dst
+
+
 def upd_url():
-    """1-2에 updated: "v0.7.1"을 단 빌드를 따로 띄운다(실제 보강 내용이 없어도 점·기록을 시험)."""
+    """실제 레슨(data/lessons)의 1-2에 updated(UPD_VER)를 단 빌드를 따로 띄운다(실제 보강 내용이 없어도 점·기록을 시험)."""
     if _upd_env:
         return _upd_env["url"]
     env()
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from fixtures.advanced_dir import make
-    lessons = make(os.path.join(ROOT, "data", "lessons"), os.path.join(OUT, "lessons-upd"), chapters=(),
-                   updated={"1-2": "v0.7.1"})
+    lessons = _lessons_with_updated(os.path.join(OUT, "lessons-upd"), {"1-2": UPD_VER})
     dist = os.path.join(OUT, "dist-upd")
     r = subprocess.run([sys.executable, os.path.join(ROOT, "build.py"), "--out", dist, "--lessons-dir", lessons],
                        cwd=ROOT, capture_output=True, text=True)
@@ -979,10 +999,9 @@ def _dots(a):
 
 
 def test_new_content_dot():
-    raise SkipTest('실제 1장 레슨 1-1~1-3(작업 12)이 있어야 함')
     url = upd_url()
     done = ["1-1", "1-2"]
-    seed = {"saveVer": 2, "xp": 40, "yeopjeon": 30, "completed_lessons": done, "current_lesson": "1-3", "current_chapter": 1,
+    seed = {"saveVer": 1, "xp": 40, "yeopjeon": 30, "completed_lessons": done, "current_lesson": "1-3", "current_chapter": 1,
             "grading_results": {k: {"perfect": True, "attempts": 1} for k in done}}
     with App("iPhone 17", save=seed, url=url) as a:
         a.start()
@@ -1029,8 +1048,8 @@ def test_new_content_dot():
         r = a.result()
         s = a.save()
         assert r["xp"] == 10 and r["lessonBytes"] == 0 and not r["firstTime"], r
-        assert s["seen_updates"] == {"1-2": "v0.7.1"}, s.get("seen_updates")
-        assert s["completed_lessons"] == done and s["saveVer"] == 2, s
+        assert s["seen_updates"] == {"1-2": UPD_VER}, s.get("seen_updates")
+        assert s["completed_lessons"] == done and s["saveVer"] == 1, s
         text = a.page.inner_text(".screen.done")
         assert "다시 하기라서" in text and "새 내용" not in text, text
         a.dismiss()
@@ -1655,12 +1674,20 @@ def _select(argv):
     return picked
 
 
+def _lesson_arg(argv):
+    """--lesson 1-3 또는 --lesson=1-3 의 값(없거나 비면 "")"""
+    for i, x in enumerate(argv):
+        if x.startswith("--lesson="):
+            return x.split("=", 1)[1].strip()
+        if x == "--lesson":
+            return argv[i + 1].strip() if i + 1 < len(argv) else ""
+    return ""
+
+
 def main():
     if "--lesson" in sys.argv[1:] or any(x.startswith("--lesson=") for x in sys.argv[1:]):
-        argv = sys.argv[1:]
-        lid = next((x.split("=", 1)[1] for x in argv if x.startswith("--lesson=")), None) \
-            or (argv[argv.index("--lesson") + 1] if argv.index("--lesson") + 1 < len(argv) else "")
-        if not lid or not all(x.isdigit() for x in lid.split("-")) or lid.count("-") != 1:
+        lid = _lesson_arg(sys.argv[1:])
+        if not re.fullmatch(r"[1-9]\d*-[1-9]\d*", lid):
             raise SystemExit("flow.py: --lesson needs a lesson id like 1-3")
         t0 = time.time()
         shots, fails = walk_lesson(lid)

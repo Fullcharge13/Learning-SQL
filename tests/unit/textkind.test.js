@@ -30,3 +30,15 @@ test("codey_sql_prose: 한국어 문장 속 SQL·괄호는 보통 글꼴, SQL �
   assert.equal(isCodey("DESC"), true);
   assert.equal(isCodey("price >= 200"), true);
 });
+
+test("codey_sql_alias: SQL 낱말로 시작하는 SQL은 한글 별칭(AS 값, AS \"두 배 값\")이 있어도 코드 (판정 R32)", () => {
+  assert.equal(isCodey("SELECT price AS 값 FROM items"), true);
+  assert.equal(isCodey('SELECT price * 2 AS "두 배 값" FROM items'), true);
+  assert.equal(isCodey("SELECT name AS 이름, price AS 값 FROM items"), true);
+  assert.equal(isCodey("WHERE kind = '도깨비'"), true);
+  assert.equal(isCodey("FROM items"), true);
+  assert.equal(isCodey("WITH t AS (SELECT 1) SELECT * FROM t"), true);
+  // 한국어 설명은 SQL 낱말로 시작해도 문장(별칭·글자 상수 밖의 한글이 남음)
+  assert.equal(isCodey("SELECT * FROM 표 이름은 그 표 전체를 보여 준다"), false);
+  assert.equal(isCodey("SELECT가 FROM보다 먼저예요"), false);
+});
