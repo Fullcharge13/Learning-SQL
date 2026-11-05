@@ -3,9 +3,12 @@
 실행: python3 tests/flow.py                 전부
       python3 tests/flow.py --only build    이름이 test_build 이거나 test_build_로 시작하는 시험만(여러 번 줄 수 있음)
       python3 tests/flow.py test_first_lesson   정확한 이름
+      python3 tests/flow.py --lesson 1-3    실제 레슨(data/lessons) 하나를 아이폰 17 화면으로 끝까지 풀며 화면마다 캡처
+                                            (tests/out/flow/walk-1-3-*.png). 넘침·화면 밖 단추·콘솔 오류가 있으면 실패
 
 - 배포와 같은 빌드를 시험용으로 만든다: python3 build.py --out tests/out/flow/dist --lessons-dir tests/out/flow/lessons-fixture
-  레슨 내용(작업 12) 전까지는 시험용 레슨 tests/fixtures/lesson_build.js를 1장(ch1.js)으로 복사해 넣는다.
+  화면 장치 시험은 시험용 레슨 tests/fixtures/lesson_build.js를 1장(ch1.js)으로 복사해 넣은 빌드를 쓴다(문제 수·모양이 고정).
+  실제 레슨이 필요한 시험(장 평가, --lesson)은 data/lessons로 따로 빌드한다(real_url, tests/out/flow/dist-real).
   앱 코드에는 시험용 갈래가 없다(레슨은 평소처럼 장 파일로 받음).
 - 실행 기록 C2: WebKit이 없어 Chromium에 Playwright 기기 설정("iPhone 17" 등)을 적용한다.
 - 캡처: tests/out/flow/*.png
@@ -15,7 +18,7 @@
 - test_touch_targets: 화면마다 보이는 버튼 44×44 CSS px 이상
 - test_first_lesson: 새 저장 → 1-1(객관식 + 조립) 전부 정답 → XP +20, completed_lessons ["1-1"]
 - test_old_save: saveVer 없는 {xp: 30} → 홈 정상, XP 30
-- test_replay_and_exam: 1-1 다시 하기 XP +10·레슨 엽전 0 (장 평가 부분은 작업 12 레슨이 생기면)
+- test_replay_and_exam: 1-1 다시 하기 XP +10·레슨 엽전 0 / 실제 1장으로 1-1~1-4를 끝낸 저장 → 1-5(장 평가) 첫 완료 XP +40·엽전 15
 - test_wrong_then_retry: 객관식 틀림 → 본 문제 끝에 다시 나옴 → 완료 화면은 실수 없음 아님
 - test_reduced_motion: 동작 줄이기에서 리아 .ria-body 움직임 없음
 - test_status_after_milestone: 연속 6일(어제 달성) → 레슨 완료로 7일 축하 창이 떠 있는 동안 상태 줄 7일
@@ -28,6 +31,7 @@
 - test_daily_challenge(작업 11): 시험용 1장(1-1·1-2)을 끝낸 저장 → 홈 카드 → 틀 객관식(보기 = SQL 결과 표)·틀 빈칸·카드 조립 3문제
   → 새로고침 뒤 이어서 → 완료 화면 XP 15·엽전 10. 캡처 daily-*.png
 - test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
+- test_real_lesson_walk(작업 12): 실제 1-1을 끝까지 — 화면마다 넘침 0(열 많은 결과 표 보기 포함)
 - SKIP(까닭 출력): test_advanced_branch·test_new_content_dot(실제 레슨 필요, 작업 12)
 """
 
@@ -122,6 +126,25 @@ def env():
             httpd.shutdown()
     atexit.register(stop)
     return _env
+
+
+_real_env = {}
+
+
+def real_url():
+    """실제 레슨(data/lessons)으로 만든 빌드를 따로 띄운다(장 평가 시험, --lesson). 시험용 레슨 빌드와 섞이지 않게 다른 폴더·포트."""
+    if _real_env:
+        return _real_env["url"]
+    env()
+    dist = os.path.join(OUT, "dist-real")
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "build.py"), "--out", dist,
+                        "--lessons-dir", os.path.join(ROOT, "data", "lessons")], cwd=ROOT, capture_output=True, text=True)
+    assert r.returncode == 0, "build.py (data/lessons) failed:\n" + r.stdout + r.stderr
+    httpd = _Server(("127.0.0.1", 0), functools.partial(_Handler, directory=dist))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    atexit.register(httpd.shutdown)
+    _real_env["url"] = "http://127.0.0.1:%d/" % httpd.server_address[1]
+    return _real_env["url"]
 
 
 def device_opts(name):
@@ -568,7 +591,33 @@ def test_replay_and_exam():
         assert "다시 하기라서" in a.page.inner_text(".screen.done")
         assert not a.errors, a.errors
 
-    # 2) 장 평가(1-5) 부분은 실제 1장 레슨(작업 12)이 생기면 되살린다. 시험용 레슨은 1-1 하나뿐
+    # 2) 실제 1장: 1-1~1-4를 끝낸 저장 → 1-5(장 평가) 첫 완료. 장 평가는 XP 30 + 실수 없음 5 + 힌트 없음 5, 엽전 10 + 5
+    seed = {"saveVer": 1, "xp": 80, "yeopjeon": 60, "completed_lessons": ["1-1", "1-2", "1-3", "1-4"],
+            "current_lesson": "1-5", "current_chapter": 1,
+            "grading_results": {k: {"perfect": True, "attempts": 1} for k in ("1-1", "1-2", "1-3", "1-4")}}
+    with App("iPhone 17", save=seed, url=real_url()) as a:
+        a.start()
+        node = a.page.query_selector('.node[data-lesson="1-5"]')
+        assert node and "current" in node.get_attribute("class"), node and node.get_attribute("class")
+        assert "1-5" in a.page.inner_text("#continue")
+        a.page.click("#continue")
+        a.page.wait_for_selector(".screen.lesson")
+        assert a.lesson("1-5")["isExam"] is True
+        a.play("1-5")
+        r = a.result()
+        s = a.save()
+        a.shot("exam-done.png", full=True)
+        print("    exam: xp +%s (perfect %s, hintfree %s), lessonBytes %s, total yeopjeon +%s" % (
+            r["xp"], r["perfect"], r["hintFreeWrite"], r["lessonBytes"], r["totalBytes"]))
+        assert r["firstTime"] and r["perfect"] and r["hintFreeWrite"], r
+        assert r["xp"] == 30 + 5 + 5, r["xp"]
+        assert r["lessonBytes"] == 15, r["lessonBytes"]
+        assert a.page.inner_text(".tile.xp b") == "+40"
+        assert s["xp"] == 120 and "1-5" in s["completed_lessons"], (s["xp"], s["completed_lessons"])
+        assert s["yeopjeon"] - seed["yeopjeon"] == r["totalBytes"], (s["yeopjeon"], r["totalBytes"])
+        a.dismiss()
+        assert not a.errors, a.errors
+
 
 def test_wrong_then_retry():
     with App("iPhone 17") as a:
@@ -1500,6 +1549,92 @@ def test_lesson_no_engine():
 
 
 
+# ---------------------------------------------------------------- 실제 레슨 하나 풀어 보기 (--lesson, 작업 12 내용 검토)
+
+LOADING_TEXT = "표를 불러오는 중"
+
+
+def _seed_before(lid):
+    """lid 바로 앞까지 끝낸 저장(그 레슨이 「이어서 하기」가 됨). 레슨 id는 N-1 … N-5"""
+    n, k = (int(x) for x in lid.split("-"))
+    done = ["%d-%d" % (c, j) for c in range(1, n) for j in range(1, 6)] + ["%d-%d" % (n, j) for j in range(1, k)]
+    return {"saveVer": 1, "completed_lessons": done, "current_lesson": lid, "current_chapter": n,
+            "grading_results": {x: {"perfect": True, "attempts": 1} for x in done}}
+
+
+def walk_lesson(lid, device="iPhone 17"):
+    """실제 레슨 lid를 처음부터 끝까지 정답으로 풀며 화면마다 캡처·측정한다. 돌려줌: (캡처 이름 목록, 문제점 목록)"""
+    shots, fails = [], []
+    tag = "walk-%s" % lid
+    for f in os.listdir(OUT) if os.path.isdir(OUT) else []:
+        if f.startswith(tag + "-") and f.endswith(".png"):
+            os.remove(os.path.join(OUT, f))
+    with App(device, save=_seed_before(lid), url=real_url()) as a:
+        a.start()
+        assert lid in a.page.inner_text("#continue"), a.page.inner_text("#continue")
+        a.page.click("#continue")
+        a.page.wait_for_selector(".screen.lesson")
+        items = a.lesson(lid)["items"]
+        n = 0
+
+        def at(kind, full=True):
+            nonlocal n
+            n += 1
+            # 결과 창은 0.28초 동안 아래에서 올라온다(.result animation up) — 다 올라온 뒤에 잰다
+            a.page.wait_for_timeout(400 if kind == "result" else 150)
+            name = "%s-%02d-%s.png" % (tag, n, kind)
+            m = measure(a, name)
+            fails.extend("%s: %s" % (name, p) for p in m["problems"] + m["errors"])
+            if m["small"]:
+                fails.append("%s: touch targets < 44px: %s" % (name, "; ".join(m["small"])))
+            a.errors.clear()
+            a.shot(name, full=full)
+            shots.append(name)
+
+        def tables_drawn():
+            a.page.wait_for_function("(t) => !document.querySelector('#body').innerText.includes(t)", arg=LOADING_TEXT,
+                                     timeout=ENGINE_READY_MS)
+
+        for _ in range(80):
+            a.page.wait_for_timeout(80)
+            if a.page.query_selector(".screen.done"):
+                break
+            if a.page.query_selector(".card-view"):
+                tables_drawn()
+                at("card")
+                a.page.click("#act")
+                continue
+            if not a.page.query_selector("article.item"):
+                continue
+            idx = a.which_item(items)
+            it = items[idx]
+            if it["type"] == "build":
+                a.page.wait_for_selector("#bbank button.bcard")
+                at("build")
+                a.solve_build(it)
+            else:
+                tables_drawn()
+                at(it["type"])
+                a.answer_touch(it)
+                a.page.wait_for_selector("#result:not([hidden])")
+            at("result", full=False)
+            if not a.cont():
+                fails.append("item %d (%s) judged wrong with the stored answer" % (idx, it["type"]))
+        a.page.wait_for_selector(".screen.done", timeout=10_000)
+        a.page.wait_for_timeout(300)
+        a.dismiss()
+        at("done", full=False)
+    return shots, fails
+
+
+def test_real_lesson_walk():
+    """실제 1-1을 아이폰 17로 끝까지: 화면마다 넘침·화면 밖 단추·콘솔 오류 0. 열이 5~6개인 결과 표 보기도
+    보기 단추가 화면 폭 안에 있고 표만 옆으로 밀린다(설계 §3)"""
+    shots, fails = walk_lesson("1-1")
+    print("    %d screens, e.g. %s" % (len(shots), ", ".join(shots[:3])))
+    assert not fails, "\n".join(fails)
+
+
 def _select(argv):
     """인자: 시험 이름(test_…) 또는 --only 이름(test_<이름> 또는 test_<이름>_… 모두). 없으면 전부"""
     names = [n for n, f in globals().items() if n.startswith("test_") and callable(f)]
@@ -1521,6 +1656,21 @@ def _select(argv):
 
 
 def main():
+    if "--lesson" in sys.argv[1:] or any(x.startswith("--lesson=") for x in sys.argv[1:]):
+        argv = sys.argv[1:]
+        lid = next((x.split("=", 1)[1] for x in argv if x.startswith("--lesson=")), None) \
+            or (argv[argv.index("--lesson") + 1] if argv.index("--lesson") + 1 < len(argv) else "")
+        if not lid or not all(x.isdigit() for x in lid.split("-")) or lid.count("-") != 1:
+            raise SystemExit("flow.py: --lesson needs a lesson id like 1-3")
+        t0 = time.time()
+        shots, fails = walk_lesson(lid)
+        print("walk %s: %d screens (%.0fs) -> %s" % (lid, len(shots), time.time() - t0, OUT))
+        for x in shots:
+            print("  " + x)
+        for x in fails:
+            print("PROBLEM " + x)
+        print("PASS walk %s" % lid if not fails else "FAIL walk %s (%d problems)" % (lid, len(fails)))
+        return 1 if fails else 0
     tests = [(n, globals()[n]) for n in _select(sys.argv[1:])]
     t0 = time.time()
     env()

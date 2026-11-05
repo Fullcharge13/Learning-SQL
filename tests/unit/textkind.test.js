@@ -15,3 +15,18 @@ test("codey_code: 코드 기호가 있으면 코드 글꼴, 보통 문장은 아
   assert.equal(isCodey(""), false);
   assert.equal(isCodey(undefined), false);
 });
+
+test("codey_sql_prose: 한국어 문장 속 SQL·괄호는 보통 글꼴, SQL 조각만이면 코드 글꼴 (작업 12)", () => {
+  // 한국어 설명 보기 — 괄호·* 가 있어도 문장이다(고정폭 글꼴로 빈칸이 벌어져 읽기 어려움)
+  assert.equal(isCodey("shops (가게)"), false);
+  assert.equal(isCodey("SELECT * FROM 표 이름은 그 표 전체를 보여 준다"), false);
+  assert.equal(isCodey("행은 가로 한 줄, 열은 세로 한 줄"), false);
+  assert.equal(isCodey("12엽전"), false);
+  // SQL 조각 보기 — 한글이 글자 상수 안에만 있으면 코드
+  assert.equal(isCodey("SELECT * FROM shops"), true);
+  assert.equal(isCodey("WHERE kind = '도깨비'"), true);
+  assert.equal(isCodey("'먹거리'"), true);
+  assert.equal(isCodey("ORDER BY"), true);
+  assert.equal(isCodey("DESC"), true);
+  assert.equal(isCodey("price >= 200"), true);
+});
