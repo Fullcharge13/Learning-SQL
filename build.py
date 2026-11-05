@@ -17,12 +17,16 @@
   manifest.webmanifest    홈 화면 앱 설명
   sw.js                   서비스 작업자(판 번호·내용 지문을 채움)
   icons/*.png             리아 얼굴 아이콘(tools/icon.py)
+  worker.js               SQL 작업자(src/worker.js 묶음, 모듈 작업자)
+  sql-wasm.js, sql-wasm.wasm  sql.js 1.15.2 (node_modules/sql.js/dist 그대로). 작업자가 받아 쓴다
 
 합치는 방법
 - src/app.js → esbuild로 묶고 줄임(IIFE). src/lessondev.js(개발판의 data/lessons import)는 빈 모듈로 바꿔 끼워
   레슨 내용이 index.html에 들어가지 않는다. 대신 레슨 목록(window.RIA_LESSON_INDEX)과 장 파일 이름표
   (window.RIA_CHAPTER_FILES)를 넣고, 앱은 레슨을 열 때 장 파일을 받는다. sw.js는 설치 때 장 파일을 모두 미리 받는다.
-- (작업 3·16에서 sql.js 작업자와 sql-wasm.wasm 처리를 다시 붙인다. 지금은 작업자·실행기 없이 앱만 묶는다.)
+- 장터 데이터 data/market.sql은 앱 묶음에 글자로 들어간다(loader .sql=text). 작업자 src/worker.js는 따로 묶어
+  worker.js로 두고, sql.js의 sql-wasm.js·sql-wasm.wasm은 그대로 복사한다(작업 6, 실행기 최소 연결).
+  오프라인 저장본(sw.js)·크기 예산·CSP는 작업 16에서 다룬다.
 """
 import argparse
 import gzip
@@ -51,10 +55,12 @@ const noDevLessons = { name: "ria-no-dev-lessons", setup(b) {
   b.onLoad({ filter: /.*/, namespace: "ria-stub" }, () => ({ contents: "export async function loadDevChapters() { return []; }", loader: "js" }));
 } };
 const app = await esbuild.build({ ...common, entryPoints: [a.app], format: "iife", plugins: [noDevLessons],
-  define: { "import.meta.url": "location.href" } });
+  loader: { ".sql": "text" }, define: { "import.meta.url": "location.href" } });
+// SQL 작업자: 모듈 작업자(new Worker(url, { type: "module" }))라서 esm으로
+const worker = await esbuild.build({ ...common, entryPoints: [a.worker], format: "esm" });
 const css = await esbuild.build({ ...common, entryPoints: [a.css], loader: { ".css": "css" } });
-const inputs = [...Object.keys(app.metafile.inputs), ...Object.keys(css.metafile.inputs)];
-process.stdout.write(JSON.stringify({ app: app.outputFiles[0].text, css: css.outputFiles[0].text, inputs }));
+const inputs = [...Object.keys(app.metafile.inputs), ...Object.keys(css.metafile.inputs), ...Object.keys(worker.metafile.inputs)];
+process.stdout.write(JSON.stringify({ app: app.outputFiles[0].text, css: css.outputFiles[0].text, worker: worker.outputFiles[0].text, inputs }));
 """
 
 # 장 파일 나누기: data/lessons/chN.js → 레슨 목록 + lessons/chN-<지문>.json (목록·이름은 src/lessondata.js가 만듦)
@@ -116,7 +122,9 @@ process.stdout.write(JSON.stringify({ index, files, contents, tasks }));
 """
 
 
-OWNED = ("index.html", "manifest.webmanifest", "sw.js", "icons", "lessons", "licenses.txt")
+OWNED = ("index.html", "manifest.webmanifest", "sw.js", "icons", "lessons", "licenses.txt", "worker.js", "sql-wasm.js", "sql-wasm.wasm")
+SQLJS_DIST = os.path.join(ROOT, "node_modules", "sql.js", "dist")
+SQLJS_FILES = ("sql-wasm.js", "sql-wasm.wasm")
 
 
 
@@ -171,7 +179,7 @@ def clean(out):
 
 
 def bundle():
-    args = {"app": os.path.join(SRC, "app.js"),
+    args = {"app": os.path.join(SRC, "app.js"), "worker": os.path.join(SRC, "worker.js"),
             "css": os.path.join(SRC, "style.css"), "target": TARGET}
     esb = os.path.join(ROOT, "node_modules", "esbuild", "lib", "main.js")
     r = subprocess.run(["node", "--input-type=module", "-e", NODE_BUNDLE, "file://" + esb, json.dumps(args)],
@@ -293,6 +301,13 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     with open(os.path.join(out, "index.html"), "wb") as f:
         f.write(data)
     shutil.copy(os.path.join(ROOT, "manifest.webmanifest"), os.path.join(out, "manifest.webmanifest"))
+    with open(os.path.join(out, "worker.js"), "w", encoding="utf-8") as f:
+        f.write(b["worker"])
+    for name in SQLJS_FILES:
+        src = os.path.join(SQLJS_DIST, name)
+        if not os.path.exists(src):
+            raise SystemExit("build: %s is missing. Run `npm install` first." % os.path.relpath(src, ROOT))
+        shutil.copy(src, os.path.join(out, name))
     os.makedirs(os.path.join(out, "lessons"))
     chapter_sizes = []
     for n, name in sorted(split["files"].items(), key=lambda kv: int(kv[0])):
@@ -331,7 +346,8 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     raw, gz = len(data), len(gzip.compress(data, 9))
     print("dist: %s" % os.path.relpath(out, ROOT))
     print("version %s" % version)
-    print("app.js %.1f KB, css %.1f KB" % (len(b["app"].encode()) / 1024, len(b["css"].encode()) / 1024))
+    print("app.js %.1f KB, css %.1f KB, worker.js %.1f KB" % (len(b["app"].encode()) / 1024, len(b["css"].encode()) / 1024, len(b["worker"].encode()) / 1024))
+    print("sql.js: %s" % ", ".join("%s %.1f KB" % (n, os.path.getsize(os.path.join(out, n)) / 1024) for n in SQLJS_FILES))
     print("sw cache %s" % re.search(r'GAME_CACHE = "([^"]+)"', sw).group(1))
     print("index.html raw %.1f KB (limit %d KB), gzip %.1f KB" % (raw / 1024, MAX_RAW // 1024, gz / 1024))
     print("lessons: %d chapter files, %.1f KB total" % (len(chapter_sizes), sum(sz for _, sz in chapter_sizes) / 1024))

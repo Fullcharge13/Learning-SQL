@@ -2,6 +2,7 @@
 //
 //   const sq = new SqlRun({ wasmURL, workerURL, marketSql });
 //   sq.onstatus = (status, phase) => {};   // status: "loading"|"ready"|"failed", phase: "first-load"|"restart"
+//   const off = sq.listen((status, phase) => {}); // 여러 화면이 함께 들을 때
 //   sq.preload();
 //   const r = await sq.run("SELECT 1");    // { columns, rows, error, truncated, timeout }
 //
@@ -41,6 +42,7 @@ export class SqlRun {
     this.status = "idle";
     this.phase = "first-load";
     this.onstatus = null;
+    this._listeners = new Set();
     this._everReady = false;
     this._worker = null;
     this._workerDead = false;
@@ -62,10 +64,17 @@ export class SqlRun {
 
   _testKill() { if (this._worker) this._worker.terminate(); }
 
+  /** 상태 알림을 여럿이 받는다(인사 화면·조립 문제). 돌려준 함수를 부르면 그만 받음 */
+  listen(fn) {
+    this._listeners.add(fn);
+    return () => { this._listeners.delete(fn); };
+  }
+
   _setStatus(s) {
     this.status = s;
-    if (typeof this.onstatus === "function") {
-      try { this.onstatus(s, this.phase); } catch (_) { /* 화면 쪽 오류가 실행을 막지 않게 */ }
+    for (const fn of [this.onstatus, ...this._listeners]) {
+      if (typeof fn !== "function") continue;
+      try { fn(s, this.phase); } catch (_) { /* 화면 쪽 오류가 실행을 막지 않게 */ }
     }
   }
 

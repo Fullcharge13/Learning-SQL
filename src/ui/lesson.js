@@ -1,7 +1,7 @@
-// 레슨 화면: 개념 카드 → 터치 문제 → (직접 작성) → 재도전 → 이해도 확인 → 완료
+// 레슨 화면: 개념 카드 → 터치 문제 → (카드 조립) → 재도전 → 이해도 확인 → 완료
 // 진행 순서는 lessonflow.js 상태 기계가 정하고, 이 파일은 그리기와 채점만 한다.
-import { current, nextCard, answer, summary } from "../lessonflow.js";
-import { newSession, mark as markConcept, touchResult, finishInfo } from "../session.js";
+import { current, nextCard, answer, skip, summary } from "../lessonflow.js";
+import { newSession, mark as markConcept, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../session.js";
 import { packResume, restoreSession, hasProgress } from "../resume.js";
 import { riaSVG } from "../ria.js";
 import { esc, icon, bar, codeBlock, dialog, riaSays, filesNote, stdinNote, cardExample } from "./dom.js";
@@ -9,6 +9,7 @@ import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
 import { isCodey } from "../textkind.js";
 import { reviewPool } from "../lessondata.js";
 import { makeTemplateItem } from "../template.js";
+import { mountBuild } from "./build.js";
 
 const GUARD_MS = 400;
 const WAIT_MS = 300;    // 장 파일이 이보다 늦으면 「준비 중」 (v0.3 작업 1)
@@ -41,8 +42,8 @@ async function buildReview(ctx) {
 // 실행기가 아예 돌지 못한 결과(문제 탓이 아님) → 「다시 시도」 화면으로
 const INFRA_ERRORS = new Set(["WorkerError", "LoadError", "Timeout"]);
 
-/** 매일 도전(v0.9): 저장에 고정된 오늘 문제 중 아직 안 푼 것만. 틀은 Python으로 실행해 보기를 만들고,
- *  직접 작성은 끝낸 레슨의 write 문제 그대로(C53). 만들지 못한 틀은 건너뜀(skipped → 푼 것으로 기록) */
+/** 매일 도전(v0.9): 저장에 고정된 오늘 문제 중 아직 안 푼 것만. 틀은 실행해 보기를 만들고(작업 11에서 SQL로),
+ *  카드 조립은 끝낸 레슨의 build 문제 그대로(C53). 만들지 못한 틀은 건너뜀(skipped → 푼 것으로 기록) */
 async function buildDaily(ctx) {
   const d = ctx.save.daily;
   const done = new Set(d.done || []);
@@ -70,8 +71,8 @@ async function buildDaily(ctx) {
       else skipped.push(i);
     } else {
       const l = (ch.LESSONS || []).find((x) => x.id === p.lesson);
-      const w = l && (l.items || []).find((x) => x && x.type === "write");
-      if (w) items.push({ ...w, tag: `${l.id} 다시 쓰기`, dailyIndex: i, cards: l.cards || [] });
+      const b = l && (l.items || []).find((x) => x && x.type === "build");
+      if (b) items.push({ ...b, tag: `${l.id} 다시 조립`, dailyIndex: i });
       else skipped.push(i);
     }
   }
@@ -216,13 +217,14 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     ...(resumed ? resumed.S : newSession(lesson)),
     guardUntil: 0, onContinue: null, cleanupItem: null,
     itemDone: false,   // 이 문제의 답을 냈고 「계속」을 기다림 → 그동안은 이어 하기 기록을 남기지 않음
-    writeUI: null,     // 지금 write 문제의 { index, code, hintsShown, solutionSeen, submits, hadError }
+    buildUI: null,     // 지금 조립 문제의 { index, line, hintsShown, solutionSeen, submits, hadError } (이어 하기 기록)
   };
+  let pendingItem = resumed && resumed.item ? resumed.item : null;   // 처음 그리는 조립 문제에만 씀
 
   // ---- 이어 하기 기록 (v0.6.2 다) ----
   function saveResume() {
     if (review || daily || !ctx.resume || S.itemDone || !hasProgress(S.flow)) return;
-    ctx.resume.write(packResume({ lessonId: lesson.id, S, item: S.writeUI, now: Date.now() }));
+    ctx.resume.write(packResume({ lessonId: lesson.id, S, item: S.buildUI, now: Date.now() }));
   }
 
   root.innerHTML = `<div class="screen lesson">
@@ -425,6 +427,33 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     });
   }
 
+  // ---- 카드 조립 (설계 §4-3) ----
+  function renderBuild(cur) {
+    const init = pendingItem && pendingItem.index === cur.index ? pendingItem : null;
+    pendingItem = null;
+    S.buildUI = init ? { ...init } : null;
+    S.cleanupItem = mountBuild({ body, foot }, {
+      item: cur.item, seed: 0, sql: ctx.sql, outfit: ctx.save.outfit, init,
+      sound: ctx.sound, say: ctx.say, tag: daily && cur.item.tag ? cur.item.tag : "",
+      onState(st) { S.buildUI = { index: cur.index, ...st }; saveResume(); },
+      onPass({ solutionSeen, hintUsed, hadError, firstSubmit }) {
+        S.itemDone = true;
+        const { flowCorrect } = buildPass(S, cur, { solutionSeen, hintUsed, hadError, firstSubmit });
+        ctx.sound.play("correct");
+        openResult({
+          ok: true, flowCorrect,
+          title: solutionSeen ? "통과했어요" : hadError ? "단서를 따라 고쳐서 통과!" : "통과했어요!",
+          text: (solutionSeen ? "정답을 보고 통과했어요. 다음에 혼자 다시 조립해 보면 금방 익숙해져요. " : "") + (cur.item.explain || ""),
+          situation: "correct", sfx: "딩동!",
+          onContinue: () => { if (S.cleanupItem) S.cleanupItem(); S.cleanupItem = null; S.flow = answer(S.flow, flowCorrect); step(); },
+        });
+      },
+      onWrong() { buildWrong(S, cur); },
+      onHint() { buildHint(S, cur); },
+      log(entry) { logSubmit(S, lesson.id, cur.index, entry.pass, new Date().toISOString()); },
+    });
+  }
+
   function showCardsModal(cards) {
     dialog({
       title: "개념 카드 다시 보기",
@@ -450,7 +479,9 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
   function step() {
     S.judged = false;
     S.itemDone = false;
-    S.writeUI = null;
+    S.buildUI = null;
+    if (S.cleanupItem) { S.cleanupItem(); S.cleanupItem = null; }
+    foot.classList.remove("has-dock");
     if (daily && ctx.dailyStep) ctx.dailyStep(lesson, S);   // 끝난 문제는 바로 저장(그날 안에 이어 하기)
     setProgress();
     const cur = current(S.flow);
@@ -463,8 +494,12 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       if (t === "choice" || t === "check") renderChoice(cur);
       else if (t === "blank") renderBlank(cur);
       else if (t === "order") renderOrder(cur);
-      // write 문제는 그리지 않고 건너뜀(작업 6에서 build 종류로 채움)
-      else { S.flow = answer(S.flow, true); step(); return; }
+      else if (t === "build") renderBuild(cur);
+      else {
+        // 모르는 종류: 정답·XP 없이 건너뜀(흐름의 skipped). 레슨 점검기가 막아야 하는 경우
+        console.warn("unknown item type, skipped", t, lesson.id, cur.index);
+        S.flow = skip(S.flow); step(); return;
+      }
     }
     saveResume();
     const h = body.querySelector("h1");

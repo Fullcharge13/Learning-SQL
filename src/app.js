@@ -13,6 +13,8 @@ import { createLessonData, chaptersForConcepts } from "./lessondata.js";
 import { advancedState, advancedIds, isAdvancedId } from "./advanced.js";
 import { loadDevChapters } from "./lessondev.js";
 import { createSound } from "./sound.js";
+import { SqlRun } from "./sqlrun.js";
+import MARKET_SQL from "../data/market.sql";   // esbuild가 글자로 묶음(build.py·tools/dev.py: loader .sql=text)
 import { toast } from "./ui/dom.js";
 import { statusBar } from "./ui/nav.js";
 import { installHintKind, isIOS, isInAppBrowser, INSTALL_HINT_KEY } from "./install.js";
@@ -63,6 +65,10 @@ const app = {
   lastLine: {},          // 대사 상황별 직전 줄 번호
   storeFailedShown: false,
 };
+
+// SQL 실행기(설계 §4-4): 작업자 worker.js가 sql-wasm.js·sql-wasm.wasm(index.html 옆)을 받아 장터 데이터를 올린다.
+// 앱을 열 때 미리 받기 시작하고, 조립 문제는 준비될 때까지 「실행」·「제출」을 막는다. (오프라인 저장본은 작업 16)
+const sql = new SqlRun({ wasmURL: "sql-wasm.wasm", marketSql: MARKET_SQL });
 
 const sound = createSound(() => app.save && app.save.settings && app.save.settings.sound !== false);
 
@@ -243,10 +249,9 @@ const ctx = {
   get chapterFiles() { return app.data ? app.data.fileList() : []; },
   lessonState, currentLessonId,
   today: () => localDate(),
-  // 실행기(sql.js)는 작업 3에서 붙는다. 그때까지 runner는 없음 → 인사 화면은 「준비 중」으로 둠
+  sql,
+  // 매일 도전의 틀 실행은 작업 11에서 sql로 옮긴다. 그때까지 runner는 없음(틀 문제는 「준비 안 됨」)
   runner: null,
-  pyState: () => ({ status: "loading", phase: "first-load" }),
-  onPy() { return () => {}; },
   dayStart,
   takeGreeting() { const g = app.greetOverride; app.greetOverride = null; return g; },
   // 의상 교체로 돌려준 바이트 안내(판정 C42): 처음 한 번만. 깃발을 내린 저장을 바로 남긴다
@@ -281,6 +286,7 @@ async function boot() {
   app.advanced = app.chapters.flatMap((c) => c.advanced || []);
   if (app.lessons.length) resume.read();   // 낡은 기록 치우기(레슨 목록을 못 받았으면 건드리지 않음)
   dayStart();
+  sql.preload().catch(() => {});   // 실패해도 조립 문제의 「다시 시도」나 다음 실행에서 다시 받는다
   show("splash");
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;

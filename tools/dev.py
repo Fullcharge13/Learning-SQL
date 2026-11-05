@@ -5,8 +5,8 @@
     python3 tools/dev.py --port 9000
     python3 tools/dev.py --build-only  # 묶기만 (시험 도구가 씀)
 
-dev/ 구성: index.html(설정 주입) · style.css · app.js(묶음) · worker.js · py/runner.py
-Pyodide는 /node_modules/pyodide/ 에서 받는다(저장소 뿌리를 열기 때문). 배포판(작업 10 build.py)은 jsDelivr 주소를 쓴다.
+dev/ 구성: index.html · style.css · app.js(묶음, 장터 데이터 글자 포함) · worker.js(묶음) · sql-wasm.js · sql-wasm.wasm
+레슨은 data/lessons/chN.js를 그대로 묶는다(src/lessondev.js).
 """
 import argparse
 import functools
@@ -21,23 +21,24 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 DEV = os.path.join(ROOT, "dev")
 ESBUILD = os.path.join(ROOT, "node_modules", ".bin", "esbuild")
-CONFIG = '<script>window.RIA_PYODIDE_URL = "/node_modules/pyodide/";</script>'
+SQLJS_DIST = os.path.join(ROOT, "node_modules", "sql.js", "dist")
 
 
 def build():
-    os.makedirs(os.path.join(DEV, "py"), exist_ok=True)
-    subprocess.run(
-        [ESBUILD, os.path.join(SRC, "app.js"), "--bundle", "--format=esm", "--target=es2022,safari16",
-         "--outfile=" + os.path.join(DEV, "app.js"), "--log-level=warning"],
-        check=True, cwd=ROOT)
+    os.makedirs(DEV, exist_ok=True)
+    for entry, fmt in (("app.js", "esm"), ("worker.js", "esm")):
+        subprocess.run(
+            [ESBUILD, os.path.join(SRC, entry), "--bundle", "--format=" + fmt, "--target=es2022,safari16",
+             "--loader:.sql=text", "--outfile=" + os.path.join(DEV, entry), "--log-level=warning"],
+            check=True, cwd=ROOT)
     with open(os.path.join(SRC, "index.html"), encoding="utf-8") as f:
         html = f.read()
-    html = html.replace("<!-- RIA:CONFIG -->", CONFIG)
+    html = html.replace("<!-- RIA:CONFIG -->", "")
     with open(os.path.join(DEV, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
     shutil.copy(os.path.join(SRC, "style.css"), os.path.join(DEV, "style.css"))
-    shutil.copy(os.path.join(SRC, "worker.js"), os.path.join(DEV, "worker.js"))
-    shutil.copy(os.path.join(SRC, "py", "runner.py"), os.path.join(DEV, "py", "runner.py"))
+    for name in ("sql-wasm.js", "sql-wasm.wasm"):
+        shutil.copy(os.path.join(SQLJS_DIST, name), os.path.join(DEV, name))
     size = os.path.getsize(os.path.join(DEV, "app.js"))
     print("묶음 dev/app.js %.1f KB" % (size / 1024))
 
