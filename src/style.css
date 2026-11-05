@@ -504,6 +504,26 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 .cmp { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 6px; margin-bottom: 8px; }
 .cmp .err-panel { margin-bottom: 0; }
 /* 비교 표는 높이를 줄이고(까닭 줄·내 결과·기대 결과 머리가 아이폰 한 화면에) 표 상자 안에서 위아래로 밀린다(머리 줄은 상자 안에 붙어 있음) */
+/* SQL이 든 설명 카드·객관식 보기·쓸 표 보기 (v0.1 작업 7) */
+.sql-example .code { margin-bottom: 8px; }
+.sql-result { min-width: 0; }
+.sql-result .rtable { margin: 0 0 8px; }
+.sql-result[data-box="card"] .rt-scroll, .sql-result[data-box="sheet"] .rt-scroll { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
+.opt.sqlopt { align-items: flex-start; }
+.opt.sqlopt .opt-key { margin-top: 2px; }
+.opt.sqlopt .opt-text { flex: 1; min-width: 0; }
+.opt.sqlopt .rtable { margin: 0; }
+.opt.sqlopt .rtable table { font-size: 13px; }
+.opt.sqlopt .rtable th, .opt.sqlopt .rtable td { padding: 4px 8px; }
+.opt.sqlopt .rt-foot { margin: 4px 0 0; }
+.opt .sql-text { font-family: var(--mono); font-size: .95rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sql-err { margin: 0; font-size: .9rem; }
+.tables-sheet { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.tbl-sec { min-width: 0; }
+.tbl-name { font-size: 1.05rem; margin: 0 0 6px; }
+.tbl-name small { font-size: .8rem; color: var(--ink-2); font-weight: 700; margin-left: 4px; }
+.col-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 2px; font-size: .9rem; }
+.col-list code { font-family: var(--mono); font-weight: 800; }
 .cmp .rt-scroll { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
 
 /* ---------- 완료 ---------- */

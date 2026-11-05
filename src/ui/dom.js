@@ -44,6 +44,7 @@ const P = {
   shield: '<path d="M12 3l7.5 3v5.5c0 4.5-3.3 8-7.5 9.5-4.2-1.5-7.5-5-7.5-9.5V6z"/>',
   review: '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/>',
   book: '<path d="M4 5.5A2 2 0 0 1 6 4h13v14H6a2 2 0 0 0-2 2zM4 20V5.5M8 8h7"/>',
+  table: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 10h17M3.5 14.5h17M9.5 10v9"/>',
   star: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
 };
 export function icon(name, cls = "") {
@@ -116,15 +117,13 @@ export function stdinNote(stdin) {
   return `<p class="stdin-note">${icon("send")}<span>입력하는 값: ${vals.map((v) => `<code>${esc(v)}</code>`).join(" ")}</span></p>`;
 }
 
-/** 개념 카드의 예제 칸. 카드는 실행하지 않고 저장된 out·chart를 보여 준다.
- *  show_only 카드(판정 C38)는 코드만 보여 주고 「실행 안 함」 이름표를 단다(출력 칸 없음). */
+/** 개념 카드의 SQL 칸: SQL(코드 글꼴) + 그 아래 실행 결과 표 자리. 표는 화면을 그린 뒤 ui/sqlview.js의 fillResults가 채운다
+ *  (실행기가 준비되기 전에는 「표를 불러오는 중…」). SQL이 없는 카드는 빈 글자 */
 export function cardExample(c) {
-  if (!c || !c.code) return "";
-  if (c.show_only) {
-    return `<div class="example show-only"><p class="ex-label">${icon("eye")}<span>실제 컴퓨터용 코드(여기서는 실행 안 함)</span></p>${codeBlock(c.code)}</div>`;
-  }
-  return `<div class="example">${filesNote(c.files)}<p class="ex-label">예제</p>${codeBlock(c.code)}${stdinNote(c.stdin)}
-        ${c.out != null ? `<p class="ex-label">실행 결과</p><pre class="out">${esc(c.out)}</pre>` : ""}</div>`;
+  if (!c || !c.sql) return "";
+  return `<div class="example sql-example">${codeBlock(c.sql, "sql")}
+    <p class="ex-label">실행 결과</p>
+    <div class="sql-result" data-sql="${esc(c.sql)}" data-box="card"><p class="muted">표를 불러오는 중…</p></div></div>`;
 }
 
 export const MILESTONE_REWARD = {

@@ -80,6 +80,69 @@ export function chaptersForConcepts(index, concepts, completed = null) {
     || (c.advanced || []).some((l) => (!doneSet || doneSet.has(l.id)) && has(l))).map((c) => c.id);
 }
 
+// ---- 레슨 형식 검사 (v0.1 작업 7) ----
+// 설명 카드 { say, sql? } · 객관식 보기(전부 글자 또는 전부 { sql }) · 조립(build) 문제를 본다. 오류 글 목록을 돌려줌(비면 통과).
+// schema(data/schema.js의 SCHEMA)를 받아야 tables 이름을 확인한다(이 파일은 데이터 파일을 import하지 않음).
+const nonEmpty = (v) => typeof v === "string" && v.trim() !== "";
+const OLD_CARD_KEYS = ["code", "out", "files", "stdin", "show_only", "chart"];   // 리아(파이썬) 카드 모양
+
+function checkTables(where, tables, schema, required) {
+  const out = [];
+  if (tables === undefined && !required) return out;
+  if (!Array.isArray(tables) || (required && !tables.length)) { out.push(`${where}: tables must be a${required ? " non-empty" : ""} array of table names`); return out; }
+  for (const t of tables) {
+    if (!nonEmpty(t)) out.push(`${where}: table name must be a non-empty string`);
+    else if (schema && !Object.hasOwn(schema, t)) out.push(`${where}: unknown table ${t}`);
+  }
+  return out;
+}
+
+function checkCard(where, c) {
+  if (!c || typeof c !== "object") return [`${where}: card must be an object`];
+  const out = [];
+  if (!nonEmpty(c.say)) out.push(`${where}: card needs say`);
+  if (c.sql !== undefined && !nonEmpty(c.sql)) out.push(`${where}: card sql must be a non-empty string`);
+  for (const k of OLD_CARD_KEYS) if (k in c) out.push(`${where}: card has old field ${k} (use sql)`);
+  return out;
+}
+
+function checkChoice(where, it, schema) {
+  const out = [];
+  const opts = it.options;
+  if (!Array.isArray(opts) || opts.length < 2) return [`${where}: choice needs at least 2 options`];
+  const texts = opts.every((o) => typeof o === "string");
+  const sqls = opts.every((o) => o && typeof o === "object" && !Array.isArray(o) && nonEmpty(o.sql) && Object.keys(o).every((k) => k === "sql"));
+  if (!texts && !sqls) out.push(`${where}: options must be all strings or all { sql } (non-empty, no mixing)`);
+  if (!Number.isInteger(it.answer) || it.answer < 0 || it.answer >= opts.length) out.push(`${where}: answer out of range`);
+  out.push(...checkTables(where, it.tables, schema, false));
+  return out;
+}
+
+function checkBuild(where, it, schema) {
+  const out = [];
+  const strs = (a) => Array.isArray(a) && a.every(nonEmpty);
+  if (!Array.isArray(it.cards) || !it.cards.length || !strs(it.cards)) out.push(`${where}: build needs cards (non-empty array of strings)`);
+  if (!Array.isArray(it.extra) || !it.extra.every((x) => typeof x === "string")) out.push(`${where}: build needs extra (array of strings)`);
+  if (!Array.isArray(it.hints) || it.hints.length !== 2 || !it.hints.every(nonEmpty)) out.push(`${where}: build needs hints (exactly 2 non-empty strings)`);
+  out.push(...checkTables(where, it.tables, schema, true));
+  return out;
+}
+
+/** 레슨 하나의 형식 오류 글 목록. 카드는 { say, sql? }, 객관식 보기는 전부 글자이거나 전부 { sql }, build는 cards·extra·hints 2개·tables */
+export function validateLesson(l, schema = null) {
+  const id = l && l.id ? l.id : "?";
+  if (!l || typeof l !== "object") return ["lesson must be an object"];
+  const out = [];
+  (Array.isArray(l.cards) ? l.cards : []).forEach((c, i) => out.push(...checkCard(`${id} card ${i}`, c)));
+  (Array.isArray(l.items) ? l.items : []).forEach((it, i) => {
+    const where = `${id} item ${i}`;
+    if (!it || typeof it !== "object") { out.push(`${where}: item must be an object`); return; }
+    if (it.type === "choice" || it.type === "check") out.push(...checkChoice(where, it, schema));
+    else if (it.type === "build") out.push(...checkBuild(where, it, schema));
+  });
+  return out;
+}
+
 const TOUCH = new Set(["choice", "blank", "order", "check"]);
 
 /** 복습 문제 후보: 받은 장들({LESSONS, ADVANCED?})의 본 과정 레슨 + 끝낸 심화 레슨에서, 복습 개념의 터치 문제.

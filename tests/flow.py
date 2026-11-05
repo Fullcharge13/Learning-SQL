@@ -23,7 +23,7 @@
 - test_resume_decline: 「처음부터」 → 카드 1부터, 칸 지워짐 / 「그만두기」도 칸을 지움
 - test_build_solve: 조립 문제를 카드 누르기로 — 틀린 조립 실행(결과 표) → 오류 실행(설명) → 틀린 제출(내 결과·기대 결과 나란히)
                     → 맞게 고쳐 제출 → 「단서를 따라 고쳐서 통과!」, 통계 fixed·hintfree 1. 캡처 build-*.png (iPhone 17)
-- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
+- test_lesson: 카드 SQL+결과 표, 행 많은 카드(30vh 상자), 객관식 표 보기(44px·포커스 없음), 「쓸 표 보기」 세 가지 닫기·한글 뜻·5행, 조립에도 단추. 캡처 lesson-*.png\n- test_lesson_wrong_option / test_lesson_no_engine: 틀린 보기 안내, 실행기 없을 때 카드 안내·보기는 SQL 글자로\n- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
 - SKIP(까닭 출력): test_advanced_branch·test_new_content_dot(실제 레슨 필요, 작업 12), test_daily_challenge(SQL 틀, 작업 11)
 """
 
@@ -1274,6 +1274,170 @@ def test_build_no_engine():
         expected = ("sql-wasm.wasm", "Failed to load resource", "wasm streaming compile failed", "falling back to ArrayBuffer")
         bad = [e for e in a.errors if not any(x in e for x in expected)]
         assert not bad, bad
+
+
+SQL_CHOICE_JS = """() => [...document.querySelectorAll('.opt')].map((b) => { const r = b.getBoundingClientRect(); const t = b.querySelector('.rtable');
+  return { sql: b.dataset.sql || null, h: Math.round(r.height), w: Math.round(r.width), rows: t ? t.querySelectorAll('tbody tr').length : 0,
+           heads: t ? [...t.querySelectorAll('thead th')].map((th) => th.innerText.replace(/\\n/g, '/')) : [], text: b.innerText.replace(/\\n/g, ' / '),
+           label: b.getAttribute('aria-label'), tabbable: t ? t.querySelectorAll('[tabindex]').length : 0 }; })"""
+
+SHEET_JS = """() => [...document.querySelectorAll('.tables-sheet .tbl-sec')].map((s) => ({
+  table: s.dataset.table, name: s.querySelector('.tbl-name').innerText.replace(/\\n/g, ' '),
+  cols: [...s.querySelectorAll('.col-list li')].map((li) => li.innerText), rows: s.querySelectorAll('tbody tr').length,
+  heads: [...s.querySelectorAll('thead th')].map((th) => th.innerText.replace(/\\n/g, '/')) }))"""
+
+
+def _sheet_checks(a, want):
+    """「쓸 표 보기」 시트가 열려 있어야 함: 표마다 한글 이름·열 목록·5행. want: {표: 한글 이름}"""
+    a.page.wait_for_selector(".modal[role=dialog] .tables-sheet")
+    a.page.wait_for_function("(n) => document.querySelectorAll('.tables-sheet .rtable').length === n", arg=len(want), timeout=20_000)
+    secs = a.js(SHEET_JS)
+    assert [x["table"] for x in secs] == list(want), secs
+    for x in secs:
+        assert x["name"].startswith(want[x["table"]]) and x["table"] in x["name"], x
+        assert x["rows"] == 5, x
+        assert any(c.startswith(x["heads"][0].split("/")[0]) and " — " in c for c in x["cols"]), x
+    return secs
+
+
+def _sheet_close_ways(a, open_fn, want):
+    """닫기 단추·Esc·바깥 누르기 세 가지로 닫힘"""
+    for how in ("button", "escape", "backdrop"):
+        open_fn()
+        _sheet_checks(a, want)
+        if how == "button":
+            a.page.click(".modal .btn.primary")
+        elif how == "escape":
+            a.page.keyboard.press("Escape")
+        else:
+            a.page.mouse.click(8, 8)
+        a.page.wait_for_selector(".modal-back", state="detached", timeout=3000)
+
+
+def test_lesson():
+    shots = []
+    sd = _shot_dir()
+
+    def keep(a, name, src):
+        a.shot(src)
+        shutil.copy(os.path.join(OUT, src), os.path.join(sd, name))
+        shots.append(name)
+    with App("iPhone 17", save={"completed_lessons": ["1-1"]}) as a:
+        a.start()
+        a.page.click("#continue")
+        a.page.wait_for_selector(".card-view")
+        assert "시험용 결과 표" in a.page.inner_text(".lesson-title"), a.page.inner_text(".lesson-title")
+        # 1) 설명 카드: SQL(코드 글꼴) + 결과 표
+        a.page.wait_for_selector(".card-view .sql-result .rtable", timeout=ENGINE_READY_MS)
+        code = a.page.inner_text(".card-view pre.code.sql")
+        assert code == "SELECT name, price FROM items WHERE price >= 200", code
+        assert "monospace" in a.js("() => getComputedStyle(document.querySelector('.card-view pre.code code')).fontFamily") \
+            or "mono" in a.js("() => getComputedStyle(document.querySelector('.card-view pre.code')).fontFamily").lower(), "SQL in mono font"
+        t = a.js(TABLE_JS, ".card-view .rtable")
+        print("    card table: %s rows %s foot %r" % (t["heads"], t["rows"], t["foot"]))
+        assert t["heads"] == ["name/이름", "price/값(엽전)"] and t["rows"] == 5 and "5행" in t["foot"], t
+        m = measure(a, "lesson-card-sql")
+        assert not m["problems"] and not m["small"], m
+        keep(a, "lesson-1-card-table.png", "lesson-card-sql.png")
+        # 2) 행이 많은 카드: 표 상자 30vh 안에서 스크롤
+        a.page.click("#act")
+        a.page.wait_for_selector(".card-view .sql-result .rtable", timeout=20_000)
+        a.page.wait_for_function("() => document.querySelectorAll('.card-view tbody tr').length > 5")
+        big = a.js("""() => { const sc = document.querySelector('.card-view .rt-scroll'); const r = sc.getBoundingClientRect();
+          return { h: r.height, vh: innerHeight, scrollH: sc.scrollHeight, oy: getComputedStyle(sc).overflowY,
+                   rows: sc.querySelectorAll('tbody tr').length, foot: document.querySelector('.card-view .rt-foot').innerText }; }""")
+        assert big["oy"] == "auto" and big["h"] <= big["vh"] * 0.3 + 1 and big["scrollH"] > big["h"], big
+        assert big["rows"] == 40 and "40행" in big["foot"], big
+        a.page.click("#act")
+        # 3) 객관식: 보기가 결과 표. 한 보기 = 눌리는 요소 하나(44px 이상), 표는 따로 포커스를 받지 않음
+        a.page.wait_for_selector("article.item .opt")
+        a.page.wait_for_function("() => document.querySelectorAll('.opt .rtable').length === 3", timeout=20_000)
+        opts = a.js(SQL_CHOICE_JS)
+        print("    options: %s" % [(o["rows"], o["h"], o["heads"]) for o in opts])
+        assert len(opts) == 3 and all(o["h"] >= 44 and o["rows"] == 3 and o["heads"] == ["name/이름"] for o in opts), opts
+        assert all(o["tabbable"] == 0 and o["label"] and "3행" in o["label"] for o in opts), opts
+        assert a.js("() => document.querySelectorAll('.opt button, .opt a').length") == 0
+        right = "SELECT name FROM shops ORDER BY shop_id LIMIT 3"
+        texts = {o["sql"]: o["text"] for o in opts}
+        assert texts[right] != texts["SELECT name FROM items ORDER BY item_id LIMIT 3"], "options must differ"
+        m = measure(a, "lesson-choice-sql")
+        assert not m["problems"] and not m["small"], m
+        keep(a, "lesson-2-choice-tables.png", "lesson-choice-sql.png")
+        # 쓸 표 보기: 세 가지 닫기
+        assert a.page.is_visible("#tablesbtn")
+        _sheet_close_ways(a, lambda: a.page.click("#tablesbtn"), {"shops": "가게", "items": "물건"})
+        a.page.click("#tablesbtn")
+        secs = _sheet_checks(a, {"shops": "가게", "items": "물건"})
+        print("    sheet: %s" % [(x["name"], len(x["cols"]), x["rows"]) for x in secs])
+        assert secs[0]["cols"][0] == "shop_id — 가게 번호", secs[0]["cols"]
+        assert secs[1]["heads"][:2] == ["item_id/물건 번호", "shop_id/가게 번호"], secs[1]["heads"]
+        a.page.wait_for_timeout(200)
+        keep(a, "lesson-3-tables-sheet.png", "lesson-tables-sheet.png")
+        a.page.keyboard.press("Escape")
+        a.page.wait_for_selector(".modal-back", state="detached")
+        # 맞는 보기를 눌러 확인 → 정답
+        a.page.click('.opt[data-sql="%s"]' % right)
+        a.page.click("#act")
+        a.page.wait_for_selector("#result:not([hidden])")
+        assert "ok" in (a.page.get_attribute("#result", "class") or ""), "tapping the table option that matches is correct"
+        assert a.cont()
+        # 4) 조립 문제에도 「쓸 표 보기」
+        a.page.wait_for_selector("#bbank button.bcard")
+        assert a.page.is_visible("#tablesbtn")
+        m = measure(a, "lesson-build-tables")
+        assert not m["problems"] and not m["small"], m
+        _sheet_close_ways(a, lambda: a.page.click("#tablesbtn"), {"shops": "가게", "items": "물건"})
+        a.solve_build(next(x for x in a.lesson("1-2")["items"] if x["type"] == "build"))
+        assert a.cont()
+        a.page.wait_for_selector(".screen.done", timeout=10_000)
+        a.dismiss()
+        assert not a.errors, a.errors
+    print("    screenshots: %s" % ", ".join(shots))
+
+
+def test_lesson_wrong_option():
+    with App("iPhone 17", save={"completed_lessons": ["1-1"]}) as a:
+        a.start()
+        a.page.click("#continue")
+        a.page.wait_for_selector(".card-view")
+        a.page.click("#act")
+        a.page.click("#act")
+        a.page.wait_for_function("() => document.querySelectorAll('.opt .rtable').length === 3", timeout=ENGINE_READY_MS)
+        a.page.click('.opt[data-sql="SELECT name FROM items ORDER BY item_id LIMIT 3"]')
+        a.page.click("#act")
+        a.page.wait_for_selector("#result:not([hidden])")
+        res = a.page.inner_text("#result")
+        assert "bad" in (a.page.get_attribute("#result", "class") or "") and "번 보기" in res and "FROM shops" in res, res
+        assert not a.errors, a.errors
+
+
+def test_lesson_no_engine():
+    with App("iPhone 17", save={"completed_lessons": ["1-1"]}, block=("**/sql-wasm.wasm",)) as a:
+        a.page.wait_for_function("() => window.__ria.ctx.sql.status === 'failed'", timeout=20_000)
+        a.start()
+        a.page.click("#continue")
+        a.page.wait_for_selector(".card-view")
+        a.page.wait_for_function("() => /불러오지 못해/.test(document.querySelector('.card-view .sql-result').innerText)", timeout=20_000)
+        assert "SELECT name, price FROM items" in a.page.inner_text(".card-view"), "card stays readable"
+        assert a.page.is_enabled("#act")
+        a.page.click("#act")
+        a.page.click("#act")
+        # 보기는 SQL 글자로 대신 보이고, 그대로 풀린다
+        a.page.wait_for_selector("article.item .opt")
+        a.page.wait_for_function("() => [...document.querySelectorAll('.opt')].every((b) => b.querySelector('.sql-text'))", timeout=20_000)
+        opts = a.js(SQL_CHOICE_JS)
+        assert all(o["rows"] == 0 and o["text"].replace(" / ", " ").split(" ", 1)[1].startswith("SELECT name FROM") and o["h"] >= 44 for o in opts), opts
+        a.shot("lesson-no-engine.png")
+        m = measure(a, "lesson-no-engine")
+        assert not m["problems"] and not m["small"], m
+        a.page.click('.opt[data-sql="SELECT name FROM shops ORDER BY shop_id LIMIT 3"]')
+        a.page.click("#act")
+        a.page.wait_for_selector("#result:not([hidden])")
+        assert "ok" in (a.page.get_attribute("#result", "class") or ""), "still answerable without the engine"
+        expected = ("sql-wasm.wasm", "Failed to load resource", "wasm streaming compile failed", "falling back to ArrayBuffer")
+        bad = [e for e in a.errors if not any(x in e for x in expected)]
+        assert not bad, bad
+
 
 
 def _select(argv):

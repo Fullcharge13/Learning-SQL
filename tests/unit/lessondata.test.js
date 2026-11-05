@@ -1,7 +1,9 @@
 // 장 따로 불러오기 (v0.3 작업 1): 레슨 목록 만들기, 장 파일 이름표, 가져오기·실패 뒤 다시 시도
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { SCHEMA } from "../../data/schema.js";
 import {
+  validateLesson,
   buildLessonIndex, chapterFileName, CHAPTER_FILE_RE, chaptersForConcepts, createLessonData, ChapterLoadError,
 } from "../../src/lessondata.js";
 
@@ -137,4 +139,70 @@ test("templates_chapter: 개발판·배포판 모두 getChapter가 TEMPLATES를 
   const f = fakeFetch(() => ok({ ...mod(1), TEMPLATES: TPL(1) }));
   const split = createLessonData({ index: buildLessonIndex([{ ...mod(1), TEMPLATES: TPL(1) }]), files: FILES, base: BASE, fetch: f });
   assert.equal((await split.getChapter(1)).TEMPLATES[0].id, "1-T1");
+});
+
+// ---- 레슨 형식 검사 (v0.1 작업 7): 설명 카드 sql, 객관식 sql 보기, 조립 문제 ----
+const lesson = (over = {}) => ({
+  id: "1-1", chapter: 1, title: "t", goal: "g", summary: ["s"],
+  cards: [{ say: "설명" }],
+  items: [{ type: "choice", concept: "c", q: "q", options: ["a", "b"], answer: 0 }],
+  ...over,
+});
+const build = (over = {}) => ({
+  type: "build", concept: "c", q: "q", cards: ["SELECT", "*", "FROM", "items"], extra: ["shops"], tables: ["items"],
+  hints: ["첫째", "둘째"], ...over,
+});
+const errs = (l) => validateLesson(l, SCHEMA);
+
+test("valid lesson has no errors", () => {
+  assert.deepEqual(errs(lesson({ items: [build()] })), []);
+});
+
+test("card with sql accepted", () => {
+  assert.deepEqual(errs(lesson({ cards: [{ say: "표를 봐요", sql: "SELECT name FROM items LIMIT 3" }] })), []);
+  assert.ok(errs(lesson({ cards: [{ say: "x", sql: "" }] })).length, "빈 sql");
+  assert.ok(errs(lesson({ cards: [{ sql: "SELECT 1" }] })).length, "say 없음");
+});
+
+test("card with code rejected", () => {
+  const e = errs(lesson({ cards: [{ say: "리아 모양", code: "print(1)", out: "1" }] }));
+  assert.ok(e.some((m) => m.includes("code")), e.join("|"));
+  assert.ok(errs(lesson({ cards: [{ say: "x", out: "1" }] })).length);
+});
+
+test("choice option sql accepted", () => {
+  const ok = { type: "choice", concept: "c", q: "q", code: "SELECT 1", options: [{ sql: "SELECT 1" }, { sql: "SELECT 2" }], answer: 1 };
+  assert.deepEqual(errs(lesson({ items: [ok] })), []);
+  assert.deepEqual(errs(lesson({ items: [{ ...ok, tables: ["items", "shops"] }] })), []);
+});
+
+test("choice options cannot mix text and sql, and need a valid answer", () => {
+  const mixed = { type: "choice", concept: "c", q: "q", options: ["a", { sql: "SELECT 1" }], answer: 0 };
+  assert.ok(errs(lesson({ items: [mixed] })).length, "섞음");
+  assert.ok(errs(lesson({ items: [{ type: "choice", concept: "c", q: "q", options: [{ sql: "" }, { sql: "SELECT 1" }], answer: 0 }] })).length);
+  assert.ok(errs(lesson({ items: [{ type: "choice", concept: "c", q: "q", options: ["a", "b"], answer: 2 }] })).length);
+  assert.ok(errs(lesson({ items: [{ type: "choice", concept: "c", q: "q", options: ["a", "b"], answer: 0, tables: ["nope"] }] })).length, "없는 표");
+});
+
+test("build item needs cards and tables", () => {
+  assert.ok(errs(lesson({ items: [build({ cards: [] })] })).length, "cards 비어 있음");
+  assert.ok(errs(lesson({ items: [build({ cards: undefined })] })).length);
+  assert.ok(errs(lesson({ items: [build({ cards: ["SELECT", 1] })] })).length, "문자열만");
+  assert.ok(errs(lesson({ items: [build({ tables: [] })] })).length, "tables 비어 있음");
+  assert.ok(errs(lesson({ items: [build({ tables: undefined })] })).length);
+  assert.ok(errs(lesson({ items: [build({ tables: ["nope"] })] })).length, "SCHEMA에 없는 표");
+  assert.ok(errs(lesson({ items: [build({ extra: "x" })] })).length, "extra는 배열");
+  assert.deepEqual(errs(lesson({ items: [build({ extra: [] })] })), []);
+});
+
+test("build item needs hints", () => {
+  assert.ok(errs(lesson({ items: [build({ hints: undefined })] })).length);
+  assert.ok(errs(lesson({ items: [build({ hints: ["하나"] })] })).length, "정확히 2개");
+  assert.ok(errs(lesson({ items: [build({ hints: ["a", "b", "c"] })] })).length);
+  assert.ok(errs(lesson({ items: [build({ hints: ["a", " "] })] })).length, "빈 글");
+});
+
+test("flow fixture lessons pass the validator", async () => {
+  const m = await import("../fixtures/lesson_build.js");
+  for (const l of m.LESSONS) assert.deepEqual(validateLesson(l, SCHEMA), [], l.id);
 });

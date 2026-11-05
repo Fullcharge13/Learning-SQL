@@ -10,6 +10,8 @@ import { isCodey } from "../textkind.js";
 import { reviewPool } from "../lessondata.js";
 import { makeTemplateItem } from "../template.js";
 import { mountBuild } from "./build.js";
+import { fillResults } from "./sqlview.js";
+import { openTables } from "./tables.js";
 
 const GUARD_MS = 400;
 const WAIT_MS = 300;    // 장 파일이 이보다 늦으면 「준비 중」 (v0.3 작업 1)
@@ -326,6 +328,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       </div>
       ${cardExample(c)}
     </article>`;
+    S.cleanupItem = fillResults(body, ctx.sql);   // 카드의 SQL 결과 표(실행기가 준비되면 채움, 화면을 떠나면 멈춤)
     const b = footButton(cur.index + 1 < lesson.cards.length ? "다음 카드" : "문제 풀기");
     b.addEventListener("click", () => { S.flow = nextCard(S.flow); step(); });
   }
@@ -341,15 +344,40 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       ${filesNote(it.files)}${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}${stdinNote(it.stdin)}`;
   }
 
+  const optSql = (o) => (o && typeof o === "object" ? o.sql : null);
+  const tablesButton = (it) => (it.tables && it.tables.length
+    ? `<div class="help-row"><button class="btn ghost small" id="tablesbtn">${icon("table")}<span>쓸 표 보기</span></button></div>` : "");
+
   function renderChoice(cur) {
     const orig = cur.item;
     const sh = shuffleChoices(orig.options, orig.answer, newSeed()); // 이번 풀이 동안 고정 (C26)
     const it = { ...orig, options: sh.options, answer: sh.answer };
     let pick = -1;
-    body.innerHTML = `<article class="item">${itemHead(cur)}
-      <div class="options" role="radiogroup" aria-label="보기">${it.options.map((o, i) =>
-        `<button class="opt${isCodey(o) ? " mono" : ""}" role="radio" aria-checked="false" data-i="${i}"><span class="opt-key" aria-hidden="true">${i + 1}</span><span class="opt-text">${esc(o)}</span></button>`).join("")}</div>
+    // 보기가 { sql }이면 그 SQL의 결과 표(최대 5행)를 보기로 그린다. 실행기가 실패하면 SQL 글자를 그대로 보여 준다
+    const optHTML = (o, i) => {
+      const q = optSql(o);
+      const inner = q != null
+        ? `<span class="opt-text sql-result" data-sql="${esc(q)}" data-box="opt"><span class="muted">표를 불러오는 중…</span></span>`
+        : `<span class="opt-text">${esc(o)}</span>`;
+      return `<button class="opt${q != null ? " sqlopt" : isCodey(o) ? " mono" : ""}" role="radio" aria-checked="false" data-i="${i}"${q != null ? ` data-sql="${esc(q)}" aria-label="${esc(`${i + 1}번 보기: 표를 불러오는 중`)}"` : ""}><span class="opt-key" aria-hidden="true">${i + 1}</span>${inner}</button>`;
+    };
+    body.innerHTML = `<article class="item">${itemHead(cur)}${tablesButton(it)}
+      <div class="options" role="radiogroup" aria-label="보기">${it.options.map(optHTML).join("")}</div>
     </article>`;
+    const tb = body.querySelector("#tablesbtn");
+    if (tb) tb.addEventListener("click", () => { openTables(it.tables, ctx.sql); });
+    S.cleanupItem = fillResults(body, ctx.sql, {
+      onFilled(node, r) {
+        const b = node.closest(".opt");
+        if (b) b.setAttribute("aria-label", r.error ? `${b.dataset.i * 1 + 1}번 보기` : `${b.dataset.i * 1 + 1}번 보기: 열 ${r.columns.join(", ")}, ${r.rows.length}행`);
+      },
+      onFailed(node) {
+        const b = node.closest(".opt");
+        node.classList.add("sql-text");
+        node.textContent = node.dataset.sql;
+        if (b) { b.classList.add("mono"); b.setAttribute("aria-label", `${b.dataset.i * 1 + 1}번 보기: ${node.dataset.sql}`); }
+      },
+    });
     const act = footButton("확인", { disabled: true });
     body.querySelectorAll(".opt").forEach((b) => b.addEventListener("click", () => {
       pick = +b.dataset.i;
@@ -358,7 +386,11 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     }));
     act.addEventListener("click", () => {
       if (pick < 0) return;
-      judged(cur, pick === it.answer, `<p class="answer">정답: <span class="${isCodey(it.options[it.answer]) ? "mono" : ""}">${esc(it.options[it.answer])}</span></p>`);
+      const right = it.options[it.answer];
+      const rq = optSql(right);
+      judged(cur, pick === it.answer, rq != null
+        ? `<p class="answer">정답: ${it.answer + 1}번 보기</p>${codeBlock(rq, "sql")}`
+        : `<p class="answer">정답: <span class="${isCodey(right) ? "mono" : ""}">${esc(right)}</span></p>`);
     });
   }
 
@@ -455,11 +487,14 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
   }
 
   function showCardsModal(cards) {
-    dialog({
+    const p = dialog({
       title: "개념 카드 다시 보기",
       body: (cards || []).map((c) => `<p>${esc(c.say)}</p>${cardExample(c)}`).join(""),
       buttons: [{ label: "닫기", value: true, kind: "primary" }],
     });
+    const mb = document.querySelector(".modal-back .modal-body");
+    const stop = mb ? fillResults(mb, ctx.sql) : () => {};
+    p.then(stop);
   }
 
   function finishLesson() {

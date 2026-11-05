@@ -16,6 +16,7 @@ import { SCHEMA } from "../../data/schema.js";
 import { riaSVG } from "../ria.js";
 import { esc, icon, codeBlock } from "./dom.js";
 import { tableHTML } from "./table.js";
+import { openTables } from "./tables.js";
 
 export const HINT_LEVELS = 4;
 export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다(리아와 같음)
@@ -69,6 +70,7 @@ export function mountBuild(host, {
     <div class="help-row">
       <button class="btn ghost small" id="hint">${icon("bulb")}<span>힌트 <span id="hn">0</span>/${HINT_LEVELS}</span></button>
       <button class="btn ghost small" id="sol">${icon("eye")}<span>정답 보기</span></button>
+      ${item.tables && item.tables.length ? `<button class="btn ghost small" id="tablesbtn">${icon("table")}<span>쓸 표 보기</span></button>` : ""}
     </div>
     <ol class="hints" id="hints"></ol>
     <section class="console" id="console" aria-live="polite"></section>
@@ -300,6 +302,8 @@ export function mountBuild(host, {
     if (!auto) { solEl.scrollIntoView({ block: "nearest" }); notify(); }
   }
   solBtn.addEventListener("click", () => revealSolution(false));
+  const tablesBtn = $("#tablesbtn");
+  if (tablesBtn) tablesBtn.addEventListener("click", () => { openTables(item.tables, sql); });
 
   // 이어 하기: 보던 힌트·정답을 다시 펼친다(개념 점수 표시는 이미 레슨 쪽에 남아 있어 다시 부르지 않음)
   if (init) {
