@@ -2,7 +2,7 @@
 // 쓰기 안내: docs/lesson-writing-guide.md · 점검: node tests/content.js --chapter 1
 // 1장 낱말은 SELECT·FROM과 * 뿐이다. 열 고르기(2장)·조건(3장)·LIMIT(5장)은 쓰지 않는다.
 // 조립 정답은 50행 이하여야 해서 SELECT * FROM 으로 쓸 수 있는 표는 shops(8행)·items(40행) 둘뿐이다.
-// customers(60)·orders(591)·order_items(1,241)는 설명 카드·객관식·빈칸·순서 문제에서만 통째로 본다.
+// customers(60)·orders(591)·order_items(1,241)는 설명 카드·객관식·빈자리·순서 문제에서만 통째로 본다.
 export const CHAPTER = { id: 1, title: "장터 장부 펼치기" };
 
 export const LESSONS = [
@@ -48,7 +48,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "selectall",
-        q: "가게 표 전체가 나오게 빈칸을 채워 보세요.",
+        q: "가게 표 전체가 나오게 빈자리를 채워 보세요.",
         code: "SELECT * FROM ___",
         chips: ["shops", "items", "customers"],
         answer: 0,
@@ -215,7 +215,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "selectall",
-        q: "물건 표 전체가 나오게 빈칸을 채워 보세요.",
+        q: "물건 표 전체가 나오게 빈자리를 채워 보세요.",
         code: "SELECT * FROM ___",
         chips: ["items", "shops", "orders"],
         answer: 0,
@@ -307,7 +307,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "selectall",
-        q: "주문 표의 모든 열이 나오게 빈칸을 채워 보세요.",
+        q: "주문 표의 모든 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT ___\nFROM orders",
         chips: ["*", "FROM", "shops"],
         answer: 0,
@@ -437,7 +437,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "market",
-        q: "주문 내역 표 전체가 나오게 빈칸을 채워 보세요.",
+        q: "주문 내역 표 전체가 나오게 빈자리를 채워 보세요.",
         code: "SELECT * FROM ___",
         chips: ["order_items", "orders", "items"],
         answer: 0,
@@ -452,7 +452,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "market",
-        q: "손님 장부 전체가 나오게 빈칸을 채워 보세요.",
+        q: "손님 장부 전체가 나오게 빈자리를 채워 보세요.",
         code: "SELECT *\nFROM ___",
         chips: ["customers", "orders", "shops"],
         answer: 0,
@@ -533,7 +533,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "selectall",
-        q: "가게 표의 모든 열이 나오게 빈칸을 채워 보세요.",
+        q: "가게 표의 모든 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT ___ FROM shops",
         chips: ["*", "shops", "FROM"],
         answer: 0,
@@ -541,7 +541,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "market",
-        q: "손님 표 전체가 나오게 빈칸을 채워 보세요.",
+        q: "손님 표 전체가 나오게 빈자리를 채워 보세요.",
         code: "SELECT * FROM ___",
         chips: ["customers", "orders", "items"],
         answer: 0,
@@ -630,7 +630,7 @@ export const TEMPLATES = [
   },
   {
     id: "1-T2", concept: "selectall", type: "blank",
-    q: "{T} 표의 모든 열이 나오게 빈칸을 채워 보세요.",
+    q: "{T} 표의 모든 열이 나오게 빈자리를 채워 보세요.",
     sql: "SELECT ___ FROM {T}",
     chips: ["*", "FROM", "SELECT"],
     answer: 0,
@@ -639,7 +639,7 @@ export const TEMPLATES = [
   },
   {
     id: "1-T3", concept: "selectall", type: "blank",
-    q: "{T} 표 전체를 보는 SQL이 되게 빈칸을 채워 보세요.",
+    q: "{T} 표 전체를 보는 SQL이 되게 빈자리를 채워 보세요.",
     sql: "SELECT * ___ {T}",
     chips: ["FROM", "SELECT", "*"],
     answer: 0,

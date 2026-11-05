@@ -350,7 +350,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   function sqlLines(where, text) {
     String(text).split("\n").forEach((line, k) => {
       if (width(line) > SQL_COLS) add(where, "shape", `${k + 1}번째 줄이 휴대폰 화면보다 넓음(${width(line)}칸 > ${SQL_COLS}칸): ${line}`);
-      if (line.includes("\t")) add(where, "shape", "탭 문자 대신 빈칸을 씀");
+      if (line.includes("\t")) add(where, "shape", "탭 문자 대신 공백(스페이스)을 씀");
     });
   }
   function text(where, value, limit, { hangul = true, oneLine: single = true } = {}) {
@@ -598,7 +598,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   // ---- blank ----
   function checkBlank(it, w) {
     const code = it.code;
-    if (typeof code !== "string" || code.split("___").length !== 2) { add(w, "shape", "code에 빈칸 ___이 정확히 하나여야 함"); return; }
+    if (typeof code !== "string" || code.split("___").length !== 2) { add(w, "shape", "code에 빈자리 ___이 정확히 하나여야 함"); return; }
     const chips = Array.isArray(it.chips) ? it.chips : [];
     if (chips.length < 3 || chips.length > 4) { add(w, "shape", `chips는 3~4개(지금 ${chips.length}개)`); return; }
     if (chips.some((c) => typeof c !== "string" || !c.trim())) { add(w, "shape", "칩은 비어 있지 않은 글자"); return; }
@@ -837,13 +837,13 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     if (t.type === "choice") {
       const wr = t.wrong;
       if (!Array.isArray(wr) || wr.length < 2 || wr.length > 3 || !wr.every((x) => typeof x === "string" && x.trim())) return bad("wrong은 오답 SQL 2~3개(글자)");
-      if ([t.sql, ...wr].some((x) => x.includes(BLANK))) ok = bad(`choice 틀의 sql·wrong에는 빈칸 ${BLANK}을 쓰지 않음`);
+      if ([t.sql, ...wr].some((x) => x.includes(BLANK))) ok = bad(`choice 틀의 sql·wrong에는 빈자리 ${BLANK}을 쓰지 않음`);
       if ("tables" in t) {
         if (!Array.isArray(t.tables) || !t.tables.length) ok = bad("tables는 「쓸 표 보기」에 보일 표 이름 목록");
         else for (const n of t.tables) if (!TABLE_NAMES.has(n)) ok = bad(`tables의 표 ${JSON.stringify(n)}가 장터에 없음`);
       }
     } else {
-      if (t.sql.split(BLANK).length !== 2) ok = bad(`blank 틀 sql에 빈칸 ${BLANK}이 정확히 하나여야 함`);
+      if (t.sql.split(BLANK).length !== 2) ok = bad(`blank 틀 sql에 빈자리 ${BLANK}이 정확히 하나여야 함`);
       const ch = t.chips;
       if (!Array.isArray(ch) || ch.length < 3 || ch.length > 4 || !ch.every((x) => typeof x === "string" && x.trim())) return bad("chips는 칩 3~4개(글자)");
       if (new Set(ch).size !== ch.length) ok = bad("같은 칩이 두 번 있음");

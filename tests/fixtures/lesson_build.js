@@ -1,7 +1,7 @@
 // 시험용 레슨(tests/flow.py 「build」·「lesson」 장면 전용). 1-1은 build 장면, 1-2는 lesson 장면(SQL이 든 카드·결과 표 보기·쓸 표 보기). 실제 레슨이 아니다 — 실제 1장은 작업 12에서 data/lessons/ch1.js에 쓴다.
 // flow.py가 이 파일을 tests/out/flow/lessons-fixture/ch1.js로 복사해 `build.py --lessons-dir`로 빌드한다(앱 코드는 그대로).
 // 장터 표(data/market.sql) 기준: items에서 price >= 200은 5행, price < 200은 35행(그래서 「<」는 틀린 결과).
-// TEMPLATES(작업 11)는 test_daily_challenge용: 1-1·1-2를 끝내면 매일 도전이 열리고 이 두 틀(객관식 + 빈칸)이 나온다.
+// TEMPLATES(작업 11)는 test_daily_challenge용: 1-1·1-2를 끝내면 매일 도전이 열리고 이 두 틀(객관식 + 빈자리)이 나온다.
 export const CHAPTER = { id: 1, title: "시험용 장터" };
 export const LESSONS = [
   {
@@ -61,7 +61,7 @@ export const TEMPLATES = [
     explain: "shops 표에서 번호가 {N} 이하인 가게의 이름이에요.",
   },
   {
-    id: "1-T2", concept: "where", type: "blank", q: "값이 {P}엽전 이상인 물건만 보이게 빈칸을 채워 보세요",
+    id: "1-T2", concept: "where", type: "blank", q: "값이 {P}엽전 이상인 물건만 보이게 빈자리를 채워 보세요",
     sql: "SELECT name, price FROM items\nWHERE price ___ {P}",
     chips: [">=", "<", "="], answer: 0,
     vars: { P: [100, 150, 200] },

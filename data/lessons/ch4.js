@@ -4,9 +4,9 @@
 // 괄호 ( )는 낱말이 아니라 검사하지 않으므로, AND가 OR보다 먼저 묶이는 것과 괄호를 4-4에서 가르친다.
 // 줄 세우기(ORDER BY, 5장)·빈칸(NULL, 6장)은 쓰지 않는다.
 // - 조립 카드 수: 1~5장은 카드 하나에 낱말 하나, 더미 12장 이하(헷갈림 2장 이상)라 정답 카드는 10장까지다.
-//   SELECT * FROM 표 WHERE 가 이미 5장이라 조건에는 5장만 남는다. AND·OR로 비교 둘을 이으면(7장) 넘치고,
-//   IN (값, 값)도 7장이라 넘친다. 그래서 조립은 BETWEEN(5장)·LIKE(3장)·NOT LIKE(4장)로만 만들고,
-//   AND·OR·IN·괄호는 터치 문제(객관식·빈칸·순서)로 가르친다. 4-2(OR와 IN)의 조립은 「목록이 아니라 범위면 BETWEEN」을
+//   SELECT * FROM 표 WHERE 가 이미 카드 5장이라 조건에는 카드 5장만 남는다. AND·OR로 비교 둘을 이으면(카드 7장) 넘치고,
+//   IN (값, 값)도 카드 7장이라 넘친다. 그래서 조립은 BETWEEN(카드 5장)·LIKE(카드 3장)·NOT LIKE(카드 4장)로만 만들고,
+//   AND·OR·IN·괄호는 터치 문제(객관식·빈자리·순서)로 가르친다. 4-2(OR와 IN)의 조립은 「목록이 아니라 범위면 BETWEEN」을
 //   고르게 하는 BETWEEN 문제다(헷갈림 카드 IN·OR).
 // - 「방망이」가 든 물건 이름(data/market.sql): 도깨비방망이·금방망이·은방망이·방망이 손잡이·작은 방망이(가게 7),
 //   다듬이방망이·빨래방망이(가게 8), 모두 7가지. 가게 이름에는 「방망이 대장간」 하나.
@@ -43,7 +43,7 @@ export const LESSONS = [
         q: "AND로 이은 두 조건은 어떤 행을 남길까요?",
         options: ["두 조건이 모두 맞는 행", "둘 중 하나라도 맞는 행", "앞 조건만 맞는 행"],
         answer: 0,
-        explain: "AND는 「그리고」예요. 두 조건이 다 맞아야 남아요. 하나만 맞아도 되는 말은 다음 레슨에서 배워요.",
+        explain: "AND는 「그리고」예요. 두 조건이 다 맞아야 남아요. 하나만 맞아도 되는 낱말은 다음 레슨에서 배워요.",
       },
       {
         type: "choice", concept: "andor",
@@ -55,7 +55,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "andor",
-        q: "20살 미만인 여우 손님만 나오게 빈칸을 채워 보세요.",
+        q: "20살 미만인 여우 손님만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, age\nFROM customers\nWHERE kind = '여우' ___ age < 20",
         chips: ["AND", ",", "WHERE"],
         answer: 0,
@@ -105,7 +105,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "between",
-        q: "값이 25엽전부터 30엽전까지인 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 25엽전부터 30엽전까지인 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price BETWEEN 25 ___ 30",
         chips: ["AND", "~", ","],
         answer: 0,
@@ -190,7 +190,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "andor",
-        q: "여우고개나 달빛마을에 사는 손님이 모두 나오게 빈칸을 채워 보세요.",
+        q: "여우고개나 달빛마을에 사는 손님이 모두 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n___ village = '달빛마을'",
         chips: ["OR", "AND", "IN"],
         answer: 0,
@@ -232,7 +232,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "in",
-        q: "여우 손님과 사람 손님만 나오게 빈칸을 채워 보세요.",
+        q: "여우 손님과 사람 손님만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, kind\nFROM customers\nWHERE kind ___ ('여우', '사람')",
         chips: ["IN", "=", "BETWEEN"],
         answer: 0,
@@ -332,7 +332,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "like",
-        q: "이름이 「방망이」로 끝나는 물건만 나오게 빈칸을 채워 보세요.",
+        q: "이름이 「방망이」로 끝나는 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name\nFROM items\nWHERE name LIKE ___",
         chips: ["'%방망이'", "'방망이%'", "'%방망이%'"],
         answer: 0,
@@ -363,7 +363,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "like",
-        q: "이름에 「주머니」가 든 물건만 나오게 빈칸을 채워 보세요.",
+        q: "이름에 「주머니」가 든 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name\nFROM items\nWHERE name ___ '%주머니%'",
         chips: ["LIKE", "=", "IN"],
         answer: 0,
@@ -456,7 +456,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "not",
-        q: "약재 가게도 공방도 아닌 가게만 나오게 빈칸을 채워 보세요.",
+        q: "약재 가게도 공방도 아닌 가게만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, category\nFROM shops\nWHERE category ___ IN ('약재', '공방')",
         chips: ["NOT", "<>", "OR"],
         answer: 0,
@@ -586,7 +586,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "andor",
-        q: "7·8번 가게 물건 중 200엽전 이하인 것만 나오게 빈칸을 채워 보세요.",
+        q: "7·8번 가게 물건 중 200엽전 이하인 것만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE (shop_id = 7 ___ shop_id = 8)\nAND price <= 200",
         chips: ["OR", "AND", "NOT"],
         answer: 0,
@@ -601,7 +601,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "between",
-        q: "값이 100엽전부터 200엽전까지인 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 100엽전부터 200엽전까지인 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price ___ 100 AND 200",
         chips: ["BETWEEN", "IN", ">="],
         answer: 0,
@@ -700,16 +700,16 @@ export const LESSONS = [
         explain: "4장의 대표 문제, 방망이가 든 물건 7가지를 다시 찾았어요. LIKE 무늬 완벽해요!",
       },
       {
-        id: "4-5-b2", type: "build", concept: "between",
-        q: "값이 30엽전부터 50엽전까지인 물건을 보여 줘",
-        cards: ["SELECT", "*", "FROM", "items", "WHERE", "price", "BETWEEN", "30", "AND", "50"],
-        extra: ["IN", "OR"],
+        id: "4-5-b2", type: "build", concept: "like",
+        q: "「방망이」 앞에 딱 한 글자만 붙은 이름의 물건을 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "WHERE", "name", "LIKE", "'_방망이'"],
+        extra: ["=", "shop_id", "IN"],
         tables: ["items"],
         hints: [
-          "이어진 값 범위예요. 30엽전인 물건도 들어가요.",
-          "WHERE price 다음에 BETWEEN, 30, AND, 50을 놓아요.",
+          "글자 하나 자리와 「방망이」를 이은 무늬로 이름 열을 찾아요.",
+          "WHERE name LIKE 다음에 밑줄 하나가 앞에 붙은 '_방망이'를 놓아요.",
         ],
-        explain: "인삼차(30)부터 노리개(45)까지 5가지예요. 딱 30엽전인 인삼차도 BETWEEN이 넣어 줬어요!",
+        explain: "금방망이·은방망이 2가지예요. _ 는 딱 한 글자라 도깨비방망이·빨래방망이는 빠졌어요. 무늬도 = 가 아니라 LIKE와 써야 통해요!",
       },
       {
         type: "check", concept: "andor",
@@ -736,7 +736,7 @@ const HIGH = [25, 28, 30, 35, 40, 45, 110, 120];
 export const TEMPLATES = [
   {
     id: "4-T1", concept: "like", type: "blank",
-    q: "이름에 「{W}」 글자가 든 물건만 나오게 빈칸을 채워 보세요.",
+    q: "이름에 「{W}」 글자가 든 물건만 나오게 빈자리를 채워 보세요.",
     sql: "SELECT name\nFROM items\nWHERE name ___ '%{W}%'",
     chips: ["LIKE", "=", "<>"],
     answer: 0,
@@ -756,7 +756,7 @@ export const TEMPLATES = [
   },
   {
     id: "4-T3", concept: "andor", type: "blank",
-    q: "{C} 가게와 {D} 가게가 모두 나오게 빈칸을 채워 보세요.",
+    q: "{C} 가게와 {D} 가게가 모두 나오게 빈자리를 채워 보세요.",
     sql: "SELECT name, category\nFROM shops\nWHERE category = '{C}'\n___ category = '{D}'",
     chips: ["OR", "AND", "NOT"],
     answer: 0,

@@ -7,7 +7,7 @@
 //   별칭 없는 계산 열 조립(2-2)은 앞뒤를 바꾸면 값이 달라지는 빼기(price - 5)로 쓴다.
 // - 헷갈림 카드에 + 는 쓰지 않는다: price * + 2 처럼 끼우면 「+2」로 읽혀 정답과 같은 결과가 된다.
 // - stock 열에는 빈칸(NULL) 3개가 있어 price * stock 결과도 3행이 NULL이다. 2-4 카드에서 「6장에서」라고 짚어 둔다.
-// - 정수끼리 나누면 소수점 아래를 버린다(수육 25 / 2 = 12). 2-4 카드에서 짚고, 실수 나눗셈(CAST)은 9장.
+// - 이 장터(SQLite)는 정수끼리 나누면 소수점 아래를 버린다(수육 25 / 2 = 12). 엔진마다 다른 것은 「이 장터에서는」으로 쓴다(판정 R36). 2-4 카드에서 짚고, 실수 나눗셈(CAST)은 9장.
 // - 조립 정답은 50행 이하라 items(40행)·shops(8행)만 쓴다.
 export const CHAPTER = { id: 2, title: "원하는 칸만" };
 
@@ -48,7 +48,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "columns",
-        q: "물건 이름과 재고(stock)가 나오게 빈칸을 채워 보세요.",
+        q: "물건 이름과 재고(stock)가 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, ___ FROM items",
         chips: ["stock", "price", "shops"],
         answer: 0,
@@ -147,7 +147,7 @@ export const LESSONS = [
         sql: "SELECT * FROM shops",
       },
       {
-        say: "값 사이에 놓인 * 는 곱하기예요. price * 2 는 값의 두 배! 더하기 +, 빼기 -, 나누기 / 도 같은 자리에 써요. 새 열의 이름은 쓴 식 그대로 나와요.",
+        say: "값 사이에 놓인 * 는 곱하기예요. price * 2 는 값의 두 배! 더하기 +, 빼기 -, 나누기 / 도 같은 자리에 써요. 이 장터에서는 새 열의 이름이 쓴 식 그대로 나와요.",
         sql: "SELECT name, price, price * 2\nFROM items",
       },
     ],
@@ -214,7 +214,7 @@ export const LESSONS = [
         code: "SELECT name, price - 5 FROM items",
         options: ["price - 5", "price", "name"],
         answer: 0,
-        explain: "따로 이름을 붙이지 않으면 쓴 식이 그대로 열 이름이 돼요. 이름 붙이는 법은 다음 레슨에서 배워요.",
+        explain: "이 장터에서는 따로 이름을 붙이지 않으면 쓴 식이 그대로 열 이름이 돼요. 이름 붙이는 법은 다음 레슨에서 배워요.",
       },
       {
         type: "order", concept: "calc",
@@ -224,7 +224,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "calc",
-        q: "값에서 5엽전을 뺀 열이 나오게 빈칸을 채워 보세요.",
+        q: "값에서 5엽전을 뺀 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price ___ 5 FROM items",
         chips: ["-", "+", "*"],
         answer: 0,
@@ -291,7 +291,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "alias",
-        q: "계산한 열의 이름이 new_price로 보이게 빈칸을 채워 보세요.",
+        q: "계산한 열의 이름이 new_price로 보이게 빈자리를 채워 보세요.",
         code: "SELECT name,\n  price + 10 ___ new_price\nFROM items",
         chips: ["AS", ",", "FROM"],
         answer: 0,
@@ -346,7 +346,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "alias",
-        q: "값 열의 이름이 cost로 보이게 빈칸을 채워 보세요.",
+        q: "값 열의 이름이 cost로 보이게 빈자리를 채워 보세요.",
         code: "SELECT name, price AS ___ FROM items",
         chips: ["cost", "price", "items"],
         answer: 0,
@@ -380,7 +380,7 @@ export const LESSONS = [
     summary: [
       "price * stock 처럼 열끼리도 셈해요",
       "빈칸(NULL)과 셈하면 결과도 빈칸",
-      "정수끼리 나누면 소수점 아래는 버려요",
+      "이 장터는 정수 나누기에서 소수점을 버려요",
     ],
     cards: [
       {
@@ -422,11 +422,11 @@ export const LESSONS = [
         code: "SELECT name, price / 2 FROM items",
         options: ["12", "12.5", "13"],
         answer: 0,
-        explain: "정수끼리 나누면 소수점 아래를 버려서 12예요. 반올림하지도 않아요.",
+        explain: "이 장터에서는 정수끼리 나누면 소수점 아래를 버려서 12예요. 반올림하지도 않아요.",
       },
       {
         type: "blank", concept: "calc",
-        q: "값과 재고를 곱한 열이 나오게 빈칸을 채워 보세요.",
+        q: "값과 재고를 곱한 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price ___ stock\nFROM items",
         chips: ["*", "+", ","],
         answer: 0,
@@ -466,7 +466,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "calc",
-        q: "값을 반으로 나눈 열이 나오게 빈칸을 채워 보세요.",
+        q: "값을 반으로 나눈 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT name,\n  price / ___ AS half_price\nFROM items",
         chips: ["2", "10", "stock"],
         answer: 0,
@@ -530,7 +530,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "columns",
-        q: "손님 이름과 나이(age)만 나오게 빈칸을 채워 보세요.",
+        q: "손님 이름과 나이(age)만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, ___ FROM customers",
         chips: ["age", "village", "price"],
         answer: 0,
@@ -572,7 +572,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "calc",
-        q: "값과 재고를 곱한 열이 나오게 빈칸을 채워 보세요.",
+        q: "값과 재고를 곱한 열이 나오게 빈자리를 채워 보세요.",
         code: "SELECT name,\n  price ___ stock AS stock_value\nFROM items",
         chips: ["*", "+", "AS"],
         answer: 0,
@@ -655,7 +655,7 @@ export const TEMPLATES = [
   },
   {
     id: "2-T2", concept: "columns", type: "blank",
-    q: "물건 이름과 {C} 열만 나오게 빈칸을 채워 보세요.",
+    q: "물건 이름과 {C} 열만 나오게 빈자리를 채워 보세요.",
     sql: "SELECT name, ___\nFROM items",
     chips: ["{C}", "owner", "*"],
     answer: 0,
@@ -672,7 +672,7 @@ export const TEMPLATES = [
   },
   {
     id: "2-T4", concept: "alias", type: "blank",
-    q: "값 열이 새 이름으로 보이게 빈칸을 채워 보세요.",
+    q: "값 열이 새 이름으로 보이게 빈자리를 채워 보세요.",
     sql: "SELECT name,\n  price ___ {A}\nFROM items",
     chips: ["AS", ",", "FROM"],
     answer: 0,

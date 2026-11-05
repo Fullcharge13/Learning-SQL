@@ -34,7 +34,7 @@ const CHOICE = {
 };
 const BLANK = {
   id: "5-T8", concept: "orderby", type: "blank",
-  q: "{KIND} 손님을 나이가 많은 순서로 보이게 빈칸을 채워 보세요",
+  q: "{KIND} 손님을 나이가 많은 순서로 보이게 빈자리를 채워 보세요",
   sql: "SELECT name, age FROM customers\nWHERE kind = '{KIND}'\nORDER BY age ___, customer_id\nLIMIT 3",
   chips: ["DESC", "ASC", "LIMIT"], answer: 0,
   vars: { KIND: ["도깨비", "사람", "여우"] },

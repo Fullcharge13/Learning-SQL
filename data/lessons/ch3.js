@@ -5,7 +5,7 @@
 // - 경계값: > 와 >= 가 데이터에서 같은 결과가 되지 않게, 실제로 있는 값(산삼 120, 수육·오미자청 25, 막걸리 10)을 기준으로 쓴다.
 //   장터 예 「price > 100」은 딱 100엽전인 물건이 없어 >= 100과 결과가 같다. 그래서 그 조립에는 >= 헷갈림 카드를 넣지 않는다.
 // - 글자 값은 작은따옴표. 따옴표 없는 한글(약재)은 「그런 열이 없다」 오류다. 다만 조립 카드로는 쓸 수 없다
-//   (점검기가 따옴표 없는 한글을 글자마다 다른 낱말로 잘라 「카드 하나에 낱말 하나」에 걸림). 빈칸 칩·객관식으로만 다룬다.
+//   (점검기가 따옴표 없는 한글을 글자마다 다른 낱말로 잘라 「카드 하나에 낱말 하나」에 걸림). 빈자리 칩·객관식으로만 다룬다.
 // - 날짜도 글자 값이다. 따옴표 없는 2026-01-03은 빼기 셈(2022)으로 읽혀 오류 없이 0행이 된다(3-3).
 // - 값 비교의 대소문자: 이 장터(SQLite)의 = 는 영어 대문자·소문자를 가린다. 데이터 값이 모두 한글이라 말로만 짚는다.
 // - stock(재고 NULL 3개)·age(나이 NULL 5개)를 비교하면 빈칸인 행은 어느 비교에도 걸리지 않고 빠진다.
@@ -108,7 +108,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "where",
-        q: "가게 번호가 1인 물건만 나오게 빈칸을 채워 보세요.",
+        q: "가게 번호가 1인 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE ___ = 1",
         chips: ["shop_id", "item_id", "price"],
         answer: 0,
@@ -182,7 +182,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "compare",
-        q: "값이 10엽전 미만인 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 10엽전 미만인 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price ___ 10",
         chips: ["<", ">", "<="],
         answer: 0,
@@ -226,7 +226,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "compare",
-        q: "값이 딱 25엽전인 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 딱 25엽전인 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price ___ 25",
         chips: ["=", ">=", "<="],
         answer: 0,
@@ -270,7 +270,7 @@ export const LESSONS = [
     ],
     cards: [
       {
-        say: "글자로도 거를 수 있어요. 글자 값은 '약재'처럼 작은따옴표로 감싸요. 따옴표가 없으면 컴퓨터는 약재를 열 이름으로 읽고 「그런 열이 없다」는 오류를 내요. 아래는 약재 가게만 고른 거예요.",
+        say: "글자 값은 '약재'처럼 작은따옴표로 감싸요. 따옴표가 없으면 약재를 열 이름으로 읽어 「그런 열이 없다」 오류가 나요. 이 장터의 날짜도 글자 값이라 감싸요. 안 감싸면 날짜 속 줄표를 빼기 셈으로 읽어요. 아래는 약재 가게만!",
         sql: "SELECT *\nFROM shops\nWHERE category = '약재'",
       },
       {
@@ -296,7 +296,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "textval",
-        q: "종류(kind)가 여우인 손님만 나오게 빈칸을 채워 보세요.",
+        q: "종류(kind)가 여우인 손님만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, kind\nFROM customers\nWHERE kind = ___",
         chips: ["'여우'", "여우", "kind"],
         answer: 0,
@@ -343,7 +343,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "textval",
-        q: "주문 상태(status)가 취소인 주문만 나오게 빈칸을 채워 보세요.",
+        q: "주문 상태(status)가 취소인 주문만 나오게 빈자리를 채워 보세요.",
         code: "SELECT *\nFROM orders\nWHERE status = ___",
         chips: ["'취소'", "'완료'", "취소"],
         answer: 0,
@@ -360,12 +360,12 @@ export const LESSONS = [
         type: "choice", concept: "textval",
         q: "SQL 낱말과 글자 값의 대문자·소문자에 대해 맞는 말은?",
         options: [
-          "낱말은 where로 써도 되지만, 글자 값은 똑같이 써야 한다",
-          "글자 값도 대문자·소문자를 가리지 않는다",
+          "낱말은 where로 써도 되지만, 이 장터에서 글자 값은 똑같이 써야 한다",
+          "글자 값은 따옴표 없이 써도 된다",
           "낱말은 꼭 대문자로만 써야 돈다",
         ],
         answer: 0,
-        explain: "1장에서 본 것처럼 낱말은 대소문자를 가리지 않아요. 따옴표 안 글자 값은 다르게 쓰면 다른 값이에요.",
+        explain: "1장에서 본 것처럼 낱말은 대소문자를 가리지 않아요. 이 장터에서는 따옴표 안 글자 값을 다르게 쓰면 다른 값이에요.",
       },
       {
         id: "3-3-b1", type: "build", concept: "textval",
@@ -416,7 +416,7 @@ export const LESSONS = [
         q: "「같지 않다」를 뜻하는 기호를 모두 고른 것은?",
         options: ["<> 와 !=", "<> 하나뿐", "=! 와 ><"],
         answer: 0,
-        explain: "<> 와 != 는 뜻이 같아요. 둘 다 「같지 않다」예요. =! 처럼 순서를 바꾸면 오류가 나요.",
+        explain: "<> 와 != 는 뜻이 같아요. 둘 다 「같지 않다」예요. =! 처럼 순서를 바꾸면 이 장터에서는 오류가 나요.",
       },
       {
         type: "choice", concept: "compare",
@@ -428,7 +428,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "compare",
-        q: "가게 번호가 1이 아닌 가게만 나오게 빈칸을 채워 보세요.",
+        q: "가게 번호가 1이 아닌 가게만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name\nFROM shops\nWHERE shop_id ___ 1",
         chips: ["<>", "=", "<"],
         answer: 0,
@@ -483,7 +483,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "compare",
-        q: "값이 12엽전이 아닌 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 12엽전이 아닌 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price ___ 12",
         chips: ["!=", "=", ">"],
         answer: 0,
@@ -498,7 +498,7 @@ export const LESSONS = [
           "SELECT * FROM shops WHERE category <> '공방'",
         ],
         answer: 0,
-        explain: "=! 는 없는 기호라 오류예요. 느낌표가 앞에 오는 != 로 써요. <> 도 같은 뜻이에요.",
+        explain: "이 장터에서 =! 는 없는 기호라 오류예요. 느낌표가 앞에 오는 != 로 써요. <> 도 같은 뜻이에요.",
       },
       {
         id: "3-4-b1", type: "build", concept: "compare",
@@ -564,11 +564,11 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "compare",
-        q: "값이 25엽전 넘는 물건만 나오게 빈칸을 채워 보세요.",
+        q: "값이 25엽전 넘는 물건만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price ___ 25",
         chips: [">", ">=", "<"],
         answer: 0,
-        explain: "넘는은 25를 빼는 > 예요. >= 를 쓰면 딱 25엽전인 수육·오미자청까지 들어가요.",
+        explain: "「넘는」은 25를 빼는 > 예요. >= 를 쓰면 딱 25엽전인 수육·오미자청까지 들어가요.",
       },
       {
         type: "choice", concept: "compare",
@@ -588,7 +588,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "textval",
-        q: "사람 손님만 나오게 빈칸을 채워 보세요.",
+        q: "사람 손님만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, age\nFROM customers\nWHERE kind = ___",
         chips: ["'사람'", "사람", "'도깨비'"],
         answer: 0,
@@ -687,7 +687,7 @@ const PRICES = [9, 12, 25, 28, 110, 120, 150, 180, 260, 280];
 export const TEMPLATES = [
   {
     id: "3-T1", concept: "compare", type: "blank",
-    q: "값이 {N}엽전 넘는 물건만 나오게 빈칸을 채워 보세요.",
+    q: "값이 {N}엽전 넘는 물건만 나오게 빈자리를 채워 보세요.",
     sql: "SELECT name, price\nFROM items\nWHERE price ___ {N}",
     chips: [">", ">=", "<"],
     answer: 0,
@@ -696,7 +696,7 @@ export const TEMPLATES = [
   },
   {
     id: "3-T2", concept: "textval", type: "blank",
-    q: "{C} 가게만 나오게 빈칸을 채워 보세요.",
+    q: "{C} 가게만 나오게 빈자리를 채워 보세요.",
     sql: "SELECT name, category\nFROM shops\nWHERE category = ___",
     chips: ["'{C}'", "{C}", "category"],
     answer: 0,

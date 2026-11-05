@@ -80,7 +80,7 @@ plant("table-truth", "5-3 cards[1]");
 // grammar: 5장에서 아직 배우지 않은 COUNT·GROUP BY(7·8장)·SUM(7장)·date(16장), 가르치지 않는 GLOB, 날마다 바뀌는 'now'
 L(4).cards[0].sql = "SELECT shop_id, COUNT(*)\nFROM items GROUP BY shop_id";
 L(4).items.splice(0, 0, {
-  type: "blank", id: "bad-grammar-chip", concept: "orderby", q: "빈칸을 채워 보세요",
+  type: "blank", id: "bad-grammar-chip", concept: "orderby", q: "빈자리를 채워 보세요",
   code: "SELECT name FROM items\nORDER BY ___ DESC LIMIT 3", chips: ["price", "stock", "SUM(price)"], answer: 0,
   explain: "SUM은 7장에서 배워요.",
 });
@@ -205,7 +205,7 @@ plant("templates", "5-T7");
 
 // grammar: 5장 틀에 7장 낱말 COUNT
 TEMPLATES.push({
-  id: "5-T8", concept: "limit", type: "blank", q: "물건 수를 세는 SQL의 빈칸을 채워 보세요({N}은 쓰이지 않는 값)",
+  id: "5-T8", concept: "limit", type: "blank", q: "물건 수를 세는 SQL의 빈자리를 채워 보세요({N}은 쓰이지 않는 값)",
   sql: "SELECT COUNT(*) FROM items\nWHERE price > {N}\n___ 1",
   chips: ["LIMIT", "OFFSET", "DESC"], answer: 0,
   vars: { N: { min: 10, max: 90 } }, explain: "LIMIT 1은 한 행만 남겨요.",

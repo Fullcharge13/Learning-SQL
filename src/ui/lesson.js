@@ -355,7 +355,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       ? `<span class="slot${pick >= 0 ? " filled" : ""}">${pick >= 0 ? esc(it.chips[pick]) : "    "}</span>` : "")).join("")}</code></pre>`;
     body.innerHTML = `<article class="item">${itemHead(cur)}
       <div id="bc">${codeHTML()}</div>
-      <div class="chips" role="radiogroup" aria-label="빈칸에 넣을 조각">${it.chips.map((c, i) =>
+      <div class="chips" role="radiogroup" aria-label="빈자리에 넣을 조각">${it.chips.map((c, i) =>
         `<button class="chip mono" role="radio" aria-checked="false" data-i="${i}">${esc(c)}</button>`).join("")}</div>
     </article>`;
     const act = footButton("확인", { disabled: true });

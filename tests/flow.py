@@ -28,7 +28,7 @@
                     → 맞게 고쳐 제출 → 「단서를 따라 고쳐서 통과!」, 통계 fixed·hintfree 1. 캡처 build-*.png (iPhone 17)
 - test_lesson: 카드 SQL+결과 표, 행 많은 카드(30vh 상자), 객관식 표 보기(44px·포커스 없음), 「쓸 표 보기」 세 가지 닫기·한글 뜻·5행, 조립에도 단추. 캡처 lesson-*.png\n- test_lesson_wrong_option / test_lesson_no_engine: 틀린 보기 안내(정답 SQL이 문제 SQL과 같으면 정답 표), 실행기 없을 때 카드 안내·보기는
   SQL 글자로(단 보기 하나가 문제 SQL과 같으면 「표를 불러오지 못했어요」만 — 정답이 드러나지 않게)\n- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
-- test_daily_challenge(작업 11): 시험용 1장(1-1·1-2)을 끝낸 저장 → 홈 카드 → 틀 객관식(보기 = SQL 결과 표)·틀 빈칸·카드 조립 3문제
+- test_daily_challenge(작업 11): 시험용 1장(1-1·1-2)을 끝낸 저장 → 홈 카드 → 틀 객관식(보기 = SQL 결과 표)·틀 빈자리·카드 조립 3문제
   → 새로고침 뒤 이어서 → 완료 화면 XP 15·엽전 10. 캡처 daily-*.png
 - test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
 - test_real_lesson_walk(작업 12): 실제 1-1을 끝까지 — 화면마다 넘침 0(열 많은 결과 표 보기 포함)
@@ -1126,7 +1126,7 @@ def test_daily_challenge():
         assert a.save()["daily"]["picks"] == [], "no picks before chapter 1"
         assert not a.errors, a.errors
 
-    # 시험용 1장은 레슨 2개(1-1·1-2)와 틀 2개(1-T1 객관식, 1-T2 빈칸) — 1장을 끝내면 도전이 열림
+    # 시험용 1장은 레슨 2개(1-1·1-2)와 틀 2개(1-T1 객관식, 1-T2 빈자리) — 1장을 끝내면 도전이 열림
     done12 = ["1-1", "1-2"]
     base = {"saveVer": 1, "completed_lessons": done12, "current_chapter": 1, "current_lesson": "1-2",
             "settings": {"sound": False, "dailyGoal": 10, "name": ""}}

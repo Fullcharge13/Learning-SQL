@@ -33,7 +33,7 @@ const T = {
     "SELECT name FROM shops LIMIT 2",
   ], 1, "ORDER와 BY는 붙어서 ORDER BY로 써요."),
   blankDesc: {
-    type: "blank", concept: "orderby", q: "비싼 물건부터 보이게 빈칸을 채워 보세요",
+    type: "blank", concept: "orderby", q: "비싼 물건부터 보이게 빈자리를 채워 보세요",
     code: "SELECT name FROM items\nORDER BY price ___\nLIMIT 3", chips: ["DESC", "ASC", "LIMIT"], answer: 0,
     explain: "DESC를 붙이면 값이 큰 물건이 먼저 나와요.",
   },
@@ -159,7 +159,7 @@ export const TEMPLATES = [
   },
   {
     id: "5-T3", concept: "limit", type: "blank",
-    q: "값이 싼 물건 {N}개만 보이게 빈칸을 채워 보세요",
+    q: "값이 싼 물건 {N}개만 보이게 빈자리를 채워 보세요",
     sql: "SELECT name, price FROM items\nORDER BY price, item_id\n___ {N}",
     chips: ["LIMIT", "OFFSET", "DESC"], answer: 0,
     vars: { N: { min: 2, max: 6 } },

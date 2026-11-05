@@ -80,7 +80,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "orderby",
-        q: "100엽전 넘는 물건이 비싼 것부터 나오게 빈칸을 채워 보세요.",
+        q: "100엽전 넘는 물건이 비싼 것부터 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nWHERE price > 100\nORDER BY price ___",
         chips: ["DESC", "ASC", "LIMIT"],
         answer: 0,
@@ -103,7 +103,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "orderby",
-        q: "가게가 이름 가나다 차례로 나오게 빈칸을 채워 보세요.",
+        q: "가게가 이름 가나다 차례로 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, owner\nFROM shops\n___ BY name",
         chips: ["ORDER", "WHERE", "SELECT"],
         answer: 0,
@@ -184,7 +184,7 @@ export const LESSONS = [
         code: "SELECT item_id, name, price\nFROM items\nWHERE price < 13\nORDER BY price",
         options: ["정해지지 않는다", "도토리묵", "꿀떡"],
         answer: 0,
-        explain: "둘은 값이 같은 동점이에요. 값으로만 세우면 동점끼리의 차례는 약속되지 않아서, 어느 쪽이 먼저 나올지 정해지지 않아요.",
+        explain: "둘은 값이 같은 동점이에요. 값으로만 세우면 동점끼리의 차례는 약속되지 않아요. 카드에서는 도토리묵이 먼저였지만, 그건 이번에 그렇게 나온 것뿐이에요.",
       },
       {
         type: "choice", concept: "orderby",
@@ -203,11 +203,11 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "orderby",
-        q: "값이 싼 것부터, 값이 같으면 번호 차례로 나오게 빈칸을 채워 보세요.",
+        q: "값이 싼 것부터, 값이 같으면 번호 차례로 나오게 빈자리를 채워 보세요.",
         code: "SELECT item_id, name, price\nFROM items\nORDER BY price ___ item_id",
         chips: [",", "DESC", "BY"],
         answer: 0,
-        explain: "기준과 기준 사이는 쉼표로 이어요. DESC나 BY를 넣으면 두 열 이름이 붙어 버려 오류가 나요.",
+        explain: "기준과 기준 사이는 쉼표로 이어요. DESC나 BY를 넣으면 쉼표가 없어 둘째 기준으로 이어지지 않아 오류가 나요.",
       },
       {
         type: "choice", concept: "orderby",
@@ -320,7 +320,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "limit",
-        q: "가장 싼 물건 3개만 나오게 빈칸을 채워 보세요.",
+        q: "가장 싼 물건 3개만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nORDER BY price, item_id\n___ 3",
         chips: ["LIMIT", "WHERE", "OFFSET"],
         answer: 0,
@@ -328,7 +328,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "limit",
-        q: "가장 싼 물건 하나만 나오게 빈칸을 채워 보세요.",
+        q: "가장 싼 물건 하나만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nORDER BY price ___\nLIMIT 1",
         chips: ["ASC", "DESC", "BY"],
         answer: 0,
@@ -366,7 +366,7 @@ export const LESSONS = [
           "LIMIT 2 때문에 오류가 난다",
         ],
         answer: 0,
-        explain: "식혜(5) 다음 6엽전이 둘이라 둘째 자리가 동점이에요. ORDER BY price, item_id로 둘째 기준을 더하면 6번 인절미로 정해져요.",
+        explain: "식혜(5) 다음 6엽전이 둘이라 둘째 자리가 동점이에요. ORDER BY price, item_id로 둘째 기준을 더하면 item_id 6번 인절미로 정해져요.",
       },
       {
         type: "order", concept: "limit",
@@ -447,7 +447,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "distinct",
-        q: "가게 종류가 겹치지 않게 한 번씩만 나오게 빈칸을 채워 보세요.",
+        q: "가게 종류가 겹치지 않게 한 번씩만 나오게 빈자리를 채워 보세요.",
         code: "SELECT ___ category\nFROM shops",
         chips: ["DISTINCT", "ORDER", "LIMIT"],
         answer: 0,
@@ -573,7 +573,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "orderby",
-        q: "손님이 이름 가나다 차례로 나오게 빈칸을 채워 보세요.",
+        q: "손님이 이름 가나다 차례로 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, village\nFROM customers\nORDER ___ name",
         chips: ["BY", "DESC", "WHERE"],
         answer: 0,
@@ -603,7 +603,7 @@ export const LESSONS = [
       },
       {
         type: "blank", concept: "limit",
-        q: "가장 비싼 물건 3개만 나오게 빈칸을 채워 보세요.",
+        q: "가장 비싼 물건 3개만 나오게 빈자리를 채워 보세요.",
         code: "SELECT name, price\nFROM items\nORDER BY price DESC\nLIMIT ___",
         chips: ["3", "5", "OFFSET"],
         answer: 0,
@@ -625,7 +625,7 @@ export const LESSONS = [
           "ORDER BY price DESC로 바꾼다",
         ],
         answer: 0,
-        explain: "식혜(5) 다음 인절미·한지가 6엽전 동점이라 둘째 자리가 흔들려요. item_id를 더하면 6번 인절미로 정해져요.",
+        explain: "식혜(5) 다음 인절미·한지가 6엽전 동점이라 둘째 자리가 흔들려요. item_id를 더하면 item_id 6번 인절미로 정해져요.",
       },
       {
         type: "choice", concept: "distinct",
@@ -723,7 +723,7 @@ export const TEMPLATES = [
   },
   {
     id: "5-T2", concept: "distinct", type: "blank",
-    q: "손님 표의 {COL} 열이 겹치지 않게 한 번씩만 나오게 빈칸을 채워 보세요.",
+    q: "손님 표의 {COL} 열이 겹치지 않게 한 번씩만 나오게 빈자리를 채워 보세요.",
     sql: "SELECT ___ {COL}\nFROM customers",
     chips: ["DISTINCT", "ORDER", "LIMIT"],
     answer: 0,

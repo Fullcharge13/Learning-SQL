@@ -2,7 +2,7 @@
 //
 // 틀(장 파일의 TEMPLATES) 하나:
 //   choice: { id: "N-T1", concept, type: "choice", q, sql, wrong: [오답 SQL 2~3개], vars, explain, tables? }
-//   blank:  { id: "N-T2", concept, type: "blank",  q, sql(빈칸 ___ 하나), chips: [칩 3~4개], answer: 정답 칩 번호, vars, explain }
+//   blank:  { id: "N-T2", concept, type: "blank",  q, sql(빈자리 ___ 하나), chips: [칩 3~4개], answer: 정답 칩 번호, vars, explain }
 //   vars: { 대문자이름: [값, …] | { min, max } } — q·sql·wrong·chips·explain의 {이름}을 바꿔 끼움.
 //
 // choice 문제: 화면에 정답 SQL(sql)을 보여 주고 「결과로 알맞은 표는?」을 묻는다. 보기는 정답 SQL과 오답 SQL을 장터 데이터베이스에서
@@ -70,7 +70,7 @@ export function instantiate(t, seed, attempt = 0) {
   return inst;
 }
 
-/** 실행할 SQL 목록: choice → [정답, 오답…], blank → 칩마다 빈칸을 채운 SQL(칩 순서) */
+/** 실행할 SQL 목록: choice → [정답, 오답…], blank → 칩마다 빈자리를 채운 SQL(칩 순서) */
 export function runList(inst) {
   return inst.type === "blank" ? inst.chips.map((c) => inst.sql.split(BLANK).join(c)) : [inst.sql, ...inst.wrong];
 }
