@@ -1,174 +1,134 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalize, judge, explain } from "../../src/grade.js";
-import { ERRORS } from "../../data/errors.js";
+import { normalize, hasOrderBy, sameTable, judgeBuild, explain, cardsToSql } from "../../src/grade.js";
+import { ERRORS, FALLBACK } from "../../data/errors.js";
 
-const ok = (stdout) => ({ stdout, stderr: "", error: null, missing: [] });
+const T = (columns, rows, extra = {}) => ({ columns, rows, error: null, truncated: false, ...extra });
 
 test("normalize", () => {
   assert.equal(normalize("a  \r\nb\n\n"), "a\nb");
-  assert.equal(normalize(""), "");
   assert.equal(normalize(null), "");
 });
 
-test("judge_pass", () => {
-  const tests = [{ stdin: "", expect: "1", public: true }, { stdin: "", expect: "2" }];
-  assert.deepEqual(judge([ok("1\n"), ok("2  \n")], tests), { pass: true, failedIndex: -1 });
+test("cardsToSql joins with one space", () => {
+  assert.equal(cardsToSql(["SELECT", "name", "FROM", "items"]), "SELECT name FROM items");
 });
 
-test("judge_hidden", () => {
-  const tests = [{ stdin: "", expect: "1", public: true }, { stdin: "", expect: "2" }];
-  const r = judge([ok("1\n"), ok("3\n")], tests);
-  assert.equal(r.pass, false);
-  assert.equal(r.failedIndex, 1);
-  assert.equal(r.reason, "output");
-  assert.equal("publicDiff" in r, false);
+test("column names case-insensitive", () => {
+  assert.equal(sameTable(T(["Name"], [["a"]]), T(["name"], [["a"]]), { ordered: false }).ok, true);
+  assert.equal(sameTable(T(["a"], []), T(["a", "b"], []), {}).why, "columns");
 });
 
-test("judge_public_diff", () => {
-  const tests = [{ stdin: "", expect: "14000", public: true }, { stdin: "", expect: "2" }];
-  const r = judge([ok("1400\n"), ok("2\n")], tests);
-  assert.deepEqual(r, { pass: false, failedIndex: 0, reason: "output", publicDiff: { expected: "14000", actual: "1400" } });
+test("float rounding", () => {
+  assert.equal(sameTable(T(["x"], [[0.33333]]), T(["x"], [[0.33334]]), {}).ok, true);
+  const r = sameTable(T(["x"], [[0.3333]]), T(["x"], [[0.3343]]), {});
+  assert.equal(r.ok, false);
+  assert.equal(r.why, "values");
+  assert.equal(sameTable(T(["x"], [[3]]), T(["x"], [[3.0]]), {}).ok, true);
 });
 
-test("judge_reasons", () => {
-  const t = [{ expect: "1", public: true }];
-  assert.equal(judge([{ stdout: "", error: { type: "NameError", line: 1, msg: "x" }, missing: [] }], t).reason, "error");
-  assert.equal(judge([{ stdout: "1\n", error: null, missing: ["If"] }], t).reason, "missing");
-  assert.equal(judge([{ stdout: "", error: null, missing: [], timeout: true }], t).reason, "timeout");
-  // 결과가 빠지면 실패로 친다
-  assert.equal(judge([], t).pass, false);
+test("null equals only null", () => {
+  assert.equal(sameTable(T(["x"], [[null]]), T(["x"], [[null]]), {}).ok, true);
+  assert.equal(sameTable(T(["x"], [[null]]), T(["x"], [[0]]), {}).ok, false);
+  assert.equal(sameTable(T(["x"], [[null]]), T(["x"], [[""]]), {}).ok, false);
+  assert.equal(sameTable(T(["x"], [["0"]]), T(["x"], [[0]]), {}).ok, false);
 });
 
-test("stdin", () => {
-  // input 값이 모자란 실행(InputMissing)은 출력이 맞아도 오류로 실패
-  const t = [{ stdin: "1", expect: "", public: true }, { stdin: "", expect: "" }];
-  const r = judge([{ stdout: "", error: null, missing: [] }, { stdout: "", error: { type: "InputMissing", line: 1, msg: "" }, missing: [] }], t);
-  assert.equal(r.pass, false);
-  assert.equal(r.failedIndex, 1);
+test("unordered compare with NULLs and duplicates", () => {
+  const exp = T(["a", "b"], [[1, null], [1, null], ["a", 2]]);
+  assert.deepEqual(sameTable(exp, T(["a", "b"], [["a", 2], [1, null], [1, null]]), { ordered: false }), { ok: true, why: null });
+  assert.equal(sameTable(exp, T(["a", "b"], [[1, null], ["a", 2]]), { ordered: false }).why, "rowcount");
+  assert.equal(sameTable(exp, T(["a", "b"], [[1, null], ["a", 2], ["a", 2]]), { ordered: false }).why, "values");
+});
+
+test("empty tables with same columns are equal", () => {
+  assert.equal(sameTable(T(["a"], []), T(["a"], []), { ordered: true }).ok, true);
+});
+
+test("ordered only with ORDER BY", () => {
+  const exp = T(["a"], [[1], [2]]), got = T(["a"], [[2], [1]]);
+  assert.equal(sameTable(exp, got, { ordered: true }).why, "values");
+  assert.equal(sameTable(exp, got, { ordered: false }).ok, true);
+});
+
+test("hasOrderBy ignores window", () => {
+  assert.equal(hasOrderBy("SELECT RANK() OVER (ORDER BY price) FROM items"), false);
+  assert.equal(hasOrderBy("SELECT RANK() OVER (ORDER BY price) FROM items ORDER BY name"), true);
+  assert.equal(hasOrderBy("SELECT name FROM items ORDER   BY price DESC"), true);
+  assert.equal(hasOrderBy("select name from items order by price"), true);
+});
+
+test("hasOrderBy ignores subqueries, strings, comments", () => {
+  assert.equal(hasOrderBy("SELECT * FROM (SELECT name FROM items ORDER BY price LIMIT 3)"), false);
+  assert.equal(hasOrderBy("SELECT 'ORDER BY x' FROM items"), false);
+  assert.equal(hasOrderBy("SELECT 1 -- ORDER BY x\nFROM items"), false);
+  assert.equal(hasOrderBy("SELECT 1 /* ORDER BY x */ FROM items"), false);
+  assert.equal(hasOrderBy("WITH t AS (SELECT 1 AS a ORDER BY a) SELECT a FROM t ORDER BY a"), true);
+  assert.equal(hasOrderBy("WITH t AS (SELECT 1 AS a ORDER BY a) SELECT a FROM t"), false);
+  assert.equal(hasOrderBy(""), false);
+});
+
+const item = { type: "build", cards: ["SELECT", "name", "FROM", "items", "ORDER BY", "price"], extra: [], need: ["JOIN", "ORDER BY"], tables: ["items"], hints: ["a", "b"] };
+
+test("need: same result but missing card", () => {
+  const exp = T(["name"], [["a"], ["b"]]);
+  const r = judgeBuild(item, T(["name"], [["a"], ["b"]]), exp, ["SELECT", "name", "ORDER BY"]);
+  assert.deepEqual(r, { ok: false, reason: "need", missingNeed: ["JOIN"] });
+  assert.deepEqual(judgeBuild(item, exp, exp, ["JOIN", "ORDER BY"]), { ok: true, reason: null });
+  assert.deepEqual(judgeBuild({ ...item, need: undefined }, exp, exp, []), { ok: true, reason: null });
+});
+
+test("error first", () => {
+  const exp = T(["name"], [["a"]]);
+  const r = judgeBuild(item, T([], [], { error: "no such column: nme" }), exp, []);
+  assert.equal(r.ok, false);
   assert.equal(r.reason, "error");
 });
 
-test("explain_unknown", () => {
-  let r;
-  assert.doesNotThrow(() => { r = explain({ type: "ZeroDivisionError", line: 2, msg: "division by zero" }, "basic"); });
-  assert.match(r.body, /처음 보는 오류예요/);
-  assert.equal(r.line, 2);
-  assert.doesNotThrow(() => explain(null, undefined));
-  assert.doesNotThrow(() => explain({}, "explorer"));
+test("judgeBuild precedence: columns > rows > need", () => {
+  const exp = T(["name"], [["a"], ["b"]]);
+  assert.equal(judgeBuild(item, T(["x"], [["a"], ["b"]]), exp, []).reason, "columns");
+  assert.equal(judgeBuild(item, T(["name"], [["a"]]), exp, []).reason, "rows");
+  assert.equal(judgeBuild(item, T(["name"], [["b"], ["a"]]), exp, []).reason, "rows"); // ORDER BY가 있으니 순서도 본다
+  assert.equal(judgeBuild(item, T(["name"], [["a"], ["b"]]), exp, []).reason, "need");
 });
 
-test("explain_known_and_line", () => {
-  const r = explain({ type: "NameError", line: 3, msg: "name 'prin' is not defined" }, "basic");
-  assert.equal(r.line, 3);
-  assert.match(r.body, /3/);
-  assert.doesNotMatch(r.body, /\{line\}/);
-  assert.ok(r.title.length > 0);
+test("truncated vs not truncated is a rows mismatch", () => {
+  const exp = T(["a"], [[1]]);
+  const r = judgeBuild({ ...item, need: [] }, T(["a"], [[1]], { truncated: true }), exp, []);
+  assert.deepEqual(r, { ok: false, reason: "rows" });
 });
 
-test("explain_detective: 탐정 말투는 탐험가 의상에서 (판정 C42)", () => {
-  const a = explain({ type: "TypeError", line: 1 }, "basic");
-  const b = explain({ type: "TypeError", line: 1 }, "explorer");
-  assert.notEqual(a.body, b.body);
-  assert.equal(b.body, explain({ type: "TypeError", line: 1 }, "explorer").body);
-  assert.match(b.body, /단서/);
-  assert.equal(b.body.replace(/1/g, ""), ERRORS.TypeError.detective.replace(/\{line\}/g, "").replace(/1/g, ""));
-  // 없어진 옛 의상 id와 다른 의상은 기본 말투
-  for (const o of ["detective", "basic", "whitecoat", "wizard", "graduate"])
-    assert.equal(explain({ type: "TypeError", line: 1 }, o).body, a.body, o);
+test("explain: no such column", () => {
+  const a = explain("no such column: nme", "default");
+  const d = explain("no such column: nme", "detective");
+  assert.match(a, /nme/);
+  assert.match(d, /nme/);
+  assert.notEqual(a, d);
+  assert.doesNotMatch(a, /\{name\}/);
 });
 
-test("errors_table_complete", () => {
-  for (const k of ["SyntaxError", "IndentationError", "NameError", "TypeError", "ValueError", "InputMissing", "Timeout", "OutputLimit", "_default"]) {
-    assert.ok(ERRORS[k], k);
-    assert.ok(ERRORS[k].title && ERRORS[k].body && ERRORS[k].detective, k);
+test("explain: every listed error has both voices and a name when it has one", () => {
+  const samples = [
+    ["no such table: itemz", "itemz"], ["misuse of aggregate: SUM()", null],
+    ['near "FORM": syntax error', "FORM"], ["ambiguous column name: name", "name"],
+    ["incomplete input", null], ["no such function: cnt", "cnt"],
+    ["1st GROUP BY term does not match any column in the result set", null],
+    ["read-only", null], ["timeout", null], ["worker", null], ["load", null],
+  ];
+  for (const [msg, name] of samples) {
+    const a = explain(msg, "default"), d = explain(msg, "detective");
+    assert.notEqual(a, FALLBACK, msg);
+    assert.notEqual(a, d, msg);
+    assert.doesNotMatch(a + d, /\{name\}/, msg);
+    if (name) { assert.match(a, new RegExp(name)); assert.match(d, new RegExp(name)); }
   }
+  for (const [k, v] of Object.entries(ERRORS)) assert.ok(v.body && v.detective && v.match, k);
 });
 
-test("explain_no_line", () => {
-  const r = explain({ type: "Timeout" }, "basic");
-  assert.equal(r.line, null);
-  assert.doesNotMatch(r.body, /\{line\}|undefined|null/);
-});
-
-test("explain_somewhere: 줄 번호 없음 → 「코드 어딘가」", () => {
-  const r = explain({ type: "NameError" }, "basic");
-  assert.match(r.body, /코드 어딘가/);
-  assert.doesNotMatch(r.body, /번째 줄/);
-  assert.equal(r.line, null);
-});
-
-test("explain_alias: TabError → 들여쓰기, UnboundLocalError → 이름", () => {
-  const ind = explain({ type: "IndentationError", line: 2 }, "basic");
-  const tab = explain({ type: "TabError", line: 2 }, "basic");
-  assert.equal(tab.body, ind.body);
-  assert.match(tab.title, /TabError/);
-  assert.doesNotMatch(tab.title, /IndentationError/);
-  const nm = explain({ type: "NameError", line: 4 }, "explorer");
-  const ub = explain({ type: "UnboundLocalError", line: 4 }, "explorer");
-  assert.equal(ub.body, nm.body);
-});
-
-test("errors_clue_word: 기본 본문마다 「단서」", () => {
-  for (const [k, v] of Object.entries(ERRORS)) assert.match(v.body, /단서/, k);
-});
-
-test("errors_name_quotes: NameError는 따옴표 없는 글자를 흔한 원인으로", () => {
-  assert.match(ERRORS.NameError.body, /print\(안녕\)/);
-  assert.match(ERRORS.NameError.body, /따옴표/);
-});
-
-test("timeout_seconds: {seconds} 자리 표시", () => {
-  assert.match(ERRORS.Timeout.body, /\{seconds\}/);
-  assert.match(ERRORS.Timeout.detective, /\{seconds\}/);
-  assert.match(explain({ type: "Timeout" }, "basic").body, /3초/);
-  const r = explain({ type: "Timeout" }, "explorer", { seconds: 5 });
-  assert.match(r.body, /5초/);
-  assert.doesNotMatch(r.body, /\{seconds\}/);
-});
-
-test("output_limit: OutputLimit 설명", () => {
-  const a = explain({ type: "OutputLimit", line: 2 }, "basic");
-  const b = explain({ type: "OutputLimit", line: 2 }, "explorer");
-  assert.doesNotMatch(a.body, /처음 보는/);
-  assert.notEqual(a.body, b.body);
-  assert.match(a.body, /2번째 줄/);
-});
-
-test("alias_title: 제목은 실제 오류 이름, 본문은 부모 것", () => {
-  const ub = explain({ type: "UnboundLocalError", line: 2 }, "basic");
-  assert.match(ub.title, /UnboundLocalError/);
-  assert.equal(ub.body, explain({ type: "NameError", line: 2 }, "basic").body);
-});
-
-test("grammar_all: 모든 오류 × 줄 있음/없음 × 기본/탐정 → 어색한 문형·자리 표시 없음", () => {
-  const types = [...Object.keys(ERRORS).filter((k) => k !== "_default"), "TabError", "UnboundLocalError", "ZeroDivisionError"];
-  for (const type of types) {
-    for (const line of [null, 3]) {
-      for (const outfit of ["basic", "explorer"]) {
-        const r = explain({ type, line }, outfit);
-        const where = `${type}/${line}/${outfit}`;
-        for (const text of [r.title, r.body]) {
-          assert.doesNotMatch(text, /어딘가이/, where);
-          assert.doesNotMatch(text, /어딘가 근처/, where);
-          assert.doesNotMatch(text, /코드\S* 코드 어딘가/, where);
-          assert.doesNotMatch(text, /[{}]|\[\[|\]\]/, where);
-          assert.doesNotMatch(text, /undefined|null|NaN/, where);
-          assert.doesNotMatch(text, /  /, where);
-        }
-        if (line === 3 && type !== "Timeout") assert.match(r.body, /3번째 줄/, where);
-        if (line === null) assert.doesNotMatch(r.body, /줄 번호부터/, where);
-      }
-    }
-  }
-});
-
-test("default_with_line: 줄 번호가 있으면 설계서 문구 그대로", () => {
-  const r = explain({ type: "ZeroDivisionError", line: 2 }, "basic");
-  assert.match(r.body, /처음 보는 오류예요\. 줄 번호부터 볼까요\?/);
-});
-
-test("value_wording: 숫자 사이 빈칸이나 소수점", () => {
-  assert.match(ERRORS.ValueError.body, /숫자 사이 빈칸이나 소수점\(3\.5\)/);
-  assert.doesNotMatch(ERRORS.ValueError.body, /빈칸이 섞이지 않았는지/);
+test("explain: unknown outfit uses default; unknown error uses fallback", () => {
+  assert.equal(explain("no such column: a", "gardener"), explain("no such column: a", "default"));
+  assert.equal(explain("something weird", "default"), FALLBACK);
+  assert.equal(explain("", "detective"), FALLBACK);
+  assert.equal(explain(null, "detective"), FALLBACK);
 });
