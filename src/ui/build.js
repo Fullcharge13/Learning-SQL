@@ -18,7 +18,6 @@ import { esc, icon, codeBlock } from "./dom.js";
 import { tableHTML } from "./table.js";
 
 export const HINT_LEVELS = 4;
-export const COMPARE_MAX = 6;          // 틀렸을 때 나란히 보이는 두 표의 행 수
 export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다(리아와 같음)
 const SYSTEM_ERRORS = new Set(["load", "worker"]);
 export const ENGINE_WAIT_LINE = "실행기 준비 중이에요";
@@ -190,12 +189,12 @@ export function mountBuild(host, {
     return expP;
   }
 
-  // 틀렸을 때 두 표를 한 화면에서 견주도록 앞 COMPARE_MAX행씩만(나머지는 「… 외 N행」). 전체는 「실행」으로 본다
+  // 틀렸을 때 두 표 모두 평소처럼 50행까지. 표 상자 높이를 줄여(CSS .cmp .rt-scroll) 두 표가 한 화면 가까이에 오게 한다
   function compareHTML(got, exp) {
-    const mine = got.error ? errorHTML(got.error) : tableHTML(got, { ...opts, max: COMPARE_MAX, label: "내 결과 표" });
+    const mine = got.error ? errorHTML(got.error) : tableHTML(got, { ...opts, label: "내 결과 표" });
     return `<div class="cmp">
       <div class="cmp-col"><p class="ex-label bad">내 결과</p>${mine}</div>
-      <div class="cmp-col"><p class="ex-label">기대 결과</p>${tableHTML(exp, { ...opts, max: COMPARE_MAX, label: "기대 결과 표" })}</div>
+      <div class="cmp-col"><p class="ex-label">기대 결과</p>${tableHTML(exp, { ...opts, label: "기대 결과 표" })}</div>
     </div>`;
   }
 
@@ -247,7 +246,8 @@ export function mountBuild(host, {
       show(`<p class="submit-count">제출 ${st.submits}번째</p>${html}`);
       if (st.submits >= AUTO_SOLUTION_AFTER && !st.solutionSeen) revealSolution(true);
       notify();
-      consoleEl.scrollIntoView({ block: "start" });
+      // 비교 표가 있으면 그쪽으로(내 결과·기대 결과가 함께 보이게), 없으면 안내 맨 위로
+      (consoleEl.querySelector(".cmp") || consoleEl).scrollIntoView({ block: "start" });
     } finally { if (!st.destroyed) setBusy(false); }
   }
 

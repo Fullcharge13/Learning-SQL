@@ -1181,12 +1181,26 @@ def test_build_solve():
         a.page.wait_for_selector("#console .cmp")
         assert a.page.is_hidden("#result"), "wrong submit keeps the question open"
         mine, exp = a.js(TABLE_JS, ".cmp-col:nth-child(1) .rtable"), a.js(TABLE_JS, ".cmp-col:nth-child(2) .rtable")
-        assert mine["rows"] == 6 and "외 29행" in mine["foot"] and exp["rows"] == 5 and "5행" in exp["foot"], (mine, exp)
+        assert mine["rows"] == 35 and mine["rows"] > 6 and "35행" in mine["foot"], mine   # 50행까지 모두(앞 몇 행만 아님)
+        assert exp["rows"] == 5 and "5행" in exp["foot"], exp
+        # 비교 표 상자는 높이 제한 + 상자 안 세로 스크롤, 머리 줄은 상자 안에 붙어 있음
+        box = a.js("""() => { const sc = document.querySelector('.cmp-col:nth-child(1) .rt-scroll');
+          const r0 = sc.getBoundingClientRect(); sc.scrollTop = 200;
+          const th = sc.querySelector('thead th').getBoundingClientRect(); const out = { h: r0.height, vh: innerHeight,
+            scrollH: sc.scrollHeight, oy: getComputedStyle(sc).overflowY, headTop: Math.round(th.top - sc.getBoundingClientRect().top) };
+          sc.scrollTop = 0; return out; }""")
+        assert box["oy"] == "auto" and box["h"] <= box["vh"] * 0.4 + 1 and box["scrollH"] > box["h"], box
+        assert abs(box["headTop"]) <= 3, "sticky header stays at the top of the box: %s" % box
         assert "제출 1번째" in a.page.inner_text("#console")
         stacked = a.js("() => { const c = [...document.querySelectorAll('.cmp-col')].map((e) => e.getBoundingClientRect()); return c[1].top >= c[0].bottom - 1; }")
         assert stacked, "iPhone width: my result above expected result"
-        a.js("() => { const e = document.querySelector('#console'); window.scrollTo(0, e.getBoundingClientRect().top + window.scrollY - 90); }")
-        a.page.wait_for_timeout(150)
+        # 앱이 스스로 비교 표로 내려 준 화면 그대로 본다(시험이 따로 스크롤하지 않음)
+        a.page.wait_for_timeout(250)
+        # 비교로 내려온 화면에서 기대 결과 표의 머리가 아래 고정 줄(실행·제출) 위에 보여야 한다
+        vis = a.js("""() => { const t = document.querySelector('.cmp-col:nth-child(2) .rt-scroll').getBoundingClientRect();
+          const foot = document.querySelector('#foot').getBoundingClientRect().top; return { top: Math.round(t.top), foot: Math.round(foot) }; }""")
+        print("    compare: my box %dpx of %dpx viewport, expected table top %d < foot %d" % (box["h"], box["vh"], vis["top"], vis["foot"]))
+        assert 0 <= vis["top"] and vis["top"] + 120 <= vis["foot"], "expected table must be visible above the action bar: %s" % vis
         a.shot("build-wrong-compare.png")
         shutil.copy(os.path.join(OUT, "build-wrong-compare.png"), os.path.join(_shot_dir(), "build-3-wrong-compare.png"))
         shots.append("build-3-wrong-compare.png")
