@@ -66,8 +66,8 @@ const app = {
   storeFailedShown: false,
 };
 
-// SQL 실행기(설계 §4-4): 작업자 worker.js가 sql-wasm.js·sql-wasm.wasm(index.html 옆)을 받아 장터 데이터를 올린다.
-// 앱을 열 때 미리 받기 시작하고, 조립 문제는 준비될 때까지 「실행」·「제출」을 막는다. (오프라인 저장본은 작업 16)
+// SQL 실행기(설계 §4-4): 작업자 worker.js(sql.js를 묶어 넣음)가 sql-wasm.wasm(index.html 옆)을 받아 장터 데이터를 올린다.
+// 앱을 열 때 미리 받기 시작하고, 조립 문제는 준비될 때까지 「실행」·「제출」을 막는다. 오프라인: sw.js가 wasm을 dueogi-engine-<판>에 둠
 const sql = new SqlRun({ wasmURL: "sql-wasm.wasm", marketSql: MARKET_SQL });
 
 const sound = createSound(() => app.save && app.save.settings && app.save.settings.sound !== false);

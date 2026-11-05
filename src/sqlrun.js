@@ -31,10 +31,9 @@ function cleanResult(r) {
 }
 
 export class SqlRun {
-  constructor({ wasmURL, workerURL, sqlJsURL, marketSql = "", timeoutMs = DEFAULT_TIMEOUT_MS, loadTimeoutMs = DEFAULT_LOAD_TIMEOUT_MS } = {}) {
+  constructor({ wasmURL, workerURL, marketSql = "", timeoutMs = DEFAULT_TIMEOUT_MS, loadTimeoutMs = DEFAULT_LOAD_TIMEOUT_MS } = {}) {
+    // wasm은 페이지 주소 기준(깃허브 페이지 하위 경로 /Learning-SQL/에서도 index.html 옆). sql.js 코드는 worker.js 안에 묶여 있다
     this.wasmURL = new URL(wasmURL, baseHref()).href;
-    // sql-wasm.js는 기본으로 wasm 옆의 같은 이름 .js
-    this.sqlJsURL = new URL(sqlJsURL || this.wasmURL.replace(/\.wasm(\?.*)?$/, ".js"), baseHref()).href;
     this.workerURL = workerURL || new URL("./worker.js", import.meta.url);
     this.marketSql = marketSql;
     this.timeoutMs = timeoutMs;
@@ -138,7 +137,7 @@ export class SqlRun {
     w.onmessageerror = onCrash;
 
     try {
-      w.postMessage({ type: "init", wasmURL: this.wasmURL, sqlJsURL: this.sqlJsURL, marketSql: this.marketSql });
+      w.postMessage({ type: "init", wasmURL: this.wasmURL, marketSql: this.marketSql });
     } catch (e) {
       clearTimeout(loadTimer);
       this._loadFailed(w, rejectReady, e);

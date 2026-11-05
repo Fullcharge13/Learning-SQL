@@ -5,7 +5,8 @@
     python3 tools/dev.py --port 9000
     python3 tools/dev.py --build-only  # 묶기만 (시험 도구가 씀)
 
-dev/ 구성: index.html · style.css · app.js(묶음, 장터 데이터 글자 포함) · worker.js(묶음) · sql-wasm.js · sql-wasm.wasm
+dev/ 구성: index.html · style.css · app.js(묶음, 장터 데이터 글자 포함) · worker.js(묶음, sql.js 포함) · sql-wasm.wasm
+(배포판 build.py와 같은 방식으로 sql.js를 작업자에 묶는다. tests/engine_browser.py도 dev/worker.js를 쓴다)
 레슨은 data/lessons/chN.js를 그대로 묶는다(src/lessondev.js).
 """
 import argparse
@@ -29,7 +30,7 @@ def build():
     for entry, fmt in (("app.js", "esm"), ("worker.js", "esm")):
         subprocess.run(
             [ESBUILD, os.path.join(SRC, entry), "--bundle", "--format=" + fmt, "--target=es2022,safari16",
-             "--loader:.sql=text", "--outfile=" + os.path.join(DEV, entry), "--log-level=warning"],
+             "--platform=browser", "--loader:.sql=text", "--outfile=" + os.path.join(DEV, entry), "--log-level=warning"],
             check=True, cwd=ROOT)
     with open(os.path.join(SRC, "index.html"), encoding="utf-8") as f:
         html = f.read()
@@ -37,17 +38,19 @@ def build():
     with open(os.path.join(DEV, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)
     shutil.copy(os.path.join(SRC, "style.css"), os.path.join(DEV, "style.css"))
-    for name in ("sql-wasm.js", "sql-wasm.wasm"):
-        shutil.copy(os.path.join(SQLJS_DIST, name), os.path.join(DEV, name))
-    size = os.path.getsize(os.path.join(DEV, "app.js"))
-    print("묶음 dev/app.js %.1f KB" % (size / 1024))
+    stale = os.path.join(DEV, "sql-wasm.js")   # 작업 16 전 개발판이 두던 파일(이제 worker.js 안에 묶임)
+    if os.path.exists(stale):
+        os.remove(stale)
+    shutil.copy(os.path.join(SQLJS_DIST, "sql-wasm.wasm"), os.path.join(DEV, "sql-wasm.wasm"))
+    print("묶음 dev/app.js %.1f KB, dev/worker.js %.1f KB" % (
+        os.path.getsize(os.path.join(DEV, "app.js")) / 1024, os.path.getsize(os.path.join(DEV, "worker.js")) / 1024))
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
         ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm",
-        ".json": "application/json", ".py": "text/plain", ".css": "text/css",
+        ".json": "application/json", ".css": "text/css",
     }
 
     def end_headers(self):

@@ -17,16 +17,20 @@
   manifest.webmanifest    홈 화면 앱 설명
   sw.js                   서비스 작업자(판 번호·내용 지문을 채움)
   icons/*.png             두억이 얼굴 아이콘(tools/icon.py)
-  worker.js               SQL 작업자(src/worker.js 묶음, 모듈 작업자)
-  sql-wasm.js, sql-wasm.wasm  sql.js 1.15.2 (node_modules/sql.js/dist 그대로). 작업자가 받아 쓴다
+  worker.js               SQL 작업자(src/worker.js 묶음, 모듈 작업자). sql.js의 JS 부분(browser 갈래)까지 묶여 있다
+  sql-wasm.wasm           sql.js 1.15.2의 SQLite(node_modules/sql.js/dist 그대로). 작업자가 받아 쓴다
+  licenses.txt            묶어 넣은 꾸러미(sql.js)의 라이선스 전문 + SQLite 퍼블릭 도메인 안내
 
 합치는 방법
 - src/app.js → esbuild로 묶고 줄임(IIFE). src/lessondev.js(개발판의 data/lessons import)는 빈 모듈로 바꿔 끼워
   레슨 내용이 index.html에 들어가지 않는다. 대신 레슨 목록(window.RIA_LESSON_INDEX)과 장 파일 이름표
   (window.RIA_CHAPTER_FILES)를 넣고, 앱은 레슨을 열 때 장 파일을 받는다. sw.js는 설치 때 장 파일을 모두 미리 받는다.
 - 장터 데이터 data/market.sql은 앱 묶음에 글자로 들어간다(loader .sql=text). 작업자 src/worker.js는 따로 묶어
-  worker.js로 두고, sql.js의 sql-wasm.js·sql-wasm.wasm은 그대로 복사한다(작업 6, 실행기 최소 연결).
-  오프라인 저장본(sw.js)·크기 예산·CSP는 작업 16에서 다룬다.
+  worker.js로 둔다. sql.js(UMD)도 esbuild가 이 묶음 안에 넣는다(작업 16): 실행 중 글자를 받아 new Function으로 돌리지
+  않으므로 엄격한 CSP(unsafe-eval 없음)와 하위 경로(/Learning-SQL/)·서비스 작업자 저장본에서 같은 파일 하나로 돈다.
+  check_worker가 묶음에 new Function·eval·importScripts가 없는지 본다. sql-wasm.wasm만 그대로 복사한다.
+- sw.js: 게임 저장본(dueogi-game-<판>-<지문>)에 index.html·worker.js·장 파일 등, 실행기 저장본
+  (dueogi-engine-<sql.js 판>)에 sql-wasm.wasm. 크기 상한: 첫 HTML 650KB(설계 §10).
 """
 import argparse
 import gzip
@@ -40,7 +44,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
-MAX_RAW = 700 * 1024  # 판정 C28
+MAX_RAW = 650 * 1024  # 설계 §10: 첫 HTML 650KB 이하
 TARGET = ["es2022", "safari16"]
 
 # esbuild를 JS API로 부른다(한 번에 세 묶음을 글자로 받기 위해).
@@ -57,7 +61,8 @@ const noDevLessons = { name: "ria-no-dev-lessons", setup(b) {
 const app = await esbuild.build({ ...common, entryPoints: [a.app], format: "iife", plugins: [noDevLessons],
   loader: { ".sql": "text" }, define: { "import.meta.url": "location.href" } });
 // SQL 작업자: 모듈 작업자(new Worker(url, { type: "module" }))라서 esm으로
-const worker = await esbuild.build({ ...common, entryPoints: [a.worker], format: "esm" });
+// sql.js는 package.json exports의 "browser" 갈래(dist/sql-wasm-browser.js, node 전용 require 없음)로 묶인다
+const worker = await esbuild.build({ ...common, entryPoints: [a.worker], format: "esm", platform: "browser" });
 const css = await esbuild.build({ ...common, entryPoints: [a.css], loader: { ".css": "css" } });
 const inputs = [...Object.keys(app.metafile.inputs), ...Object.keys(css.metafile.inputs), ...Object.keys(worker.metafile.inputs)];
 process.stdout.write(JSON.stringify({ app: app.outputFiles[0].text, css: css.outputFiles[0].text, worker: worker.outputFiles[0].text, inputs }));
@@ -122,9 +127,19 @@ process.stdout.write(JSON.stringify({ index, files, contents, tasks }));
 """
 
 
-OWNED = ("index.html", "manifest.webmanifest", "sw.js", "icons", "lessons", "licenses.txt", "worker.js", "sql-wasm.js", "sql-wasm.wasm")
+OWNED = ("index.html", "manifest.webmanifest", "sw.js", "icons", "lessons", "licenses.txt", "worker.js", "sql-wasm.js", "sql-wasm.wasm")  # sql-wasm.js: 작업 16 전 빌드가 두던 파일(지움)
 SQLJS_DIST = os.path.join(ROOT, "node_modules", "sql.js", "dist")
-SQLJS_FILES = ("sql-wasm.js", "sql-wasm.wasm")
+SQLJS_FILES = ("sql-wasm.wasm",)
+ENGINE_FILES = ["sql-wasm.wasm"]   # sw.js 실행기 저장본(src/offline.js ENGINE_REQUIRED와 같게)
+
+SQLITE_NOTICE = """== SQLite (sql.js {sqljs} 안의 sql-wasm.wasm)
+
+SQLite는 저작권이 없는 퍼블릭 도메인(public domain) 프로그램입니다.
+SQLite is in the public domain. "The author disclaims copyright to this source code.
+In place of a legal notice, here is a blessing: May you do good and not evil. May you find
+forgiveness for yourself and forgive others. May you share freely, never taking more than you give."
+https://www.sqlite.org/copyright.html
+"""
 
 
 
@@ -152,7 +167,21 @@ def third_party_notices(inputs):
         with open(lic, encoding="utf-8") as f:
             body = f.read().strip()
         parts += ["== %s %s (%s)" % (pkg, meta.get("version", ""), meta.get("license", "")), "", body, "", ""]
+    if "sql.js" in bundled_packages(inputs):
+        parts += [SQLITE_NOTICE.format(sqljs=sqljs_version()), ""]
     return "\n".join(parts)
+
+
+def sqljs_version():
+    with open(os.path.join(ROOT, "node_modules", "sql.js", "package.json"), encoding="utf-8") as f:
+        return json.load(f)["version"]
+
+
+def check_worker(code):
+    """작업자 묶음이 실행 중에 글자를 코드로 바꾸거나 바깥 스크립트를 부르지 않는지(엄격한 CSP·하위 경로·오프라인)"""
+    for bad in ("new Function", "eval(", "importScripts"):
+        if bad in code:
+            raise SystemExit("build: worker.js contains %r (sql.js must be bundled, not loaded at run time)" % bad)
 
 def check_output(html):
     """한 장짜리 결과에 바깥 파일을 부르는 script·stylesheet가 남지 않았는지 확인한다."""
@@ -293,6 +322,7 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     html = html.replace("<!-- RIA:CONFIG -->", config, 1)
     html = replace_block(html, "SCRIPT", "<script>" + inline_script(b["app"]) + "</script>")
     check_output(html)
+    check_worker(b["worker"])
     check_no_lesson_text(html, split["tasks"])
 
     os.makedirs(out, exist_ok=True)
@@ -327,16 +357,18 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     icon_files = sorted({i["src"] for i in manifest["icons"]} | {"icons/apple-touch-icon.png"})
     with open(os.path.join(out, "licenses.txt"), "w", encoding="utf-8") as f:
         f.write(third_party_notices(b["inputs"]))
-    game_files = ["./", "index.html", "manifest.webmanifest", "licenses.txt"] + icon_files
+    game_files = ["./", "index.html", "worker.js", "manifest.webmanifest", "licenses.txt"] + icon_files
 
     h = hashlib.sha256(data)
-    for rel in icon_files + ["manifest.webmanifest", "licenses.txt"]:
+    for rel in icon_files + ["worker.js", "manifest.webmanifest", "licenses.txt"]:
         with open(os.path.join(out, rel), "rb") as f:
             h.update(f.read())
     with open(os.path.join(ROOT, "sw.js"), encoding="utf-8") as f:
         sw = f.read()
     sw = (sw.replace("__RIA_VERSION__", version).replace("__RIA_HASH__", h.hexdigest()[:10])
             .replace("__RIA_GAME_FILES__", json.dumps(game_files))
+            .replace("__RIA_SQLJS_VERSION__", sqljs_version())
+            .replace("__RIA_ENGINE_FILES__", json.dumps(ENGINE_FILES))
             .replace("__RIA_CHAPTER_FILES__", json.dumps(chapter_files)))
     if "__RIA_" in sw:
         raise SystemExit("build: placeholder left in sw.js")
@@ -348,7 +380,7 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     print("version %s" % version)
     print("app.js %.1f KB, css %.1f KB, worker.js %.1f KB" % (len(b["app"].encode()) / 1024, len(b["css"].encode()) / 1024, len(b["worker"].encode()) / 1024))
     print("sql.js: %s" % ", ".join("%s %.1f KB" % (n, os.path.getsize(os.path.join(out, n)) / 1024) for n in SQLJS_FILES))
-    print("sw cache %s" % re.search(r'GAME_CACHE = "([^"]+)"', sw).group(1))
+    print("sw cache %s, %s" % (re.search(r'GAME_CACHE = "([^"]+)"', sw).group(1), re.search(r'ENGINE_CACHE = "([^"]+)"', sw).group(1)))
     print("index.html raw %.1f KB (limit %d KB), gzip %.1f KB" % (raw / 1024, MAX_RAW // 1024, gz / 1024))
     print("lessons: %d chapter files, %.1f KB total" % (len(chapter_sizes), sum(sz for _, sz in chapter_sizes) / 1024))
     for name, sz in chapter_sizes:

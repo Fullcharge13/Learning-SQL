@@ -2,6 +2,7 @@
 
 실행: python3 tests/engine_browser.py   → 마지막 줄 "OK 4/4"
 
+tools/dev.py --build-only로 dev/worker.js(sql.js를 묶은 작업자)를 만든 뒤,
 저장소 뿌리를 로컬 서버(빈 포트)로 띄우고 tests/browser/engine_page.html을 연다.
 검사 4가지: 준비됨 / SELECT 실행 / 끝없는 재귀 CTE는 시간 초과 / 바로 다음 실행이 정상.
 """
@@ -10,6 +11,7 @@ import functools
 import http.server
 import os
 import socketserver
+import subprocess
 import sys
 import threading
 
@@ -44,6 +46,7 @@ RECURSIVE = "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM r) SELEC
 
 
 def main():
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "dev.py"), "--build-only"], check=True, cwd=ROOT)
     httpd = _Server(("127.0.0.1", 0), functools.partial(_Handler, directory=ROOT))
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     port = httpd.server_address[1]

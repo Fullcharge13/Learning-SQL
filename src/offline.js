@@ -1,13 +1,14 @@
 // 오프라인 준비 판정 (판정 C32, v0.3: 장 파일 전부 저장됨도 조건). 순수 함수 + 브라우저에서 값을 모으는 얇은 함수.
 // 홈 화면 앱은 사파리와 저장 공간이 따로라서, 인터넷이 될 때 한 번 열어 실행기(sql-wasm.wasm)를 받아 둬야
 // 비행기 모드에서도 열리고 쿼리가 실행된다.
-// 실행기 파일 이름·저장본 이름은 작업 16에서 ENGINE_*로 바꿔 채운다. 지금은 필수 파일이 없다.
+// 실행기 저장본(sw.js ENGINE_CACHE = "dueogi-engine-<sql.js 판>")에 ENGINE_REQUIRED가 모두 있어야 한다(작업 16).
+// sql.js의 JS 부분은 worker.js(게임 저장본) 안에 묶여 있어 따로 보지 않는다.
 
-export const PYODIDE_CACHE_PREFIX = "dueogi-engine-";
+export const ENGINE_CACHE_PREFIX = "dueogi-engine-";
 export const GAME_CACHE_PREFIX = "dueogi-game-";
-export const PYODIDE_REQUIRED = [];
+export const ENGINE_REQUIRED = ["sql-wasm.wasm"];
 
-// URL 마지막 조각이 정확히 그 파일 이름인지 (pyodide.asm.mjs를 pyodide.mjs로 착각하지 않게)
+// URL 마지막 조각이 정확히 그 파일 이름인지 (x-sql-wasm.wasm을 sql-wasm.wasm으로 착각하지 않게)
 function fileName(url) {
   const path = String(url).split(/[?#]/)[0];
   return path.slice(path.lastIndexOf("/") + 1);
@@ -25,20 +26,20 @@ function endsWithFile(url, rel) {
  * @returns {{ ready: boolean, missing: string[], reason: "ok" | "no-controller" | "no-caches" | "missing-files" | "missing-chapters" }}
  */
 export function offlineStatus({ controlled, cacheNames, urlsByCache, chapterFiles = [] }) {
-  const all = () => [...PYODIDE_REQUIRED, ...chapterFiles];
+  const all = () => [...ENGINE_REQUIRED, ...chapterFiles];
   if (!controlled) return { ready: false, missing: all(), reason: "no-controller" };
   if (!Array.isArray(cacheNames) || !urlsByCache) return { ready: false, missing: all(), reason: "no-caches" };
   const have = new Set();
   const gameUrls = [];
   for (const name of cacheNames) {
     const n = String(name);
-    if (n.startsWith(PYODIDE_CACHE_PREFIX)) for (const url of urlsByCache[name] || []) have.add(fileName(url));
+    if (n.startsWith(ENGINE_CACHE_PREFIX)) for (const url of urlsByCache[name] || []) have.add(fileName(url));
     if (n.startsWith(GAME_CACHE_PREFIX)) gameUrls.push(...(urlsByCache[name] || []));
   }
-  const missingPy = PYODIDE_REQUIRED.filter((f) => !have.has(f));
+  const missingEngine = ENGINE_REQUIRED.filter((f) => !have.has(f));
   const missingCh = chapterFiles.filter((rel) => !gameUrls.some((u) => endsWithFile(u, rel)));
-  const missing = [...missingPy, ...missingCh];
-  const reason = missingPy.length ? "missing-files" : missingCh.length ? "missing-chapters" : "ok";
+  const missing = [...missingEngine, ...missingCh];
+  const reason = missingEngine.length ? "missing-files" : missingCh.length ? "missing-chapters" : "ok";
   return { ready: missing.length === 0, missing, reason };
 }
 
@@ -47,7 +48,7 @@ export async function collectOfflineStatus(chapterFiles = []) {
   const controlled = !!(typeof navigator !== "undefined" && navigator.serviceWorker && navigator.serviceWorker.controller);
   if (typeof caches === "undefined") return offlineStatus({ controlled, cacheNames: null, urlsByCache: null, chapterFiles });
   try {
-    const cacheNames = (await caches.keys()).filter((n) => n.startsWith(PYODIDE_CACHE_PREFIX) || n.startsWith(GAME_CACHE_PREFIX));
+    const cacheNames = (await caches.keys()).filter((n) => n.startsWith(ENGINE_CACHE_PREFIX) || n.startsWith(GAME_CACHE_PREFIX));
     const urlsByCache = {};
     for (const name of cacheNames) {
       const c = await caches.open(name);
