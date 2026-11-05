@@ -6,7 +6,9 @@
 //   vars: { 대문자이름: [값, …] | { min, max } } — q·sql·wrong·chips·explain의 {이름}을 바꿔 끼움.
 //
 // choice 문제: 화면에 정답 SQL(sql)을 보여 주고 「결과로 알맞은 표는?」을 묻는다. 보기는 정답 SQL과 오답 SQL을 장터 데이터베이스에서
-// 실제로 돌린 결과 표({ sql } 보기 → 화면이 sqlview.fillResults로 작은 표를 그림). 오답 SQL이 오류를 내면 「오류가 나요」 보기.
+// 실제로 돌린 결과 표 { sql, result }(화면은 result를 바로 그리고 다시 돌리지 않음 → 실행기가 그 사이 멈춰도 보기에 SQL 글자가
+// 나오지 않아 정답이 드러나지 않음, 고침 1회차). 오답 SQL이 오류를 내면 「오류가 나요」 보기.
+// 시간 초과·실행기 고장은 틀 탓이 아니라 실행기 탓 → makeTemplateItem이 engine 오류를 던짐(「다시 시도」 화면, 판정 R28).
 // blank 문제: 칩을 넣은 SQL을 돌려, 정답 칩만 정답 결과 표가 나와야 한다(오답 칩은 오류이거나 다른 표).
 //
 // 같은 틀·씨앗·시도 번호면 언제나 같은 문제가 나온다. 보기가 겹치면(dup) 다음 시도 번호로 값을 다시 뽑는다(최대 TEMPLATE_ATTEMPTS번).
@@ -14,8 +16,8 @@
 // 돌려 보고 모든 씨앗이 TEMPLATE_ATTEMPTS번 안에 문제가 되는지 확인한다. 앱은 씨앗을 0~99에서만 고르므로 학습자가 받는 문제는
 // 모두 점검기가 미리 돌려 본 것이다.
 import { sameTable, hasOrderBy } from "./grade.js";
-import { OPT_ROWS } from "./ui/sqlview.js";
 
+export const OPT_ROWS = 5;                    // 객관식 보기의 작은 표에 보이는 행 수(ui/sqlview.js가 여기서 가져감 — 이 파일은 ui/를 불러오지 않음)
 export const TEMPLATE_SEEDS = 100;
 export const TEMPLATE_ATTEMPTS = 5;
 export const ERROR_OPTION = "오류가 나요";   // 오답 SQL이 오류를 내면 이 보기
@@ -115,16 +117,24 @@ export function judgeInstance(inst, results) {
   }
   const item = {
     type: "choice", concept: inst.concept, q: inst.q, code: inst.sql,
-    options: results.map((r, i) => (r.error ? ERROR_OPTION : { sql: list[i] })), answer: 0, explain: inst.explain,
+    options: results.map((r, i) => (r.error ? ERROR_OPTION
+      : { sql: list[i], result: { columns: r.columns.slice(), rows: r.rows, truncated: !!r.truncated } })),
+    answer: 0, explain: inst.explain,
   };
   if (inst.tables) item.tables = inst.tables.slice();
   return { ok: true, item };
 }
 
+/** 실행기 탓으로 문제를 만들 수 없음(시간 초과·작업자 고장·불러오기 실패) → 화면은 「다시 시도」 (판정 R28) */
+export function engineError(why, cause = null) {
+  return Object.assign(new Error(`sql engine: ${why}`), { engine: true, why, cause });
+}
+
 /**
- * 틀 하나 + 씨앗 → 문제(lesson.js가 그리는 choice/blank 모양 + tpl·seed·attempt). 만들지 못하면 null.
- * @param run async (sql) => { columns, rows, error, truncated, timeout } (앱: SqlRun.run). 실행기가 아예 못 도는 경우에는
- *            run이 예외를 던지면 된다(→ null).
+ * 틀 하나 + 씨앗 → 문제(lesson.js가 그리는 choice/blank 모양 + tpl·seed·attempt).
+ * 틀 탓으로 못 만들면 null(정답 SQL 오류·0행, 다섯 번 모두 겹침 — 점검기가 막는 경우).
+ * 실행기 탓이면 engineError를 던진다: run이 예외를 던지거나 결과가 시간 초과(slow)일 때.
+ * @param run async (sql) => { columns, rows, error, truncated, timeout } (앱: SqlRun.run)
  */
 export async function makeTemplateItem(t, seed, run) {
   for (let attempt = 0; attempt < TEMPLATE_ATTEMPTS; attempt++) {
@@ -132,11 +142,12 @@ export async function makeTemplateItem(t, seed, run) {
     const results = [];
     try {
       for (const sql of runList(inst)) results.push(await run(sql));
-    } catch {
-      return null;
+    } catch (e) {
+      throw e && e.engine ? e : engineError(e && e.message ? e.message : "run failed", e);
     }
     const j = judgeInstance(inst, results);
     if (j.ok) return { ...j.item, tpl: t.id, seed, attempt };
+    if (j.why === "slow") throw engineError("timeout (slow)");
     if (j.why !== "dup") return null;
   }
   return null;

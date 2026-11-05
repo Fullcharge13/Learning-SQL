@@ -9,8 +9,9 @@ import { sameTable } from "../../src/grade.js";
 import * as tpl from "../../src/template.js";
 import {
   instantiate, runList, judgeInstance, makeTemplateItem, placeholders, optionsLookSame, mulberry32, hashStr,
-  TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, ERROR_OPTION,
+  TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, ERROR_OPTION, OPT_ROWS,
 } from "../../src/template.js";
+import { OPT_ROWS as VIEW_OPT_ROWS } from "../../src/ui/sqlview.js";
 
 let db;
 before(async () => {
@@ -47,6 +48,16 @@ test("constants: 100 seeds, 5 attempts, mulberry32 still exported (R4)", () => {
   assert.equal(typeof hashStr, "function");
   const r = mulberry32(42);
   assert.ok(r() >= 0 && r() < 1);
+});
+
+test("OPT_ROWS lives in template.js and the screen uses the same value; template.js imports nothing from src/ui/", () => {
+  assert.equal(OPT_ROWS, 5);
+  assert.equal(VIEW_OPT_ROWS, OPT_ROWS);
+  const src = readFileSync(new URL("../../src/template.js", import.meta.url), "utf8");
+  const from = [...src.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']/gm)].map((m) => m[1]);
+  assert.ok(from.length > 0, "found the import lines");
+  for (const f of from) assert.doesNotMatch(f, /(^|\/)ui\//, `template.js imports ${f}`);
+  assert.doesNotMatch(src, /import\s*\(\s*["'][^"']*ui\//, "no dynamic import from ui/");
 });
 
 test("no Python-era exports left (OUT_KEY, print output width)", () => {
@@ -103,7 +114,10 @@ test("judgeInstance choice: options are {sql} result tables, answer is 0, code i
   const j = judgeInstance(i, [ONE("가", "나"), ONE("다", "라"), ONE("가", "다")]);
   assert.equal(j.ok, true, j.why);
   assert.equal(j.item.type, "choice");
-  assert.deepEqual(j.item.options, runList(i).map((sql) => ({ sql })));
+  // 보기마다 이미 돌린 결과 표를 함께 들고 다닌다(화면이 다시 돌리지 않음 → 실행기가 그 사이 멈춰도 SQL 글자가 보이지 않음)
+  assert.deepEqual(j.item.options.map((o) => o.sql), runList(i));
+  assert.deepEqual(j.item.options.map((o) => o.result.rows), [[["가"], ["나"]], [["다"], ["라"]], [["가"], ["다"]]]);
+  assert.deepEqual(j.item.options[0].result.columns, ["name"]);
   assert.equal(j.item.answer, 0);
   assert.equal(j.item.code, i.sql);
   assert.equal(j.item.concept, "orderby");
@@ -116,7 +130,8 @@ test("judgeInstance choice: an erroring wrong SQL becomes the error option, two 
   const j = judgeInstance(i, [ONE("가"), E(), ONE("나")]);
   assert.equal(j.ok, true);
   assert.equal(j.item.options[1], ERROR_OPTION);
-  assert.deepEqual(j.item.options[2], { sql: i.wrong[1] });
+  assert.equal(j.item.options[2].sql, i.wrong[1]);
+  assert.deepEqual(j.item.options[2].result.rows, [["나"]]);
   assert.equal(judgeInstance(i, [ONE("가"), E(), E("near x: syntax error")]).why, "dup");
 });
 
@@ -183,8 +198,9 @@ test("options are distinct result tables", async () => {
         continue;
       }
       // 보기 표를 화면처럼 실제로 돌린다: 정답 보기는 문제 SQL의 결과, 모든 보기는 서로 달라 보임
-      const shown = it.options.map((o) => (typeof o === "string" ? o : execOne(db, o.sql)));
-      assert.deepEqual(it.options[0], { sql: it.code });
+      const shown = it.options.map((o) => (typeof o === "string" ? o : o.result));
+      for (const o of it.options) if (typeof o !== "string") assert.ok(sameTable(execOne(db, o.sql), o.result, { ordered: true }).ok, "stored table = running the SQL");
+      assert.equal(it.options[0].sql, it.code);
       assert.ok(sameTable(execOne(db, it.code), shown[0], { ordered: true }).ok);
       for (let a = 0; a < shown.length; a++) {
         for (let b = a + 1; b < shown.length; b++) {
@@ -209,14 +225,19 @@ test("makeTemplateItem: a collision moves to the next attempt", async () => {
   assert.ok(it);
   assert.equal(it.attempt, 1);
   assert.equal(calls, 6);
-  assert.deepEqual(it.options, runList(instantiate(CHOICE, 5, 1)).map((sql) => ({ sql })));
+  assert.deepEqual(it.options.map((o) => o.sql), runList(instantiate(CHOICE, 5, 1)));
 });
 
-test("makeTemplateItem: gives up after 5 collisions, on a broken answer, on timeout, or when the runner throws", async () => {
+test("makeTemplateItem: gives up (null) after 5 collisions or on a broken answer — the template's fault", async () => {
   let n = 0;
   assert.equal(await makeTemplateItem(CHOICE, 0, async () => { n++; return ONE("같음"); }), null);
   assert.equal(n, TEMPLATE_ATTEMPTS * 3);
   assert.equal(await makeTemplateItem(CHOICE, 0, async () => E()), null);
-  assert.equal(await makeTemplateItem(CHOICE, 0, async (sql) => (sql === instantiate(CHOICE, 0).sql ? execOne(db, sql) : { ...E("timeout"), timeout: true })), null);
-  assert.equal(await makeTemplateItem(CHOICE, 0, async () => { throw new Error("worker"); }), null);
+  assert.equal(await makeTemplateItem(CHOICE, 0, async () => ONE()), null, "empty answer");
+});
+
+test("makeTemplateItem: a timeout or a runner failure is an engine error, not a skip (R28)", async () => {
+  const slow = async (sql) => (sql === instantiate(CHOICE, 0).sql ? execOne(db, sql) : { ...E("timeout"), timeout: true });
+  await assert.rejects(makeTemplateItem(CHOICE, 0, slow), (e) => e.engine === true && /timeout|slow/.test(e.message));
+  await assert.rejects(makeTemplateItem(CHOICE, 0, async () => { throw new Error("worker"); }), (e) => e.engine === true);
 });

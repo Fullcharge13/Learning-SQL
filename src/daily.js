@@ -1,4 +1,4 @@
-// 매일 도전 (리아 v0.9 작업 2, 판정 C53·C54 → 두억이 v0.1 작업 11, 설계 §7). 순수 함수만.
+// 매일 도전 (리아 v0.9 작업 2, 판정 C53·C54 → 두억이 v0.1 작업 11, 설계 §7). 화면 없는 함수만(buildDailyLesson만 실행기를 씀).
 //
 // - 열림: 1장 본 과정 레슨을 모두 끝낸 뒤.
 // - 하루 3문제: 터치 2(본 과정을 다 끝낸 장의 「틀」 TEMPLATES에서, 씨앗 0~99, 문제는 src/template.js가 SQL을 돌려 만듦)
@@ -15,7 +15,7 @@ import { earnXp, markConcept, isDate } from "./rules.js";
 import { ensureQuests, tick } from "./quests.js";
 import { checkBadges } from "./badges.js";
 import { localDate } from "./today.js";
-import { hashStr, mulberry32, TEMPLATE_SEEDS } from "./template.js";
+import { hashStr, mulberry32, TEMPLATE_SEEDS, makeTemplateItem, engineError } from "./template.js";
 
 export const DAILY_XP = 15;
 export const DAILY_YEOPJEON = 10;
@@ -116,6 +116,47 @@ export function dailyBuildItem(lesson, date) {
   const builds = ((lesson && lesson.items) || []).filter((x) => x && x.type === "build");
   if (!builds.length) return null;
   return builds[hashStr(`${date}|${lesson.id}`) % builds.length];
+}
+
+// 실행기 자체가 못 돈 결과(SqlRun의 error). 시간 초과는 makeTemplateItem이 engineError로 바꿈(판정 R28)
+const ENGINE_ERRORS = new Set(["worker", "load", "timeout"]);
+
+/**
+ * 오늘 문제를 실제로 만든다(ui/lesson.js의 매일 도전 화면이 부름). 아직 안 푼 문제만, 다 풀었으면 null.
+ * 틀은 장터 데이터베이스에서 SQL을 돌려 보기 표를 만들고, 카드 조립은 끝낸 레슨의 build 문제(dailyBuildItem).
+ * 틀 탓으로 못 만든 문제(점검기가 막는 경우)는 skipped(→ 푼 것으로 기록). 실행기 탓(시간 초과·고장·없음)이면 engine 오류를
+ * 던진다 → 화면은 「다시 시도」, 푼 기록은 그대로(판정 R28: 시간 초과로 문제를 건너뛰어 그날을 끝내지 않음).
+ * @param o { save, getChapter: async n => 장 모듈, sql: { run: async sql => 결과 } }
+ */
+export async function buildDailyLesson({ save, getChapter, sql }) {
+  const d = dailyOf(save);
+  const done = new Set(d.done || []);
+  const todo = (d.picks || []).map((p, i) => ({ p, i })).filter((x) => !done.has(x.i));
+  if (!todo.length) return null;
+  const chs = new Map();
+  for (const n of [...new Set(todo.map((x) => x.p.chapter))]) chs.set(n, await getChapter(n));
+  const run = async (q) => {
+    if (!sql || typeof sql.run !== "function") throw engineError("load");
+    const r = await sql.run(q);
+    if (r && ENGINE_ERRORS.has(r.error)) throw engineError(r.error);
+    return r;
+  };
+  const items = [], skipped = [];
+  for (const { p, i } of todo) {
+    const ch = chs.get(p.chapter) || {};
+    if (p.kind === "tpl") {
+      const t = (ch.TEMPLATES || []).find((x) => x.id === p.id);
+      const it = t ? await makeTemplateItem(t, p.seed, run) : null;   // 실행기 탓이면 여기서 던짐
+      if (it) items.push({ ...it, tag: `${p.chapter}장 새 문제`, dailyIndex: i });
+      else skipped.push(i);
+    } else {
+      const l = (ch.LESSONS || []).find((x) => x.id === p.lesson);
+      const b = dailyBuildItem(l, d.date);
+      if (b) items.push({ ...b, tag: `${l.id} 다시 조립`, dailyIndex: i });
+      else skipped.push(i);
+    }
+  }
+  return { id: "daily", title: "오늘의 도전", cards: [], items, date: d.date, skipped, isDaily: true };
 }
 
 /** 저장의 문제가 지금 레슨 목록에 다 있나 */

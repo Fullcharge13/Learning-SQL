@@ -21,11 +21,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkReadOnly } from "../src/sqlcore.js";
 import { cardsToSql, hasOrderBy, sameTable, judgeBuild } from "../src/grade.js";
 import { validateLesson } from "../src/lessondata.js";
-import { OPT_ROWS } from "../src/ui/sqlview.js";
 import { SCHEMA } from "../data/schema.js";
 import { GRAMMAR, UNTAUGHT, SQL_WORDS, WORD_CHAPTER, FORMS } from "../data/grammar.js";
 import { newBuild } from "../src/build.js";
-import { instantiate, runList, judgeInstance, placeholders, TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, BLANK } from "../src/template.js";
+import { instantiate, runList, judgeInstance, placeholders, TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, BLANK, OPT_ROWS } from "../src/template.js";
 import { CONCEPTS as DATA_CONCEPTS } from "../data/concepts.js";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));

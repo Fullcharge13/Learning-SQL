@@ -6,12 +6,10 @@ import { packResume, restoreSession, hasProgress } from "../resume.js";
 import { riaSVG } from "../ria.js";
 import { esc, icon, bar, codeBlock, dialog, riaSays, cardExample } from "./dom.js";
 import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
-import { isCodey } from "../textkind.js";
 import { reviewPool } from "../lessondata.js";
-import { makeTemplateItem } from "../template.js";
-import { dailyBuildItem } from "../daily.js";
+import { buildDailyLesson } from "../daily.js";
 import { mountBuild } from "./build.js";
-import { fillResults } from "./sqlview.js";
+import { fillResults, choiceOptionHTML, choiceOptionFailed, optionsShowCode, answerFeedbackHTML } from "./sqlview.js";
 import { openTables } from "./tables.js";
 
 const GUARD_MS = 400;
@@ -42,43 +40,10 @@ async function buildReview(ctx) {
 }
 
 
-// 실행기가 아예 돌지 못한 결과(문제 탓이 아님, SqlRun의 error) → 「다시 시도」 화면으로
-const INFRA_ERRORS = new Set(["worker", "load"]);
-
-/** 매일 도전: 저장에 고정된 오늘 문제 중 아직 안 푼 것만. 틀은 장터 데이터베이스에서 SQL을 돌려 보기 표를 만들고(작업 11),
- *  카드 조립은 끝낸 레슨의 build 문제(dailyBuildItem, C53). 만들지 못한 틀은 건너뜀(skipped → 푼 것으로 기록) */
+/** 매일 도전: 저장에 고정된 오늘 문제 중 아직 안 푼 것만(daily.buildDailyLesson). 실행기 탓이면 engine 오류 → 「다시 시도」(R28) */
 async function buildDaily(ctx) {
-  const d = ctx.save.daily;
-  const done = new Set(d.done || []);
-  const todo = (d.picks || []).map((p, i) => ({ p, i })).filter((x) => !done.has(x.i));
-  if (!todo.length) return null;
-  const nums = [...new Set(todo.map((x) => x.p.chapter))];
-  const chs = new Map();
-  for (const n of nums) chs.set(n, await ctx.getChapter(n));
-  let infra = null;
-  const run = async (sql) => {
-    const r = ctx.sql ? await ctx.sql.run(sql) : { error: "load" };
-    if (r && INFRA_ERRORS.has(r.error)) { infra = r.error; throw new Error(r.error); }
-    return r;
-  };
-  const items = [], skipped = [];
-  for (const { p, i } of todo) {
-    const ch = chs.get(p.chapter);
-    if (p.kind === "tpl") {
-      const t = (ch.TEMPLATES || []).find((x) => x.id === p.id);
-      const it = t ? await makeTemplateItem(t, p.seed, run) : null;
-      if (infra) throw Object.assign(new Error(`sql engine not ready: ${infra}`), { engine: true });
-      if (it) items.push({ ...it, tag: `${p.chapter}장 새 문제`, dailyIndex: i });
-      else skipped.push(i);
-    } else {
-      const l = (ch.LESSONS || []).find((x) => x.id === p.lesson);
-      const b = dailyBuildItem(l, d.date);
-      if (b) items.push({ ...b, tag: `${l.id} 다시 조립`, dailyIndex: i });
-      else skipped.push(i);
-    }
-  }
-  const lesson = { id: "daily", title: "오늘의 도전", cards: [], items, date: d.date, skipped, isDaily: true };
-  if (ctx.app) ctx.app.dailyLesson = lesson;   // 시험 도구가 만든 문제를 볼 수 있게(window.__ria)
+  const lesson = await buildDailyLesson({ save: ctx.save, getChapter: ctx.getChapter, sql: ctx.sql });
+  if (lesson && ctx.app) ctx.app.dailyLesson = lesson;   // 시험 도구가 만든 문제를 볼 수 있게(window.__ria)
   return lesson;
 }
 
@@ -343,7 +308,6 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       ${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}`;
   }
 
-  const optSql = (o) => (o && typeof o === "object" ? o.sql : null);
   const tablesButton = (it) => (it.tables && it.tables.length
     ? `<div class="help-row"><button class="btn ghost small" id="tablesbtn">${icon("table")}<span>쓸 표 보기</span></button></div>` : "");
 
@@ -352,16 +316,11 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const sh = shuffleChoices(orig.options, orig.answer, newSeed()); // 이번 풀이 동안 고정 (C26)
     const it = { ...orig, options: sh.options, answer: sh.answer };
     let pick = -1;
-    // 보기가 { sql }이면 그 SQL의 결과 표(최대 5행)를 보기로 그린다. 실행기가 실패하면 SQL 글자를 그대로 보여 준다
-    const optHTML = (o, i) => {
-      const q = optSql(o);
-      const inner = q != null
-        ? `<span class="opt-text sql-result" data-sql="${esc(q)}" data-box="opt"><span class="muted">표를 불러오는 중…</span></span>`
-        : `<span class="opt-text">${esc(o)}</span>`;
-      return `<button class="opt${q != null ? " sqlopt" : isCodey(o) ? " mono" : ""}" role="radio" aria-checked="false" data-i="${i}"${q != null ? ` data-sql="${esc(q)}" aria-label="${esc(`${i + 1}번 보기: 표를 불러오는 중`)}"` : ""}><span class="opt-key" aria-hidden="true">${i + 1}</span>${inner}</button>`;
-    };
+    // 보기가 { sql }이면 그 SQL의 결과 표(최대 5행)를 보기로 그린다. 매일 도전 틀의 { sql, result }는 들고 온 표를 바로 그린다.
+    // 실행기가 실패하면 SQL 글자로 대신 보이되, 보기 하나가 위 문제 SQL과 같으면 어떤 보기도 SQL을 보이지 않는다(정답이 드러남)
+    const hideSql = optionsShowCode(it.options, it.code);
     body.innerHTML = `<article class="item">${itemHead(cur)}${tablesButton(it)}
-      <div class="options" role="radiogroup" aria-label="보기">${it.options.map(optHTML).join("")}</div>
+      <div class="options" role="radiogroup" aria-label="보기">${it.options.map(choiceOptionHTML).join("")}</div>
     </article>`;
     const tb = body.querySelector("#tablesbtn");
     if (tb) tb.addEventListener("click", () => { openTables(it.tables, ctx.sql); });
@@ -370,12 +329,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
         const b = node.closest(".opt");
         if (b) b.setAttribute("aria-label", r.error ? `${b.dataset.i * 1 + 1}번 보기` : `${b.dataset.i * 1 + 1}번 보기: 열 ${r.columns.join(", ")}, ${r.rows.length}행`);
       },
-      onFailed(node) {
-        const b = node.closest(".opt");
-        node.classList.add("sql-text");
-        node.textContent = node.dataset.sql;
-        if (b) { b.classList.add("mono"); b.setAttribute("aria-label", `${b.dataset.i * 1 + 1}번 보기: ${node.dataset.sql}`); }
-      },
+      onFailed(node) { choiceOptionFailed(node, hideSql); },
     });
     const act = footButton("확인", { disabled: true });
     body.querySelectorAll(".opt").forEach((b) => b.addEventListener("click", () => {
@@ -385,11 +339,9 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     }));
     act.addEventListener("click", () => {
       if (pick < 0) return;
-      const right = it.options[it.answer];
-      const rq = optSql(right);
-      judged(cur, pick === it.answer, rq != null
-        ? `<p class="answer">정답: ${it.answer + 1}번 보기</p>${codeBlock(rq, "sql")}`
-        : `<p class="answer">정답: <span class="${isCodey(right) ? "mono" : ""}">${esc(right)}</span></p>`);
+      // 정답 SQL이 문제에 이미 보이면 되풀이하지 않고 정답 결과 표를 보인다(고침 1회차)
+      const drawn = body.querySelector(`.opt[data-i="${it.answer}"] .sql-result[data-filled="1"]`);
+      judged(cur, pick === it.answer, answerFeedbackHTML(it.options[it.answer], it.answer, it.code, drawn ? drawn.innerHTML : null));
     });
   }
 

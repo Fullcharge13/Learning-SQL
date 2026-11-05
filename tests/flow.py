@@ -23,7 +23,8 @@
 - test_resume_decline: 「처음부터」 → 카드 1부터, 칸 지워짐 / 「그만두기」도 칸을 지움
 - test_build_solve: 조립 문제를 카드 누르기로 — 틀린 조립 실행(결과 표) → 오류 실행(설명) → 틀린 제출(내 결과·기대 결과 나란히)
                     → 맞게 고쳐 제출 → 「단서를 따라 고쳐서 통과!」, 통계 fixed·hintfree 1. 캡처 build-*.png (iPhone 17)
-- test_lesson: 카드 SQL+결과 표, 행 많은 카드(30vh 상자), 객관식 표 보기(44px·포커스 없음), 「쓸 표 보기」 세 가지 닫기·한글 뜻·5행, 조립에도 단추. 캡처 lesson-*.png\n- test_lesson_wrong_option / test_lesson_no_engine: 틀린 보기 안내, 실행기 없을 때 카드 안내·보기는 SQL 글자로\n- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
+- test_lesson: 카드 SQL+결과 표, 행 많은 카드(30vh 상자), 객관식 표 보기(44px·포커스 없음), 「쓸 표 보기」 세 가지 닫기·한글 뜻·5행, 조립에도 단추. 캡처 lesson-*.png\n- test_lesson_wrong_option / test_lesson_no_engine: 틀린 보기 안내(정답 SQL이 문제 SQL과 같으면 정답 표), 실행기 없을 때 카드 안내·보기는
+  SQL 글자로(단 보기 하나가 문제 SQL과 같으면 「표를 불러오지 못했어요」만 — 정답이 드러나지 않게)\n- test_build_no_engine: sql-wasm.wasm 받기를 막음 → 객관식은 풀림, 조립 문제는 「실행기 준비 중이에요」·실패 안내, 실행·제출 막힘
 - test_daily_challenge(작업 11): 시험용 1장(1-1·1-2)을 끝낸 저장 → 홈 카드 → 틀 객관식(보기 = SQL 결과 표)·틀 빈칸·카드 조립 3문제
   → 새로고침 뒤 이어서 → 완료 화면 XP 15·엽전 10. 캡처 daily-*.png
 - test_daily_no_engine: 실행기를 못 받으면 매일 도전은 「SQL 실행기를 깨우는 중에…」 + 다시 시도, 푼 기록 없음
@@ -1032,13 +1033,19 @@ def _daily_answer_one(a, shots):
             n_sql = sum(1 for o in it["options"] if isinstance(o, dict))
             a.page.wait_for_function("(n) => document.querySelectorAll('.opt .rtable').length === n", arg=n_sql, timeout=ENGINE_READY_MS)
             code = a.page.inner_text("article.item > pre.code")
-            assert code.strip() == it["code"].strip() and it["options"][it["answer"]] == {"sql": it["code"]}, (code, it)
+            assert code.strip() == it["code"].strip() and it["options"][it["answer"]]["sql"] == it["code"], (code, it)
+            # 표는 들고 온 결과로 바로 그림: 다시 채울 자리(data-sql 있는 .sql-result)가 없고, 보기에 SQL 글자가 없음
+            assert a.js("() => document.querySelectorAll('.opt .sql-result[data-sql]').length") == 0
+            assert all("SELECT" not in o["text"] for o in a.js(SQL_CHOICE_JS))
             if "choice" in shots:
                 a.shot(shots.pop("choice"))
         elif "blank" in shots:
             a.shot(shots.pop("blank"))
         a.answer_touch(it)
         a.page.wait_for_selector("#result:not([hidden])")
+    if it["type"] == "choice":   # 맞힌 결과 창에는 정답 줄이 없다(틀린 경우의 정답 표는 test_lesson_wrong_option)
+        res = a.page.inner_text("#result")
+        assert "SELECT" not in res, "feedback must not repeat the question SQL: %r" % res
     assert a.cont(), "daily item %d (%s) judged wrong" % (idx, it["type"])
     return it["type"]
 
@@ -1453,7 +1460,11 @@ def test_lesson_wrong_option():
         a.page.click("#act")
         a.page.wait_for_selector("#result:not([hidden])")
         res = a.page.inner_text("#result")
-        assert "bad" in (a.page.get_attribute("#result", "class") or "") and "번 보기" in res and "FROM shops" in res, res
+        # 정답 보기 SQL이 문제 SQL과 같으면 되풀이하지 않고 정답 결과 표를 보인다(작업 11 고침 1회차)
+        assert "bad" in (a.page.get_attribute("#result", "class") or "") and "번 보기" in res and "SELECT" not in res, res
+        assert a.page.query_selector("#result .rtable") and "도깨비 국밥집" in res, res
+        a.page.wait_for_timeout(300)
+        a.shot("lesson-wrong-answer-table.png")
         assert not a.errors, a.errors
 
 
@@ -1468,18 +1479,21 @@ def test_lesson_no_engine():
         assert a.page.is_enabled("#act")
         a.page.click("#act")
         a.page.click("#act")
-        # 보기는 SQL 글자로 대신 보이고, 그대로 풀린다
+        # 이 문제는 정답 보기 SQL이 문제 SQL과 같다 → 실행기가 없으면 어떤 보기도 SQL 글자를 보이지 않는다(정답이 드러남, 작업 11 고침 1회차)
         a.page.wait_for_selector("article.item .opt")
-        a.page.wait_for_function("() => [...document.querySelectorAll('.opt')].every((b) => b.querySelector('.sql-text'))", timeout=20_000)
+        a.page.wait_for_function("() => [...document.querySelectorAll('.opt')].every((b) => /표를 불러오지 못했어요/.test(b.innerText))", timeout=20_000)
         opts = a.js(SQL_CHOICE_JS)
-        assert all(o["rows"] == 0 and o["text"].replace(" / ", " ").split(" ", 1)[1].startswith("SELECT name FROM") and o["h"] >= 44 for o in opts), opts
+        code = " ".join(a.page.inner_text("article.item > pre.code").split())
+        assert code == "SELECT name FROM shops ORDER BY shop_id LIMIT 3", code
+        assert all(o["rows"] == 0 and "SELECT" not in o["text"] and "SELECT" not in (o["label"] or "") and o["h"] >= 44 for o in opts), opts
         a.shot("lesson-no-engine.png")
         m = measure(a, "lesson-no-engine")
         assert not m["problems"] and not m["small"], m
         a.page.click('.opt[data-sql="SELECT name FROM shops ORDER BY shop_id LIMIT 3"]')
         a.page.click("#act")
         a.page.wait_for_selector("#result:not([hidden])")
-        assert "ok" in (a.page.get_attribute("#result", "class") or ""), "still answerable without the engine"
+        assert "ok" in (a.page.get_attribute("#result", "class") or ""), "judging still works without the engine"
+        assert "SELECT" not in a.page.inner_text("#result"), "feedback does not repeat the question SQL"
         expected = ("sql-wasm.wasm", "Failed to load resource", "wasm streaming compile failed", "falling back to ArrayBuffer")
         bad = [e for e in a.errors if not any(x in e for x in expected)]
         assert not bad, bad

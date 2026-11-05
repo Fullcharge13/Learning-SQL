@@ -290,3 +290,59 @@ test("cleanDaily: 깨진 값은 기본값으로(저장 옮기기)", () => {
     { kind: "build", lesson: "1-3", chapter: 1 }], done: [1], streak: 3, best: 9, last_done_date: "2026-11-04" };
   assert.deepEqual(cleanDaily(good), good);
 });
+
+// ---- buildDailyLesson (작업 11 고침 1회차): 오늘 문제를 실제로 만든다. 실행기 오류·시간 초과는 「다시 시도」(R28) ----
+import { readFileSync } from "node:fs";
+import initSqlJs from "sql.js";
+import { openMarket, execOne } from "../../src/sqlcore.js";
+import { buildDailyLesson } from "../../src/daily.js";
+
+const TPL_CHOICE = {
+  id: "1-T1", concept: "select", type: "choice", q: "이 SQL의 결과로 알맞은 표는?",
+  sql: "SELECT name FROM shops\nWHERE shop_id <= {N}",
+  wrong: ["SELECT name FROM items\nWHERE item_id <= {N}", "SELECT owner FROM shops\nWHERE shop_id <= {N}"],
+  vars: { N: { min: 2, max: 4 } }, explain: "가게 이름이에요.",
+};
+const BUILD = { type: "build", id: "b-1", concept: "select", q: "가게 이름", cards: ["SELECT", "name", "FROM", "shops"], extra: ["items", "x"] };
+const CHAPTER1 = {
+  CHAPTER: { id: 1, title: "1장" },
+  LESSONS: [{ id: "1-1", items: [{ type: "choice" }, BUILD, { type: "check" }] }],
+  TEMPLATES: [TPL_CHOICE, { ...TPL_CHOICE, id: "1-T2", sql: "SELECT nam FROM shops\nWHERE shop_id <= {N}" }],
+};
+const dsave = (picks, done = []) => ({ daily: { date: "2026-11-05", picks, done } });
+const PICKS = [{ kind: "tpl", id: "1-T1", chapter: 1, seed: 3 }, { kind: "tpl", id: "1-T2", chapter: 1, seed: 4 }, { kind: "build", lesson: "1-1", chapter: 1 }];
+let marketDb = null;
+async function market() {
+  if (!marketDb) marketDb = openMarket(await initSqlJs(), readFileSync(new URL("../../data/market.sql", import.meta.url), "utf8"));
+  return marketDb;
+}
+const ctxWith = async (runImpl) => {
+  const db = await market();
+  return { save: null, getChapter: async () => CHAPTER1, sql: { run: runImpl || (async (q) => execOne(db, q)) } };
+};
+
+test("buildDailyLesson: template items with stored result tables, the lesson's build, broken template skipped", async () => {
+  const ctx = await ctxWith();
+  const l = await buildDailyLesson({ ...ctx, save: dsave(PICKS) });
+  assert.deepEqual(l.items.map((x) => [x.type, x.dailyIndex]), [["choice", 0], ["build", 2]]);
+  assert.deepEqual(l.skipped, [1], "1-T2's answer SQL errors → the template's fault → skipped");
+  assert.ok(l.items[0].options.every((o) => typeof o === "string" || (o.sql && Array.isArray(o.result.rows))));
+  assert.equal(l.items[1].id, "b-1");
+  assert.equal(l.isDaily, true);
+  // 푼 문제는 다시 만들지 않음, 다 풀었으면 null
+  const rest = await buildDailyLesson({ ...ctx, save: dsave(PICKS, [0, 1]) });
+  assert.deepEqual(rest.items.map((x) => x.dailyIndex), [2]);
+  assert.equal(await buildDailyLesson({ ...ctx, save: dsave(PICKS, [0, 1, 2]) }), null);
+});
+
+test("buildDailyLesson: a timeout or a dead engine is an engine error (retry screen), never a skip (R28)", async () => {
+  const db = await market();
+  for (const bad of [{ error: "timeout", timeout: true }, { error: "worker" }, { error: "load" }]) {
+    let n = 0;
+    // 첫 SQL은 정상, 둘째부터 실패(보기를 만들다 멈춤)
+    const ctx = await ctxWith(async (q) => (n++ === 0 ? execOne(db, q) : { columns: [], rows: [], truncated: false, timeout: false, ...bad }));
+    await assert.rejects(buildDailyLesson({ ...ctx, save: dsave(PICKS) }), (e) => e.engine === true, JSON.stringify(bad));
+  }
+  const none = { save: dsave(PICKS), getChapter: async () => CHAPTER1, sql: null };
+  await assert.rejects(buildDailyLesson(none), (e) => e.engine === true);
+});
