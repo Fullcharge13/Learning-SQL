@@ -141,7 +141,10 @@ const SPECIFIC = [
   ["aggregate functions are not allowed in the GROUP BY clause", "aggregate in GROUP BY"],
   ["misuse of window function ROW_NUMBER()", "misuse of window function"],
   // 14장: 같은 SELECT의 창 함수 별칭을 WHERE에서 부름(WHERE rk = 1) — 작업 15a에서 sql.js 1.15.2로 뽑음
-  ["misuse of aliased window function rk", "misuse of window function"],
+  // 15장(작업 15b): 별칭 쪽은 따로 「창 함수 결과(rk)」 설명으로 감(GROUP BY·HAVING에서 불러도 같은 문장)
+  ["misuse of aliased window function rk", "aliased window function"],
+  ["misuse of aliased window function running", "aliased window function"],
+  ["misuse of window function LAG()", "misuse of window function"],
   ["wrong number of arguments to function ROUND()", "wrong number of arguments"],
   ["1st ORDER BY term out of range - should be between 1 and 1", "ORDER BY term"],
   ["1st ORDER BY term does not match any column in the result set", "ORDER BY term"],
@@ -159,6 +162,21 @@ test("explain: 실제 SQLite 오류 문장이 자기 설명으로 감 (대체 �
     assert.equal(explain(msg, "basic"), ERRORS[key].body.replace(/\{name\}/g, (ERRORS[key].match.exec(msg) || [])[1] || "그 이름"), msg);
     assert.notEqual(explain(msg, "basic"), FALLBACK, msg);
   }
+});
+
+test("explain: 창 함수 별칭 오류는 별칭을 함수처럼 부르지 않음(「'rk' 같은 창 함수」 ✗ → 「창 함수 결과(rk)」)", () => {
+  for (const alias of ["rk", "running", "gap"]) {
+    for (const outfit of ["basic", "detective"]) {
+      const a = explain(`misuse of aliased window function ${alias}`, outfit);
+      assert.match(a, new RegExp(`창 함수 결과\\(${alias}\\)`), a);
+      assert.doesNotMatch(a, /같은 창 함수/, a);
+      assert.match(a, /WITH/, a);
+    }
+  }
+  // 함수 이름 쪽(OVER를 빠뜨림·WHERE에 바로 씀)은 함수 이름과 OVER를 함께 말한다
+  const f = explain("misuse of window function LAG()", "basic");
+  assert.match(f, /LAG/);
+  assert.match(f, /OVER/);
 });
 
 test("explain: misuse of aggregate 기본 말투는 자리를 단정하지 않음(WHERE 대신 HAVING만 권하지 않음)", () => {

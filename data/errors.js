@@ -33,12 +33,20 @@ export const ERRORS = {
     body: "음, 묶어서 세는 함수(COUNT, SUM 같은 것)가 놓을 수 없는 자리에 있어. 묶기 전 단계나 다른 셈 함수 안에서는 못 써. 묶은 뒤의 조건이면 HAVING, 아니면 SELECT 쪽을 볼까?",
     detective: "묶어서 세는 함수가 엉뚱한 자리에 숨어 있어요. 묶기 전 단계나 다른 셈 함수 안에서는 쓸 수 없어요. 어느 자리에 놓였는지 따라가 봐요.",
   },
-  // OVER가 붙은 창 함수를 WHERE·GROUP BY 등에 놓음: 「misuse of window function ROW_NUMBER()」.
-  // 같은 SELECT의 창 함수 별칭을 WHERE에서 부르면(WHERE rk = 1, 14장) 「misuse of aliased window function rk」 — 둘 다 여기로
+  // 같은 SELECT의 창 함수 별칭을 WHERE·GROUP BY·HAVING에서 부르면(WHERE rk = 1, 14장 / WHERE running > 300, 15장)
+  // 「misuse of aliased window function rk」. {name}이 함수가 아니라 열 별칭이라 「'rk' 같은 창 함수」로 읽히지 않게 따로 둔다(작업 15b).
+  // 아래 「misuse of window function」보다 먼저 맞춰 본다.
+  "aliased window function": {
+    match: /^misuse of aliased window function (\w+)/,
+    body: "엇, 창 함수 결과({name})는 행을 다 고른 다음에야 생겨. 그래서 같은 SELECT의 WHERE·GROUP BY·HAVING에서는 아직 부를 수 없어. WITH로 한 번 감싸고 바깥에서 걸러 볼까?",
+    detective: "창 함수 결과({name})가 아직 태어나기 전 구역에서 불렸어요. 같은 SELECT의 WHERE·GROUP BY·HAVING에는 그 열이 없어요. WITH로 먼저 결과를 만들고 바깥에서 걸러 봐요.",
+  },
+  // OVER가 붙은 창 함수를 WHERE·GROUP BY 등에 바로 놓거나, OVER를 빠뜨림(ROW_NUMBER() AS rn, LAG(price) AS p):
+  // 「misuse of window function ROW_NUMBER()」, 「misuse of window function LAG()」
   "misuse of window function": {
-    match: /^misuse of (?:aliased )?window function (\w+)/,
-    body: "엇, '{name}' 같은 창 함수(OVER가 붙은 함수)는 SELECT나 ORDER BY에서만 쓸 수 있어. 조건으로 거르고 싶으면 WITH로 한 번 감싸 볼까?",
-    detective: "'{name}' 창 함수가 출입 금지 구역에 들어갔어요. 이 함수는 SELECT·ORDER BY에서만 움직여요. 조건으로 쓰려면 WITH로 먼저 결과를 만들어 봐요.",
+    match: /^misuse of window function (\w+)/,
+    body: "엇, '{name}' 같은 창 함수는 OVER (…)와 짝을 지어 SELECT나 ORDER BY에서만 쓸 수 있어. OVER가 빠졌는지, 조건 자리에 놓였는지 볼까? 조건으로 거르려면 WITH로 한 번 감싸고!",
+    detective: "'{name}' 창 함수가 출입 금지 구역에 들어갔어요. 이 함수는 OVER (…)와 함께 SELECT·ORDER BY에서만 움직여요. OVER가 빠졌는지, 조건 자리에 있는지 확인해 봐요.",
   },
   // 「wrong number of arguments to function SUBSTR()」
   "wrong number of arguments": {
