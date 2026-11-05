@@ -47,6 +47,14 @@ const T = {
     lines: ["SELECT name", "FROM items", "ORDER BY price DESC", "LIMIT 3"],
     explain: "SELECT → FROM → ORDER BY → LIMIT 차례예요.",
   },
+  orderShop3: {
+    type: "order", concept: "where", q: "3번 가게의 이름과 주인을 보는 SQL을 놓아 보세요",
+    lines: ["SELECT name, owner", "FROM shops", "WHERE shop_id = 3"],
+    expect: "name | owner\n산삼 약방 | 한약수",
+    explain: "SELECT → FROM → WHERE 차례예요.",
+  },
+  proseForms: choice("select", "물건 값이 반으로 줄었어요. 알맞은 말은?", ["50% 할인", "100% 할인", "3-4할 할인"], 0,
+    "반값은 50% 할인이에요.", { id: "g5-prose-forms" }),
   orderKinds: {
     type: "order", concept: "distinct", q: "손님 종류를 가나다순으로 한 번씩 보이게 놓아 보세요",
     lines: ["SELECT DISTINCT kind", "FROM customers", "ORDER BY kind"],
@@ -98,7 +106,7 @@ export const LESSONS = [
   lesson(1, "비싼 순서로", "ORDER BY와 DESC로 줄 세우기",
     ["ORDER BY 뒤에 기준 열을 쓴다", "DESC는 큰 값부터", "LIMIT로 앞의 몇 행만 본다"],
     [{ say: "ORDER BY price DESC는 값이 큰 물건부터 줄 세워요.", sql: "SELECT name, price FROM items\nORDER BY price DESC\nLIMIT 5" }],
-    [T.kwOrder, T.kwDesc, T.blankDesc, T.orderTop, T.table, T.broken, T.kwLimit, T.rows, B.top5, checkOrder]),
+    [T.proseForms, T.kwOrder, T.kwDesc, T.blankDesc, T.orderTop, T.orderShop3, T.table, T.broken, T.kwLimit, T.rows, B.top5, checkOrder]),
   lesson(2, "겹치지 않게", "DISTINCT로 같은 값 줄이기",
     ["DISTINCT는 SELECT 바로 뒤", "같은 행은 한 번만 보인다", "종류·마을 목록에 쓴다"],
     [{ say: "DISTINCT를 쓰면 같은 마을이 한 번씩만 나와요.", sql: "SELECT DISTINCT village\nFROM customers" }],

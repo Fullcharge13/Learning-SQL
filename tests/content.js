@@ -32,13 +32,13 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 export const RULES = [
   "answer-runs",   // 정답 SQL(build 정답, blank 정답 칩, order 정답 순서)이 오류 없이 돎. build는 1~50행(allowEmpty면 0행), 느리지 않음
   "drop-one",      // build 정답 카드 하나를 뺀 모든 경우가 judgeBuild에서 오답
-  "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾼 모든 경우가 오답
+  "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾸거나, 헷갈림 카드 하나를 어느 자리에 끼워 넣은 모든 경우가 오답
   "bank-size",     // cards + extra ≤ 12, extra 2~4장, 헷갈림 카드가 정답 카드·서로와 글자가 겹치지 않음, 1~5장은 카드 하나에 낱말 하나
   "table-truth",   // 설명 카드·객관식 SQL이 돌고, 결과 표 보기끼리 화면에서 다르고, 문제 SQL의 실제 결과가 정답 보기와만 맞음
   "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안. 가르치지 않는 낱말·함수, 큰따옴표 글자 값, == , 'now' 금지
   "readonly",      // INSERT·UPDATE·DELETE·CREATE·DROP·ALTER 등 데이터를 바꾸는 낱말이 없음(설계 D11)
-  "shape",         // 리아 형식 규칙 + validateLesson(작업 7): 레슨 5개, 칸 이름, summary 3줄, 글자 수·한 줄 폭, 한글, 개념, 문제 차례·수
-  "stable-order",  // build 정답이 저장 순서에 기대지 않음(거꾸로 저장한 데이터베이스에서도 같은 결과) — 동점 ORDER BY, ORDER BY 없는 LIMIT
+  "shape",         // 리아 형식 규칙 + validateLesson(작업 7): 레슨 5개, 칸 이름, summary 3줄, 글자 수·한 줄 폭, 한글, 개념, 문제 차례·수, order의 expect
+  "stable-order",  // build 정답이 동점·저장 순서에 기대지 않음: 거꾸로 저장한 데이터베이스, 바깥 ORDER BY에 모든 열을 더 붙인 두 판(오름·내림)에서 같은 결과
   "engine-guard",  // 앱이 실행하는 SQL이 실행기의 조회 전용 검사(SELECT/WITH로 시작하는 문장 하나)를 통과
   "blank-unique",  // blank의 오답 칩은 모두 오류이거나 정답과 다른 결과
   "order-unique",  // order의 다른 모든 줄 순서는 오류이거나 정답과 다른 결과(화면은 저장된 순서만 정답으로 침)
@@ -57,13 +57,14 @@ const SINGLE_TOKEN_UPTO = 5;  // 1~5장 조립 카드는 낱말 하나가 카드
 const CARDS_RANGE = [1, 2];   // 설명 카드 수
 const ITEMS_RANGE = [10, 14], EXAM_ITEMS_RANGE = [10, 16];   // 레슨당 문제 「12개 안팎」(설계 §6)
 export const TIMEOUT_MS = 1500;   // 실행 한 번의 제한(앱은 3초, 휴대폰은 이 컴퓨터보다 느림)
-export const SLOW_MS = 500;       // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
+export const SLOW_MS = 500;
+const ALIAS_PROBE = "zz_alias_probe";   // swap-extra 끼워 넣기에서 「별칭 자리」인지 알아보는 이름(표·열·낱말이 아님)       // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
 
-/** 장마다 조립 문제 수 [최소, 최대] (계획 작업 12~15 쓰기 규칙). 장 평가는 최대 +1 */
-export function buildRange(chapter) {
-  if (chapter <= 5) return [1, 1];
-  if (chapter <= 13) return [2, 2];
-  return [2, 3];
+export const EXAM_BUILD_MAX = 3;   // 판정 R25
+/** 장마다 조립 문제 수 [최소, 최대] (계획 작업 12~15 쓰기 규칙). 장 평가는 최대 +1, 단 EXAM_BUILD_MAX까지 */
+export function buildRange(chapter, exam = false) {
+  const [lo, hi] = chapter <= 5 ? [1, 1] : chapter <= 13 ? [2, 2] : [2, 3];
+  return [lo, exam ? Math.min(hi + 1, EXAM_BUILD_MAX) : hi];
 }
 
 const LESSON_KEYS = new Set(["id", "chapter", "title", "goal", "summary", "isExam", "cards", "items", "updated"]);
@@ -73,8 +74,8 @@ const ITEM_KEYS = {
   choice: [["type", "concept", "q", "options", "answer", "explain"], ["id", "code", "tables"]],
   check: [["type", "concept", "q", "options", "answer", "explain"], ["id", "code", "tables"]],
   blank: [["type", "concept", "q", "code", "chips", "answer", "explain"], ["id"]],
-  // order의 expect(리아의 출력 글자)는 SQL에서는 쓰지 않는다: 점검기가 정답 순서를 실제로 돌려 본다(작업 8 판단)
-  order: [["type", "concept", "q", "lines", "explain"], ["id"]],
+  // order의 expect(선택, 판정 R22): 정답 화면에 「실행 결과」로 보이는 글자. 있으면 정답 순서 실행 결과와 같아야 함(resultText 모양)
+  order: [["type", "concept", "q", "lines", "explain"], ["id", "expect"]],
   build: [["type", "id", "concept", "q", "cards", "extra", "tables", "hints", "explain"], ["need", "allowEmpty"]],
 };
 const TOUCH = new Set(["choice", "blank", "order"]);
@@ -229,6 +230,54 @@ function looksSame(a, b) {
 }
 const sameResult = (a, b, ordered) => !a.error && !b.error && a.truncated === b.truncated && sameTable(a, b, { ordered }).ok;
 
+/** 결과 표를 글자로: 첫 줄 열 이름, 다음 줄부터 행. 칸은 " | "로 잇고 NULL은 NULL, 실수는 소수 넷째 자리까지(order의 expect 모양) */
+export function resultText(r) {
+  const cell = (v) => (v === null || v === undefined ? "NULL" : typeof v === "number" ? String(Math.round(v * 1e4) / 1e4 + 0) : String(v));
+  return [r.columns.join(" | "), ...r.rows.map((row) => row.map(cell).join(" | "))].join("\n");
+}
+const normText = (t) => String(t).replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim().replace(/\s*\|\s*/g, " | ")).join("\n").replace(/\n+$/, "");
+
+/**
+ * 맨 바깥(괄호 깊이 0) 마지막 ORDER BY의 끝, 곧 그 뒤 첫 LIMIT(없으면 문장 끝, 끝의 ; 앞)에 suffix를 끼운다.
+ * 바깥 ORDER BY가 없으면 null. 글자 상수·따옴표 이름·주석 안은 보지 않는다.
+ */
+export function withTieBreak(sql, suffix) {
+  const s = String(sql ?? "");
+  const marks = [];   // 깊이 0의 낱말 { w, at }
+  let depth = 0;
+  for (let i = 0; i < s.length;) {
+    const c = s[i];
+    if (c === "-" && s[i + 1] === "-") { while (i < s.length && s[i] !== "\n") i++; continue; }
+    if (c === "/" && s[i + 1] === "*") { const e = s.indexOf("*/", i + 2); i = e < 0 ? s.length : e + 2; continue; }
+    if (c === "'" || c === '"' || c === "`" || c === "[") {
+      const close = c === "[" ? "]" : c;
+      for (i++; i < s.length; i++) { if (s[i] === close) { if (close !== "]" && s[i + 1] === close) { i++; continue; } break; } }
+      i++;
+      if (depth === 0) marks.push({ w: "#", at: i });
+      continue;
+    }
+    if (c === "(") { depth++; i++; continue; }
+    if (c === ")") { depth = Math.max(0, depth - 1); i++; if (depth === 0) marks.push({ w: "#", at: i }); continue; }
+    if (/[A-Za-z_]/.test(c)) {
+      let j = i + 1;
+      while (j < s.length && /[A-Za-z0-9_$]/.test(s[j])) j++;
+      if (depth === 0) marks.push({ w: s.slice(i, j).toUpperCase(), at: i });
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  let ob = -1;
+  for (let k = 0; k + 1 < marks.length; k++) if (marks[k].w === "ORDER" && marks[k + 1].w === "BY") ob = k;
+  if (ob < 0) return null;
+  const lim = marks.slice(ob + 2).find((m) => m.w === "LIMIT");
+  let at = lim ? lim.at : s.length;
+  if (!lim) { while (at > 0 && /[\s;]/.test(s[at - 1])) at--; }
+  const head = s.slice(0, at).replace(/\s+$/, "");
+  const tail = s.slice(at);
+  return `${head} ${suffix.trim()}${tail ? ` ${tail.replace(/^\s+/, "")}` : ""}`;
+}
+
 function* permutations(arr) {
   if (arr.length <= 1) { yield arr.slice(); return; }
   for (let i = 0; i < arr.length; i++) {
@@ -267,14 +316,16 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
     }
     for (let i = 0; i + 1 < ws.length; i++) if (ws[i] === "REPLACE" && (ws[i + 1] === "INTO" || ws[i + 1] === "OR")) add(where, "readonly", "REPLACE INTO는 데이터를 바꾸는 문장");
     for (const f of new Set(calls)) if (!SQL_WORDS.has(f) && !TABLE_NAMES.has(f.toLowerCase())) fns.push(f);
-    // 기호·괄호 모양(FORMS): 계산·비교 기호, ||, 서브쿼리
-    const up = tokens.map((t) => t.toUpperCase());
-    const forms = new Set(up.filter((t) => Object.hasOwn(FORMS, t)));
-    for (let i = 0; i + 1 < up.length; i++) {
-      if (up[i] === "(" && up[i + 1] === "SELECT") forms.add("(SELECT");
-      if (up[i] === "FROM" && up[i + 1] === "(" && up[i + 2] === "SELECT") forms.add("FROM (SELECT");
+    // 기호·괄호 모양(FORMS): 계산·비교 기호, ||, 서브쿼리. 글자 보기(prose)는 「3-4행」「100%」처럼 한국어일 수 있어 보지 않는다
+    if (!prose) {
+      const up = tokens.map((t) => t.toUpperCase());
+      const forms = new Set(up.filter((t) => Object.hasOwn(FORMS, t)));
+      for (let i = 0; i + 1 < up.length; i++) {
+        if (up[i] === "(" && up[i + 1] === "SELECT") forms.add("(SELECT");
+        if (up[i] === "FROM" && up[i + 1] === "(" && up[i + 2] === "SELECT") forms.add("FROM (SELECT");
+      }
+      for (const f of forms) if (FORMS[f] > chapter) late.push(`${f}(${FORMS[f]}장)`);
     }
-    for (const f of forms) if (FORMS[f] > chapter) late.push(`${f}(${FORMS[f]}장)`);
     if (late.length) add(where, "grammar", `아직 배우지 않은 낱말: ${late.join(", ")} — ${chapter}장까지 배운 낱말만 씀`);
     if (never.length) add(where, "grammar", `가르치지 않는 낱말: ${never.join(", ")}`);
     if (prose) return;
@@ -377,8 +428,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
     const orderOk = kinds.length > 0 && kinds[kinds.length - 1] === "check" && kinds.filter((k) => k === "check").length === 1
       && kinds.slice(0, -1).every((k, i) => (firstBuild < 0 || i < firstBuild ? TOUCH.has(k) : k === "build"));
     if (!orderOk) add(`${lid} items`, "shape", `차례는 터치 문제(choice·blank·order) → build → check 1개(지금 ${kinds.join(",")})`);
-    const [blo, bhi] = buildRange(chapter);
-    const bmax = exam ? bhi + 1 : bhi;
+    const [blo, bmax] = buildRange(chapter, exam);
     if (nb < blo || nb > bmax) add(`${lid} items`, "shape", `${chapter}장 레슨의 build는 ${blo}~${bmax}개(지금 ${nb}개)`);
     const [ilo, ihi] = exam ? EXAM_ITEMS_RANGE : ITEMS_RANGE;
     if (items.length < ilo || items.length > ihi) add(`${lid} items`, "shape", `문제는 ${ilo}~${ihi}개(지금 ${items.length}개)`);
@@ -413,8 +463,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
     if (missing.length) add(w, "shape", `빠진 칸: ${missing.join(", ")}`);
     for (const k of Object.keys(it)) {
       if (need.includes(k) || opt.includes(k)) continue;
-      add(`${w} ${k}`, "shape", k === "expect" && it.type === "order"
-        ? "order의 expect는 쓰지 않음(점검기가 정답 순서를 실행해 봄) — 칸을 지움" : `모르는 칸 ${k}`);
+      add(`${w} ${k}`, "shape", `모르는 칸 ${k}`);
     }
     if ("id" in it) {
       if (typeof it.id !== "string" || !it.id.trim()) add(w, "shape", "id는 비어 있지 않은 글자");
@@ -553,6 +602,12 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
     const good = run(sql);
     if (good.error) { add(w, "answer-runs", `정답 순서 SQL이 ${brief(good)}: ${oneLine(sql)}`); return; }
     slow(w, "answer-runs", good, sql);
+    if ("expect" in it) {
+      if (typeof it.expect !== "string" || !it.expect.trim()) add(`${w} expect`, "shape", "expect는 비어 있지 않은 글자(실행 결과 표를 글자로)");
+      else if (normText(it.expect) !== normText(resultText(good))) {
+        add(`${w} expect`, "shape", `expect가 정답 순서 실행 결과와 다름 — 실제: ${JSON.stringify(resultText(good))}`);
+      }
+    }
     const ordered = hasOrderBy(sql);
     const twins = [];
     let timeouts = 0;
@@ -630,10 +685,26 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
         break;
       }
     }
+    // stable-order(동점 묶음): 바깥 ORDER BY 뒤에 모든 열을 오름·내림으로 더 붙여 봄. 결과가 다르면 순서를 정하지 못한 동점이 있음
+    // (GROUP BY 묶음끼리의 동점은 어느 데이터베이스에서나 같은 차례로 나와 위의 검사로는 안 잡힘)
+    if (ordered && !exp.error) {
+      const k = exp.columns.length;
+      const asc = withTieBreak(answer, ", " + Array.from({ length: k }, (_, i) => `${i + 1}`).join(", "));
+      const desc = withTieBreak(answer, ", " + Array.from({ length: k }, (_, i) => `${i + 1} DESC`).join(", "));
+      if (asc && desc) {
+        const a = run(asc), d = run(desc);
+        const bad = [a, d].find((r) => r.error || !sameResult(exp, r, true));
+        if (bad) {
+          add(w, "stable-order", bad.error
+            ? `동점 확인용 SQL(바깥 ORDER BY에 열 번호를 더 붙임)이 ${brief(bad)}`
+            : "ORDER BY 기준이 같은 행(동점)의 순서가 정해지지 않음 — 바깥 ORDER BY에 순서를 하나로 정하는 열을 더함");
+        }
+      }
+    }
     // drop-one: 정답 카드 하나를 빼면 언제나 오답
     for (let i = 0; i < cards.length; i++) {
       const rest = cards.slice(0, i).concat(cards.slice(i + 1));
-      variant("drop-one", rest, `카드 ${i + 1}번 ${JSON.stringify(cards[i])}을 빼도`);
+      variant("drop-one", rest, `카드 ${i + 1}번 ${JSON.stringify(cards[i])}을 빼도`, { timeoutIsWrong: true });
     }
     // swap-extra: 정답 카드 한 자리를 헷갈림 카드로 바꾸면 언제나 오답
     for (let i = 0; i < cards.length; i++) {
@@ -643,10 +714,31 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS } 
         variant("swap-extra", alt, `카드 ${i + 1}번 ${JSON.stringify(cards[i])}을 헷갈림 카드 ${JSON.stringify(e)}로 바꿔도`);
       }
     }
-    function variant(rule, used2, what) {
+    // swap-extra(끼워 넣기): 헷갈림 카드 하나를 정답의 어느 자리(맨 앞~맨 뒤)에 더 놓아도 언제나 오답
+    for (const e of new Set(extra)) {
+      for (let i = 0; i <= cards.length; i++) {
+        const alt = [...cards.slice(0, i), e, ...cards.slice(i)];
+        // 이름 자리 예외: SQLite는 「FROM shops owner」「FROM items ASC」의 뒤 낱말을 표 별칭으로 읽는다. 그 자리에 아무 새 이름을
+        // 넣어도 통과하면(= 별칭일 뿐) 낱말 카드를 헷갈림 카드로 쓸 수 없게 되므로 문제로 보지 않는다(보고서 「고침 1회차」).
+        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(e)) {
+          const probe = [...cards.slice(0, i), ALIAS_PROBE, ...cards.slice(i)];
+          if (passes(probe)) continue;
+        }
+        variant("swap-extra", alt, `헷갈림 카드 ${JSON.stringify(e)}를 ${i + 1}번째 자리에 더 놓아도`);
+      }
+    }
+    function passes(used2) {
+      const sql = cardsToSql(used2);
+      if (!checkReadOnly(sql)) return false;
+      const got = run(sql);
+      return !got.timeout && judgeBuild(it, got, exp, used2).ok;
+    }
+    // timeoutIsWrong(판정 R24): 정답 카드를 뺀 변형이 시간 초과면 학습자에게도 「너무 오래 걸려요」 = 오답이라 문제로 보지 않음
+    function variant(rule, used2, what, { timeoutIsWrong = false } = {}) {
       const sql = cardsToSql(used2);
       if (!checkReadOnly(sql)) return;   // 실행기가 막음 → 오답
       const got = run(sql);
+      if (got.timeout && timeoutIsWrong) return;
       if (got.timeout) { add(w, rule, `${what} 실행이 시간 초과(${TIMEOUT_MS}ms) — 학습자 화면에서 「너무 오래 걸려요」: ${sql}`); return; }
       const j = judgeBuild(it, got, exp, used2);
       if (j.ok) add(w, rule, `${what} 정답(${brief(got)}): ${sql}`);

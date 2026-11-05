@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { GRAMMAR, SQL_WORDS, UNTAUGHT } from "../../data/grammar.js";
 import { SCHEMA } from "../../data/schema.js";
-import { checkChapter, openEngine, sqlWords, RULES } from "../content.js";
+import { checkChapter, openEngine, sqlWords, RULES, buildRange, withTieBreak } from "../content.js";
 import * as good from "../fixtures/content_good.js";
 import * as bad from "../fixtures/content_bad.js";
 
@@ -86,7 +86,7 @@ function cli(...args) {
 test("cli: good lessons dir prints OK and exits 0", () => {
   const r = cli("--lessons-dir", "tests/fixtures/content_good");
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 50\)/);
+  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 52\)/);
 });
 
 test("cli: bad lessons dir lists issues and exits 1", () => {
@@ -106,4 +106,57 @@ test("cli: --full N reports missing chapters, --chapter N checks one", () => {
   const none = cli("--lessons-dir", "tests/fixtures/content_good", "--chapter", "4");
   assert.equal(none.status, 1, none.stdout + none.stderr);
   assert.match(none.stdout, /ch4: .*missing/);
+});
+
+test("grammar: symbol forms in prose text options are not policed (ch1)", () => {
+  const issues = checkChapter(good, 1, engine, { concepts: good.CONCEPTS })
+    .filter((i) => i.rule === "grammar" && i.where.includes("g5-prose-forms"));
+  assert.deepEqual(issues, [], show(issues));
+});
+
+test("withTieBreak appends to the outermost ORDER BY, before LIMIT/OFFSET", () => {
+  assert.equal(withTieBreak("SELECT a, b FROM t ORDER BY b DESC LIMIT 3", ", 1, 2"), "SELECT a, b FROM t ORDER BY b DESC , 1, 2 LIMIT 3");
+  assert.equal(withTieBreak("SELECT a FROM t ORDER BY a", ", 1"), "SELECT a FROM t ORDER BY a , 1");
+  assert.equal(withTieBreak("WITH x AS (SELECT a FROM t ORDER BY a LIMIT 2) SELECT a, RANK() OVER (ORDER BY a) FROM x ORDER BY 2 LIMIT 1 OFFSET 1", ", 1"),
+    "WITH x AS (SELECT a FROM t ORDER BY a LIMIT 2) SELECT a, RANK() OVER (ORDER BY a) FROM x ORDER BY 2 , 1 LIMIT 1 OFFSET 1");
+  assert.equal(withTieBreak("SELECT 'ORDER BY x LIMIT' FROM t", ", 1"), null, "ORDER BY 없음");
+});
+
+test("exam lessons allow at most 3 builds (R25)", () => {
+  assert.deepEqual(buildRange(3, false), [1, 1]);
+  assert.deepEqual(buildRange(3, true), [1, 2]);
+  assert.deepEqual(buildRange(8, true), [2, 3]);
+  assert.deepEqual(buildRange(15, false), [2, 3]);
+  assert.deepEqual(buildRange(15, true), [2, 3]);
+});
+
+test("engine: a run over the time limit is a timeout, and the restarted engine still works", () => {
+  const e = openEngine({ timeoutMs: 200 });
+  try {
+    const slow = e.run("SELECT c.name, SUM(i.qty) FROM customers c, orders o, order_items i GROUP BY c.name");
+    assert.equal(slow.error, "timeout");
+    assert.equal(slow.timeout, true);
+    assert.equal(e.stats.timeouts, 1);
+    const ok = e.run("SELECT COUNT(*) AS n FROM items");
+    assert.equal(ok.error, null);
+    assert.deepEqual(ok.rows, [[40]]);
+  } finally { e.close(); }
+});
+
+test("drop-one: a variant that times out counts as wrong, not an issue (R24)", () => {
+  const e = openEngine({ timeoutMs: 200 });
+  const item = {
+    type: "build", id: "t-drop-timeout", concept: "select", q: "손님마다 산 물건 수를 보여 줘",
+    cards: ["SELECT c.name, SUM(oi.qty)", "FROM customers c", "JOIN orders o", "ON o.customer_id = c.customer_id",
+      "JOIN order_items oi", "ON oi.order_id = o.order_id", "GROUP BY c.name", "ORDER BY 2 DESC, 1"],
+    extra: ["LEFT", "ORDER BY 2"], tables: ["customers", "orders", "order_items"],
+    hints: ["세 표를 이어요.", "JOIN 카드가 필요해요."], explain: "주문을 거쳐 손님과 주문 내역을 이어요.",
+  };
+  const mod = { CHAPTER: { id: 17, title: "시험" }, LESSONS: [{ id: "17-1", chapter: 17, title: "시험", goal: "시험", summary: ["가", "나", "다"], cards: [{ say: "시험" }], items: [item] }] };
+  try {
+    const issues = checkChapter(mod, 17, e, { concepts: [{ id: "select", name: "고르기", chapter: 1 }] });
+    assert.ok(e.stats.timeouts >= 1, "drop-one 변형 중 시간 초과가 있어야 시험이 뜻이 있음");
+    const drop = issues.filter((i) => i.rule === "drop-one");
+    assert.deepEqual(drop, [], show(drop));
+  } finally { e.close(); }
 });

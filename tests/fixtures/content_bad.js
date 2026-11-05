@@ -174,3 +174,20 @@ plant("order-unique", "bad-order-twin");
 // exam-coverage: 5-4의 조립 문제 개념을 where로 바꿈 → 장 평가(5-5)에 where 문제가 없음
 L(4).items.find((it) => it.id === "g5-first3").concept = "where";
 plant("exam-coverage", "5-5");
+
+// ---- 고침 1회차(fix round 1) ----
+// stable-order: 가게마다 물건이 5개씩이라 묶음끼리 동점 — 저장 순서를 바꿔도 묶음은 늘 같은 차례로 나와 앞의 두 검사로는 안 잡힘
+L(1).items.splice(9, 0, build("bad-stable-group",
+  ["SELECT shop_id, COUNT(*) AS n", "FROM items", "GROUP BY shop_id", "ORDER BY n DESC", "LIMIT 3"], ["ASC", "2"]));
+plant("stable-order", "bad-stable-group");
+
+// swap-extra(끼워 넣기): ORDER BY name 뒤에 헷갈림 카드 ASC를 더 놓아도 같은 결과
+L(2).items.splice(9, 0, build("bad-insert-asc", ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "name"], ["ASC", "<"], { tables: ["shops"] }));
+plant("swap-extra", "bad-insert-asc");
+
+// shape(R22): order의 expect가 정답 순서 실행 결과와 다름
+L(5).items.splice(4, 0, {
+  type: "order", id: "bad-expect", concept: "orderby", q: "3번 가게의 이름을 보는 SQL을 놓아 보세요",
+  lines: ["SELECT name", "FROM shops", "WHERE shop_id = 3"], expect: "name\n달빛 약초방", explain: "3번 가게는 산삼 약방이에요.",
+});
+plant("shape", "bad-expect");
