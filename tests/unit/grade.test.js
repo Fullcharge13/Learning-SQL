@@ -111,6 +111,7 @@ test("explain: every listed error has both voices and a name when it has one", (
     ["1st GROUP BY term out of range - should be between 1 and 2", null],
     ["aggregate functions are not allowed in the GROUP BY clause", null],
     ["misuse of window function ROW_NUMBER()", "ROW_NUMBER"],
+    ["misuse of aliased window function rk", "rk"],
     ["wrong number of arguments to function SUBSTR()", "SUBSTR"],
     ["1st ORDER BY term out of range - should be between 1 and 1", null],
     ["sub-select returns 2 columns - expected 1", null],
@@ -139,6 +140,8 @@ const SPECIFIC = [
   // [실제 sql.js 오류 문장(작업 10에서 sql.js 1.15.2로 뽑음), 표 키]
   ["aggregate functions are not allowed in the GROUP BY clause", "aggregate in GROUP BY"],
   ["misuse of window function ROW_NUMBER()", "misuse of window function"],
+  // 14장: 같은 SELECT의 창 함수 별칭을 WHERE에서 부름(WHERE rk = 1) — 작업 15a에서 sql.js 1.15.2로 뽑음
+  ["misuse of aliased window function rk", "misuse of window function"],
   ["wrong number of arguments to function ROUND()", "wrong number of arguments"],
   ["1st ORDER BY term out of range - should be between 1 and 1", "ORDER BY term"],
   ["1st ORDER BY term does not match any column in the result set", "ORDER BY term"],
