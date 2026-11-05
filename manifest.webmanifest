@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "두억이와 SQL!",
+  "short_name": "두억이와 SQL",
+  "description": "두억이 선생님과 하루 10분, 휴대폰 카드로 배우는 SQL 첫걸음",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#FBF6EA",
+  "background_color": "#FBF6EA",
+  "categories": ["education"],
+  "icons": [
+    { "src": "icons/icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

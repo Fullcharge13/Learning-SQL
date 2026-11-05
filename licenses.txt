@@ -1,0 +1,91 @@
+두억이와 SQL! — 사용한 프로그램과 라이선스 (Third-party notices)
+
+이 앱에는 아래 공개 소프트웨어가 들어 있습니다. 각 저작권자에게 감사드립니다.
+
+== sql.js 1.15.2 (MIT)
+
+MIT license
+===========
+
+Copyright (c) 2017 sql.js authors (see AUTHORS)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+# Some portions of the Makefile taken from:
+Copyright 2017 Ryusei Yamaguchi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+위 「sql.js authors (see AUTHORS)」의 저작자 목록(AUTHORS)은 sql.js 저장소에 있습니다: https://github.com/sql-js/sql.js/blob/master/AUTHORS
+
+
+== Emscripten (sql.js 1.15.2의 sql-wasm.wasm과 실행 코드를 만든 컴파일러, MIT)
+
+sql.js는 Emscripten으로 SQLite를 WebAssembly로 옮긴 것이라 Emscripten이 넣은 실행 코드가 함께 들어 있습니다.
+Emscripten is available under 2 licenses, the MIT license and the University of Illinois/NCSA
+Open Source License. This notice uses the MIT license.
+https://github.com/emscripten-core/emscripten/blob/main/LICENSE
+
+Copyright (c) 2010-2014 Emscripten authors, see AUTHORS file.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+Emscripten AUTHORS: https://github.com/emscripten-core/emscripten/blob/main/AUTHORS
+
+
+== SQLite (sql.js 1.15.2 안의 sql-wasm.wasm)
+
+SQLite는 저작권이 없는 퍼블릭 도메인(public domain) 프로그램입니다.
+SQLite is in the public domain. "The author disclaims copyright to this source code.
+In place of a legal notice, here is a blessing: May you do good and not evil. May you find
+forgiveness for yourself and forgive others. May you share freely, never taking more than you give."
+https://www.sqlite.org/copyright.html
+
