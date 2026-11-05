@@ -2,7 +2,7 @@
 // 「아는 칸이 하나라도 있으면 받기」로는 걸러지지 않는다. 두억이 표시(yeopjeon·saveVer)와 레슨 id 모양을 본다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkImport, newSave, SAVE_VER, IMPORT_MAX_CHAPTER } from "../../src/save.js";
+import { checkImport, newSave, migrate, SAVE_VER, IMPORT_MAX_CHAPTER } from "../../src/save.js";
 
 // 리아 v0.9 내보내기 모양(같은 사용자의 다른 앱, 같은 주소)
 const RIA = {
@@ -78,4 +78,14 @@ test("checkImport agrees with migrate on a missing saveVer when yeopjeon is pres
   // 표시가 하나도 없으면 여전히 거절
   const { yeopjeon, ...neither } = noVer;
   assert.equal(checkImport(neither).ok, false);
+});
+
+test("a save carrying a stray bytes key (old dev save) round-trips: migrate drops bytes, export → import is accepted", () => {
+  const dev = { ...newSave(), completed_lessons: ["1-1"], xp: 30, yeopjeon: 12, bytes: 7 };
+  const s = migrate(JSON.parse(JSON.stringify(dev)));
+  assert.equal(Object.hasOwn(s, "bytes"), false);
+  const exported = JSON.parse(JSON.stringify(s));   // 설정 「저장 내보내기」가 쓰는 JSON
+  assert.deepEqual(checkImport(exported), { ok: true });
+  assert.deepEqual(migrate(exported).completed_lessons, ["1-1"]);
+  assert.equal(migrate(exported).yeopjeon, 12);
 });

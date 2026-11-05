@@ -60,6 +60,25 @@ export function sameTable(exp, got, { ordered = false } = {}) {
   return { ok: true, why: null };
 }
 
+// 판정 R48: used가 정답 cards를 차례대로 모두 품고(띄엄띄엄이어도 됨) 카드가 더 있는가.
+// SQLite는 「FROM shops items」의 뒤 낱말을 표 별칭으로 읽어 결과가 같아지므로, 결과 비교만으로는 남는 카드를 못 잡는다.
+export function isSuperset(cards, used) {
+  const a = cards || [], u = used || [];
+  if (u.length <= a.length) return false;
+  let k = 0;
+  for (const c of u) if (k < a.length && c === a[k]) k++;
+  return k === a.length;
+}
+
+// 남는 카드 안내(판정 R48). 두억이 말투: 기본과 탐정(DETECTIVE_ID) 두 가지. 어느 카드인지는 알려 주지 않는다.
+const EXTRA_LINES = {
+  body: "정답 카드는 다 있는데, 카드가 하나 더 들어갔어요. 빼도 되는 카드를 찾아볼까요?",
+  detective: "필요한 단서는 모두 모였는데, 현장에 카드가 하나 더 놓여 있어요. 빼도 되는 카드를 찾아봐요.",
+};
+export function extraLine(outfit) {
+  return outfit === DETECTIVE_ID ? EXTRA_LINES.detective : EXTRA_LINES.body;
+}
+
 export function judgeBuild(item, got, exp, usedCards) {
   if (got && got.error) return { ok: false, reason: "error" };
   const ordered = hasOrderBy(cardsToSql(item.cards));
@@ -67,6 +86,8 @@ export function judgeBuild(item, got, exp, usedCards) {
   if (!r.ok) return { ok: false, reason: r.why === "columns" ? "columns" : "rows" };
   // 잘린 결과는 같은 표로 보지 않는다.
   if (got.truncated !== exp.truncated && (got.truncated || exp.truncated)) return { ok: false, reason: "rows" };
+  // 판정 R48: 결과가 같아도 정답 카드 + 남는 카드(표 별칭으로 읽힌 낱말 등)면 오답. 진짜 다른 답(상위 집합 아님)은 그대로 결과로 채점
+  if (isSuperset(item.cards, usedCards)) return { ok: false, reason: "extra" };
   const used = new Set(usedCards || []);
   const missingNeed = (item.need || []).filter((n) => !used.has(n));
   if (missingNeed.length) return { ok: false, reason: "need", missingNeed };

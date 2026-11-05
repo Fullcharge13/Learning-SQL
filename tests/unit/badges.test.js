@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkBadges, RULES } from "../../src/badges.js";
+import { checkBadges, RULES, shownBadges } from "../../src/badges.js";
 import { BADGES } from "../../data/badges.js";
 
 function mkSave(over = {}) {
@@ -196,4 +196,12 @@ test("card layout fallback: :has() 없이도 카드 단추를 고정하지 않�
   assert.match(css, /\.screen\.lesson\.on-card \.lesson-body \{[^}]*padding-bottom: 8px/);
   // :has 규칙과 한 묶음(쉼표)으로 쓰면 :has를 모르는 브라우저가 묶음 전체를 버리므로 따로 써야 함
   assert.doesNotMatch(css, /on-card[^{]*:has\(|:has\([^{]*on-card/);
+});
+
+test("R49: 심화 레슨이 하나도 없으면 advanced1·advancedAll을 진열장과 n/전체 수에서 숨김(D7), 생기면 다시 보임", () => {
+  const none = shownBadges(0).map((b) => b.id);
+  assert.equal(none.length, BADGES.length - 2);
+  assert.ok(!none.includes("advanced1") && !none.includes("advancedAll"));
+  assert.deepEqual(shownBadges(3).map((b) => b.id), BADGES.map((b) => b.id));
+  assert.deepEqual(shownBadges(undefined).map((b) => b.id), none);
 });

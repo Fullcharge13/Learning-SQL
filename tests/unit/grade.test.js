@@ -235,3 +235,11 @@ test("explain: misuse of aggregate는 두 말투 모두 자리를 단정하지 �
     assert.match(t, /다른 셈 함수 안/, outfit);
   }
 });
+
+test("explain: 「no tables specified」(1장 SELECT * 뒤 실행) — FROM 뒤에 표를 놓으라는 안내, 두 말투", () => {
+  const a = explain("no tables specified", "basic"), d = explain("no tables specified", "detective");
+  assert.notEqual(a, FALLBACK);
+  assert.notEqual(a, d);
+  assert.match(a, /FROM 뒤에 어느 표를 볼지/);
+  assert.match(d, /FROM/);
+});

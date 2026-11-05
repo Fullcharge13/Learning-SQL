@@ -34,6 +34,13 @@ test("bad chapter: every planted fault is reported under its rule", () => {
   }
 });
 
+test("R48: inserting an extra card is not a checker issue (the app grades the superset as extra)", () => {
+  const issues = checkChapter(bad, 5, engine, { concepts: bad.CONCEPTS });
+  const hit = issues.filter((i) => i.rule === "swap-extra" && `${i.where} ${i.msg}`.includes("bad-insert-asc"));
+  assert.deepEqual(hit, [], show(hit));
+  assert.ok(!issues.some((i) => /더 놓아도/.test(i.msg)), "끼워 넣기 검사는 R48로 없어짐");
+});
+
 test("bad chapter covers every rule name at least once", () => {
   const want = ["answer-runs", "drop-one", "swap-extra", "bank-size", "table-truth", "grammar", "readonly", "shape",
     "stable-order", "engine-guard", "blank-unique", "order-unique", "exam-coverage", "templates"];

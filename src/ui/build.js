@@ -11,7 +11,7 @@
 //   실행기를 못 받은 것(load·worker)은 학습자 잘못이 아니라서 세지 않고, 제출 수에도 넣지 않는다.
 // - 실행기가 준비되지 않았으면(받는 중·실패) 「실행」·「제출」을 막고 안내 줄을 보인다. 카드 놓기·힌트는 된다.
 import { newBuild, tap, sqlOf, usedTexts, hint as hintStep } from "../build.js";
-import { cardsToSql, judgeBuild, explain, needLine } from "../grade.js";
+import { cardsToSql, judgeBuild, explain, needLine, extraLine } from "../grade.js";
 import { SCHEMA } from "../../data/schema.js";
 import { FACES } from "../say.js";
 import { esc, icon, codeBlock, dueogiSays } from "./dom.js";
@@ -23,6 +23,28 @@ export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정�
 const SYSTEM_ERRORS = new Set(["load", "worker"]);
 export const ENGINE_WAIT_LINE = "실행기 준비 중이에요";
 export const ENGINE_FAIL_LINE = "실행기를 아직 받지 못했어요. 인터넷이 될 때 「다시 시도」를 눌러 주세요. 다른 문제는 그대로 풀 수 있어요.";
+
+/** 틀린 제출(error·need 말고)의 첫 안내 한 줄. v: judgeBuild 결과, got·exp: 내 결과·기대 결과 표 */
+export function wrongWhy(v, got, exp, outfit) {
+  if (v.reason === "extra") return extraLine(outfit);   // 판정 R48: 정답 카드 + 남는 카드
+  if (v.reason === "columns") {
+    const mine = new Set(((got && got.columns) || []).map((c) => String(c).toLowerCase()));
+    const want = ((exp && exp.columns) || []).map((c) => String(c).toLowerCase());
+    // 열이 하나도 겹치지 않으면 FROM 뒤의 표부터 틀렸을 때가 많다
+    if (mine.size && want.length && !want.some((c) => mine.has(c))) {
+      return "보여 주는 열이 기대 결과와 하나도 겹치지 않아요. 표를 다시 골라 볼까? FROM 뒤의 표와 열 이름을 살펴봐요.";
+    }
+    return "보여 주는 열이 기대 결과와 달라요. 어떤 열을 어떤 차례로 보여 줘야 할지 살펴봐요.";
+  }
+  return "행이 기대 결과와 달라요. 조건이나 차례를 다시 살펴봐요.";
+}
+
+/** 학습자 탓이 아닌 실행 실패 안내. kind "load"(실행기를 못 받음) 또는 "worker"(실행기가 멈춤·정답 SQL 실행 실패) */
+export function systemLine(kind, outfit) {
+  const tail = " 이번 실행은 제출 횟수에 들어가지 않아요.";
+  if (kind === "load") return { head: ENGINE_WAIT_LINE, text: ENGINE_FAIL_LINE + tail };
+  return { head: null, text: explain("worker", outfit) + tail };
+}
 
 function cleanLine(line, bank) {
   const ids = new Set(bank.map((c) => c.id));
@@ -155,8 +177,10 @@ export function mountBuild(host, {
       <p class="err-orig mono" lang="en">${esc(error === "timeout" ? "timeout: 3초 안에 끝나지 않음" : error)}</p>
       <p>${esc(explain(error, outfit))}</p>
     </div>`;
-  const systemHTML = () => `<div class="err-panel soft"><h3>${esc(ENGINE_WAIT_LINE)}</h3>
-      <p>${esc(ENGINE_FAIL_LINE)} 이번 실행은 제출 횟수에 들어가지 않아요.</p></div>`;
+  const systemHTML = (kind) => {
+    const l = systemLine(kind, outfit);
+    return `<div class="err-panel soft">${l.head ? `<h3>${esc(l.head)}</h3>` : ""}<p>${esc(l.text)}</p></div>`;
+  };
   const emptyHTML = () => `<p class="muted">카드를 먼저 조립 줄에 놓아 보세요.</p>`;
   function show(html) { consoleEl.innerHTML = html; }
 
@@ -171,7 +195,7 @@ export function mountBuild(host, {
       const ranSql = sqlOf(B);
       const r = await sql.run(ranSql);
       if (st.destroyed) return;
-      if (r.error && SYSTEM_ERRORS.has(r.error)) { show(systemHTML()); return; }
+      if (r.error && SYSTEM_ERRORS.has(r.error)) { show(systemHTML(r.error)); return; }
       if (r.error) {
         st.hadError = true;
         play("error");
@@ -211,13 +235,13 @@ export function mountBuild(host, {
       const mySql = sqlOf(B);
       const got = await sql.run(mySql);
       if (st.destroyed) return;
-      if (got.error && SYSTEM_ERRORS.has(got.error)) { show(systemHTML()); return; }
+      if (got.error && SYSTEM_ERRORS.has(got.error)) { show(systemHTML(got.error)); return; }
       const exp = await expected();
       if (st.destroyed) return;
       if (exp.error) {
         // 문제 정답이 실행되지 않음: 학습자 탓이 아니므로 세지 않는다(내용 점검기가 막아야 하는 경우)
         console.warn("build answer failed", item.id, exp.error);
-        show(systemHTML());
+        show(systemHTML(exp.error === "load" ? "load" : "worker"));
         return;
       }
       const v = judgeBuild(item, got, exp, usedTexts(B));
@@ -245,10 +269,11 @@ export function mountBuild(host, {
           <p>같은 결과를 그 카드를 써서 만들어 볼까요?</p></div>` + sayLine("wrong", "", again);
       } else {
         play("wrong");
-        const why = v.reason === "columns"
-          ? "보여 주는 열이 기대 결과와 달라요. 어떤 열을 어떤 차례로 보여 줘야 할지 살펴봐요."
-          : "행이 기대 결과와 달라요. 조건이나 차례를 다시 살펴봐요.";
-        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(why)}</h3></div>` + compareHTML(got, exp, mySql) + sayLine("wrong", "", again);
+        const why = wrongWhy(v, got, exp, outfit);
+        // 남는 카드(R48)는 결과가 같으니 비교 표를 보이지 않는다(같은 두 표는 헷갈림만 줌)
+        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(why)}</h3></div>`
+          // 「결과 표를 다시 짚어 볼까」 같은 한마디는 남는 카드와 맞지 않아 뺀다(안내 줄이 두억이 말투)
+          + (v.reason === "extra" ? "" : compareHTML(got, exp, mySql) + sayLine("wrong", "", again));
       }
       show(`<p class="submit-count">제출 ${st.submits}번째</p>${html}`);
       if (st.submits >= AUTO_SOLUTION_AFTER && !st.solutionSeen) revealSolution(true);

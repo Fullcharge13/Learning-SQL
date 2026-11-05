@@ -520,6 +520,11 @@ def traverse(device):
             a.page.click('[data-go="%s"]' % name)
             a.page.wait_for_selector(".screen.%s" % name)
             at(name, a)
+            if name == "badges":
+                # 판정 R49(D7): 심화 레슨이 없는 v0.1은 심화 배지 둘을 숨겨 16개 중 14개만 보임
+                title = a.page.inner_text(".page-title")
+                assert title.endswith("/14"), title
+                assert "심화 첫걸음" not in a.page.inner_text(".badge-grid")
         res["_errors_left"] = list(a.errors)
     _traversals[device] = res
     return res
@@ -952,7 +957,7 @@ def _adv_classes(a, chapter):
 
 
 def test_advanced_branch():
-    raise SkipTest('실제 장 레슨(작업 12)과 심화 내용이 있어야 함 — tests/fixtures/advanced_dir.py가 data/lessons를 복사해 씀')
+    raise SkipTest('D7: v0.1에는 심화 레슨 내용이 없음(심화 엔진만 넣음) — 심화 내용이 생기면 tests/fixtures/advanced_dir.py로 다시 켬')
     url = adv_url()
     ch1 = ["1-%d" % k for k in range(1, 6)]
     seed = {"saveVer": 2, "xp": 120, "yeopjeon": 0, "completed_lessons": ch1, "current_lesson": "2-1", "current_chapter": 2,
@@ -1016,10 +1021,10 @@ def test_advanced_branch():
         a.shot("adv-settings.png")
         m = measure(a, "settings-adv")
         assert not m["problems"] and not m["small"], m
-        # 배지: 15개
+        # 배지: 심화가 있으면 16개 모두(판정 R49)
         a.page.click('[data-go="badges"]')
         a.page.wait_for_selector(".screen.badges")
-        assert "/15" in a.page.inner_text(".page-title"), a.page.inner_text(".page-title")
+        assert "/16" in a.page.inner_text(".page-title"), a.page.inner_text(".page-title")
         assert "끝낸 심화" in a.page.inner_text(".stat-grid")
         a.shot("adv-badges.png", full=True)
         m = measure(a, "badges-adv")
@@ -1420,6 +1425,37 @@ def test_build_solve():
         a.dismiss()
         assert not a.errors, a.errors
     print("    screenshots: %s" % ", ".join(shots))
+
+
+def test_build_extra_card():
+    """마지막 전체 검수: 실제 1-1 조립에서 「SELECT *」만 실행하면 FROM 안내(no tables specified),
+    표 이름 뒤에 카드를 하나 더 놓아 제출하면(SQLite는 별칭으로 읽어 결과가 같음) 판정 R48 「카드가 하나 더」로 오답"""
+    with App("iPhone 17", url=real_url()) as a:
+        a.start()
+        a.page.click("#continue")
+        items = _to_build(a, "1-1")
+        it = next(x for x in items if x["type"] == "build")
+        assert it["cards"] == ["SELECT", "*", "FROM", "shops"] and "items" in it["extra"], it
+        a.place(["SELECT", "*"])
+        a.build_press("run")
+        a.page.wait_for_selector("#console .err-panel")
+        err = a.page.inner_text("#console .err-panel")
+        print("    SELECT * run: %r" % err.replace("\n", " / "))
+        assert "no tables specified" in err and "FROM 뒤에 어느 표를 볼지" in err, err
+        a.place(["SELECT", "*", "FROM", "shops", "items"])
+        a.build_press("submit")
+        a.page.wait_for_selector("#console .err-panel h3")
+        why = a.page.inner_text("#console .err-panel h3")
+        print("    extra card submit: %r" % why)
+        assert "정답 카드는 다 있는데, 카드가 하나 더 들어갔어요" in why, why
+        assert a.page.is_hidden("#result"), "extra card is not a pass"
+        assert not a.page.query_selector("#console .cmp"), "same result → no side-by-side tables"
+        assert "제출 1번째" in a.page.inner_text("#console")
+        a.shot("build-extra-card.png")
+        a.place(it["cards"])
+        a.build_press("submit")
+        a.page.wait_for_selector("#result:not([hidden])")
+        assert not a.errors, a.errors
 
 
 def test_build_no_engine():

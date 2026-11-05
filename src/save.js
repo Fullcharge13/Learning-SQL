@@ -127,6 +127,9 @@ export function migrate(raw) {
   const oldVer = raw.saveVer;
   const ver = typeof oldVer === "number" && Number.isFinite(oldVer) ? oldVer : 1; // saveVer 없음 = 첫 판(1)
   const s = clampRanges(fill(newSave(), structuredClone(raw)));
+  // fill()은 모르는 칸을 남긴다. 그런데 bytes(리아와 파이썬!의 칸)가 남으면 checkImport가 이 앱의 내보내기를
+  // 「다른 앱 저장」으로 막는다(개발 중 저장에 섞인 경우, 마지막 전체 검수). 두억이 저장에는 쓰지 않는 칸이라 버린다.
+  delete s.bytes;
   migrateBadges(s);
   migrateOutfits(s);   // 리아 시절 saveVer 1→2 옷 옮기기·환불은 이 앱에 없다(처음부터 saveVer 1)
   s.saveVer = ver > SAVE_VER ? ver : SAVE_VER;

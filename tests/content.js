@@ -33,7 +33,7 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 export const RULES = [
   "answer-runs",   // 정답 SQL(build 정답, blank 정답 칩, order 정답 순서)이 오류 없이 돎. build는 1~50행(allowEmpty면 0행), 느리지 않음
   "drop-one",      // build 정답 카드 하나를 뺀 모든 경우가 judgeBuild에서 오답
-  "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾸거나, 헷갈림 카드 하나를 어느 자리에 끼워 넣은 모든 경우가 오답
+  "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾼 모든 경우가 오답(끼워 넣기는 앱이 R48로 막음)
   "bank-size",     // cards + extra ≤ 12, extra 2~4장, 헷갈림 카드가 정답 카드·서로와 글자가 겹치지 않음, 1~5장은 카드 하나에 낱말 하나
   "table-truth",   // 설명 카드·객관식 SQL이 돌고, 결과 표 보기끼리 화면에서 다르고, 문제 SQL의 실제 결과가 정답 보기와만 맞음
   "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안. 가르치지 않는 낱말·함수, 큰따옴표 글자 값, == , 'now' 금지
@@ -62,8 +62,7 @@ const SINGLE_TOKEN_UPTO = 5;  // 1~5장 조립 카드는 낱말 하나가 카드
 const CARDS_RANGE = [1, 2];   // 설명 카드 수
 const ITEMS_RANGE = [10, 14], EXAM_ITEMS_RANGE = [10, 16];   // 레슨당 문제 「12개 안팎」(설계 §6)
 export const TIMEOUT_MS = 1500;   // 실행 한 번의 제한(앱은 3초, 휴대폰은 이 컴퓨터보다 느림)
-export const SLOW_MS = 500;
-const ALIAS_PROBE = "zz_alias_probe";   // swap-extra 끼워 넣기에서 「별칭 자리」인지 알아보는 이름(표·열·낱말이 아님)       // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
+export const SLOW_MS = 500;   // 학습자가 늘 보는 SQL(정답·설명 카드·보기)이 이보다 오래 걸리면 알림
 
 export const EXAM_BUILD_MAX = 3;   // 판정 R25
 export const TEMPLATES_RANGE = [2, 5];   // 장마다 매일 도전 틀 수(계획 작업 12~15)
@@ -760,25 +759,8 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
         variant("swap-extra", alt, `카드 ${i + 1}번 ${JSON.stringify(cards[i])}을 헷갈림 카드 ${JSON.stringify(e)}로 바꿔도`);
       }
     }
-    // swap-extra(끼워 넣기): 헷갈림 카드 하나를 정답의 어느 자리(맨 앞~맨 뒤)에 더 놓아도 언제나 오답
-    for (const e of new Set(extra)) {
-      for (let i = 0; i <= cards.length; i++) {
-        const alt = [...cards.slice(0, i), e, ...cards.slice(i)];
-        // 이름 자리 예외: SQLite는 「FROM shops owner」「FROM items ASC」의 뒤 낱말을 표 별칭으로 읽는다. 그 자리에 아무 새 이름을
-        // 넣어도 통과하면(= 별칭일 뿐) 낱말 카드를 헷갈림 카드로 쓸 수 없게 되므로 문제로 보지 않는다(보고서 「고침 1회차」).
-        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(e)) {
-          const probe = [...cards.slice(0, i), ALIAS_PROBE, ...cards.slice(i)];
-          if (passes(probe)) continue;
-        }
-        variant("swap-extra", alt, `헷갈림 카드 ${JSON.stringify(e)}를 ${i + 1}번째 자리에 더 놓아도`);
-      }
-    }
-    function passes(used2) {
-      const sql = cardsToSql(used2);
-      if (!checkReadOnly(sql)) return false;
-      const got = run(sql);
-      return !got.timeout && judgeBuild(it, got, exp, used2).ok;
-    }
+    // swap-extra(끼워 넣기)는 따로 돌리지 않는다(판정 R48): 정답 카드에 카드를 더 놓은 조립은 앱의 judgeBuild가 결과와 상관없이
+    // 「카드가 하나 더」(reason "extra")로 오답 처리한다. 그래서 표 별칭 자리(R26·R33) 예외도 필요 없어졌다.
     // timeoutIsWrong(판정 R24): 정답 카드를 뺀 변형이 시간 초과면 학습자에게도 「너무 오래 걸려요」 = 오답이라 문제로 보지 않음
     function variant(rule, used2, what, { timeoutIsWrong = false } = {}) {
       const sql = cardsToSql(used2);

@@ -182,9 +182,9 @@ L(1).items.splice(9, 0, build("bad-stable-group",
   ["SELECT shop_id, COUNT(*) AS n", "FROM items", "GROUP BY shop_id", "ORDER BY n DESC", "LIMIT 3"], ["ASC", "2"]));
 plant("stable-order", "bad-stable-group");
 
-// swap-extra(끼워 넣기): ORDER BY name 뒤에 헷갈림 카드 ASC를 더 놓아도 같은 결과
+// 판정 R48: ORDER BY name 뒤에 헷갈림 카드 ASC를 더 놓으면 결과는 같지만, 앱이 「카드가 하나 더」(extra)로 오답 처리한다.
+// 그래서 점검기는 끼워 넣기를 문제로 보지 않는다(content.test.js 「R48: inserting」이 이 문제에 swap-extra가 없는지 본다).
 L(2).items.splice(9, 0, build("bad-insert-asc", ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "name"], ["ASC", "<"], { tables: ["shops"] }));
-plant("swap-extra", "bad-insert-asc");
 
 // shape(R22): order의 expect가 정답 순서 실행 결과와 다름
 L(5).items.splice(4, 0, {

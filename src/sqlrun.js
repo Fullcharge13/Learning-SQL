@@ -44,7 +44,6 @@ export class SqlRun {
     this._listeners = new Set();
     this._everReady = false;
     this._worker = null;
-    this._workerDead = false;
     this._readyP = null;
     this._pending = null;
     this._nextId = 0;
@@ -93,7 +92,6 @@ export class SqlRun {
       return p;
     }
     this._worker = w;
-    this._workerDead = false;
     let isReady = false;
     const loadTimer = setTimeout(() => {
       if (this._worker === w && !isReady) {
@@ -127,7 +125,6 @@ export class SqlRun {
       if (!isReady) {
         this._loadFailed(w, rejectReady, new Error(msg));
       } else {
-        this._workerDead = true;
         const pend = this._pending;
         this._restart();
         if (pend) pend.finish(failResult("worker"));
@@ -164,17 +161,13 @@ export class SqlRun {
   }
 
   async _runOne(sql) {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await this.preload();
-      } catch (_) {
-        return failResult("load");
-      }
-      if (!this._worker) return failResult("load");
-      if (!this._workerDead) break;
-      if (attempt >= 1) return failResult("worker");
-      this._restart();
+    // 멈춘 작업자는 onCrash가 곧바로 _restart()로 새로 띄우므로, 여기서는 준비만 기다린다
+    try {
+      await this.preload();
+    } catch (_) {
+      return failResult("load");
     }
+    if (!this._worker) return failResult("load");
     const w = this._worker;
     const id = ++this._nextId;
     const timeoutMs = this.timeoutMs;

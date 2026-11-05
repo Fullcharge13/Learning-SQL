@@ -84,6 +84,12 @@ export const ERRORS = {
     body: "어라, UNION 위아래 SELECT가 고른 열의 개수가 달라. 행을 아래로 쌓으려면 양쪽 열 개수가 같아야 해. 두 SELECT 뒤의 열을 하나씩 세어 볼까?",
     detective: "UNION 위아래 증거의 열 개수가 맞지 않아요. 행을 쌓으려면 양쪽 SELECT의 열이 같은 수여야 해요. 열을 하나씩 대조해 봐요.",
   },
+  // 1장에서 가장 흔한 오류: 「SELECT *」까지만 놓고 실행하면 「no tables specified」(마지막 전체 검수)
+  "no tables specified": {
+    match: /^no tables specified/,
+    body: "좋아, 거의 다 왔어! 그런데 FROM 뒤에 어느 표를 볼지 놓아 볼까? *은 표가 있어야 그 표의 모든 열이 돼요.",
+    detective: "무엇을 볼지는 정했는데, 어느 장부를 펼칠지가 빠졌어요. FROM 카드와 그 뒤의 표 카드를 찾아봐요.",
+  },
   "syntax error": {
     match: /^near "(.*)": syntax error/,
     body: "이거 봐요, '{name}' 근처에서 문장이 막혔어. 카드 순서가 맞는지, 빠진 카드는 없는지 앞뒤를 살펴볼까?",

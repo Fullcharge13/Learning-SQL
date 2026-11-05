@@ -1,5 +1,5 @@
 // 배지 진열장 + 학습 통계
-import { BADGES } from "../../data/badges.js";
+import { shownBadges } from "../badges.js";
 import { CONCEPTS } from "../../data/concepts.js";
 import { esc } from "./dom.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
@@ -41,11 +41,13 @@ export function render(root, ctx) {
   const advIds = ctx.advancedIds ? ctx.advancedIds() : [];
   const advTotal = advIds.length;
   const advDone = advIds.filter((id) => doneSet.has(id)).length;
+  const shown = shownBadges(advTotal);   // 판정 R49: 심화 레슨이 없으면 심화 배지 둘은 숨김
+  const got = shown.filter((b) => have.has(b.id)).length;
   root.innerHTML = `<div class="screen badges with-tabs">
     ${statusBar(s)}
     <main>
-      <h1 class="page-title">배지 <small>${have.size}/${BADGES.length}</small></h1>
-      <ul class="badge-grid">${BADGES.map((b) => {
+      <h1 class="page-title">배지 <small>${got}/${shown.length}</small></h1>
+      <ul class="badge-grid">${shown.map((b) => {
         const e = have.has(b.id);
         return `<li class="badge${e ? " earned" : ""}">
           ${badgeArt(b.id, e)}

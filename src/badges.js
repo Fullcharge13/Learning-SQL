@@ -32,3 +32,10 @@ export function checkBadges(save, ctx = {}) {
   const have = new Set(save.badges || []);
   return BADGES.map((b) => b.id).filter((id) => !have.has(id) && RULES[id](save, ctx || {}));
 }
+
+// 판정 R49(D7): 심화 레슨이 하나도 없으면 심화 배지 둘은 얻을 길이 없으니 진열장과 n/전체 수에서 숨긴다.
+// 어느 장에라도 심화 레슨이 생기면(advancedCount > 0) 그대로 다시 보인다.
+const ADVANCED_BADGES = new Set(["advanced1", "advancedAll"]);
+export function shownBadges(advancedCount) {
+  return advancedCount > 0 ? BADGES.slice() : BADGES.filter((b) => !ADVANCED_BADGES.has(b.id));
+}
