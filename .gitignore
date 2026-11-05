@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.superpowers/
+tests/out/
+__pycache__/
+.pytest_cache/
+dev/

@@ -1,0 +1,374 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { SAVE_KEY, SAVE_VER, newSave, migrate, load, loadEx, store, takeRefundNotice, refundNoticeText } from "../../src/save.js";
+
+function fakeStorage(initial = {}) {
+  const data = { ...initial };
+  return {
+    data,
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null),
+    setItem: (k, v) => { data[k] = String(v); },
+  };
+}
+
+const LEDGER_SHAPE = {
+  saveVer: 1,
+  current_chapter: 1, current_lesson: "1-1",
+  completed_lessons: [],
+  submission_logs: [],
+  grading_results: {},
+  weak_concepts: {},
+  review_queue: [],
+  last_active_at: null,
+  xp: 0, yeopjeon: 0,
+  streak: { days: 0, best: 0, lastGoalDate: null, todayDate: null, todayXp: 0 },
+  freezes: 0,
+  quests: { date: null, ids: [], progress: {}, done: [], chest: false },
+  badges: [], outfits: ["basic"], outfit: "basic",
+  stats: { lessons: 0, perfect: 0, hintfree: 0, fixed: 0, review_items: 0 },
+  settings: { sound: true, dailyGoal: 20, name: "" },
+  pending_refund: 0,
+  seen_updates: {}, // v0.7.1: 「새 내용」 점 — 다시 본 판 { 레슨 id: "v0.7.1" } (saveVer 그대로)
+  daily: { date: null, picks: [], done: [], streak: 0, best: 0, last_done_date: null }, // v0.9 매일 도전(saveVer 그대로)
+};
+
+test("constants", () => {
+  assert.equal(SAVE_KEY, "dueogi-sql-save");
+  assert.equal(SAVE_VER, 1);
+});
+
+test("new", () => {
+  const s = newSave();
+  assert.equal(s.saveVer, 1);
+  assert.equal(s.xp, 0);
+  assert.equal(s.yeopjeon, 0);
+  assert.equal(s.outfit, "basic");
+});
+
+test("new: exactly the ledger Save shape", () => {
+  assert.deepEqual(newSave(), LEDGER_SHAPE);
+});
+
+test("new: returns independent objects", () => {
+  const a = newSave();
+  a.outfits.push("casual");
+  a.streak.days = 5;
+  const b = newSave();
+  assert.deepEqual(b.outfits, ["basic"]);
+  assert.equal(b.streak.days, 0);
+});
+
+test("migrate", () => {
+  const s = migrate({ xp: 30 });
+  assert.equal(s.saveVer, 1);
+  assert.equal(s.xp, 30);
+  assert.equal(s.yeopjeon, 0);
+});
+
+test("migrate: fills missing nested fields, keeps existing values", () => {
+  const old = {
+    xp: 12,
+    completed_lessons: ["1-1"],
+    streak: { days: 3, lastGoalDate: "2026-10-28" },
+    settings: { sound: false },
+  };
+  const s = migrate(old);
+  assert.equal(s.saveVer, 1);
+  assert.deepEqual(s.completed_lessons, ["1-1"]);
+  assert.deepEqual(s.streak, { days: 3, best: 0, lastGoalDate: "2026-10-28", todayDate: null, todayXp: 0 });
+  assert.deepEqual(s.settings, { sound: false, dailyGoal: 20, name: "" });
+  assert.deepEqual(s.stats, LEDGER_SHAPE.stats);
+  assert.deepEqual(s.quests, LEDGER_SHAPE.quests);
+});
+
+test("migrate: full current (v2) save passes through unchanged", () => {
+  const full = newSave();
+  full.xp = 99;
+  full.grading_results = { "1-1": { perfect: true, attempts: 1 } };
+  assert.deepEqual(migrate(JSON.parse(JSON.stringify(full))), full);
+});
+
+test("migrate: non-object input gives new save", () => {
+  assert.deepEqual(migrate(null), newSave());
+  assert.deepEqual(migrate([1, 2]), newSave());
+  assert.deepEqual(migrate("x"), newSave());
+});
+
+test("load: missing key gives new save", () => {
+  assert.deepEqual(load(fakeStorage()), newSave());
+});
+
+test("broken", () => {
+  const st = fakeStorage({ [SAVE_KEY]: "{깨짐" });
+  const s = load(st);
+  assert.deepEqual(s, newSave());
+  assert.equal(st.data[SAVE_KEY + ".broken"], "{깨짐");
+});
+
+test("load: storage getItem throws gives new save", () => {
+  const st = { getItem() { throw new Error("denied"); }, setItem() {} };
+  assert.deepEqual(load(st), newSave());
+});
+
+test("load: valid old save is migrated", () => {
+  const st = fakeStorage({ [SAVE_KEY]: JSON.stringify({ xp: 30 }) });
+  const s = load(st);
+  assert.equal(s.saveVer, 1);
+  assert.equal(s.xp, 30);
+  assert.equal(s.yeopjeon, 0);
+});
+
+test("cap", () => {
+  const st = fakeStorage();
+  const s = newSave();
+  for (let i = 0; i < 60; i++) s.submission_logs.push({ lesson: "1-1", item: i, pass: true, at: "t" });
+  store(st, s);
+  const back = load(st);
+  assert.equal(back.submission_logs.length, 50);
+  assert.equal(back.submission_logs[0].item, 10);
+  assert.equal(back.submission_logs[49].item, 59);
+});
+
+test("store: round trip", () => {
+  const st = fakeStorage();
+  const s = newSave();
+  s.xp = 42; s.outfits.push("casual");
+  store(st, s);
+  assert.deepEqual(load(st), s);
+});
+
+// ---- review fixes (C1–C3, I1–I2, M1–M4) ----
+
+test("C1: valid JSON that is not a plain object is kept in .broken", () => {
+  for (const text of ["null", "42", '"x"', "[1,2]"]) {
+    const st = fakeStorage({ [SAVE_KEY]: text });
+    assert.deepEqual(load(st), newSave(), text);
+    assert.equal(st.data[SAVE_KEY + ".broken"], text, text);
+  }
+});
+
+test("C2: wrong-typed fields fall back to defaults", () => {
+  const s = migrate({
+    streak: null, settings: null, xp: "30", yeopjeon: "abc",
+    completed_lessons: {}, grading_results: null,
+    outfit: 5, settings_x: 1, freezes: Infinity,
+  });
+  assert.deepEqual(s.streak, LEDGER_SHAPE.streak);
+  assert.deepEqual(s.settings, LEDGER_SHAPE.settings);
+  assert.equal(s.xp, 30);
+  assert.equal(s.yeopjeon, 0);
+  assert.deepEqual(s.completed_lessons, []);
+  assert.deepEqual(s.grading_results, {});
+  assert.equal(s.outfit, "basic");
+  assert.equal(s.freezes, 0);
+});
+
+test("C2: xp 'abc' → 0, nested types guarded", () => {
+  const s = migrate({ xp: "abc", streak: { days: "3", todayXp: "x" }, settings: { sound: "yes", name: 7 } });
+  assert.equal(s.xp, 0);
+  assert.equal(s.streak.days, 3);
+  assert.equal(s.streak.todayXp, 0);
+  assert.equal(s.settings.sound, true);
+  assert.equal(s.settings.name, "");
+});
+
+test("C2: null-default fields accept any value", () => {
+  const s = migrate({ last_active_at: "2026-10-29T10:00:00Z", streak: { lastGoalDate: "2026-10-28" } });
+  assert.equal(s.last_active_at, "2026-10-29T10:00:00Z");
+  assert.equal(s.streak.lastGoalDate, "2026-10-28");
+});
+
+test("I1: loadEx reports readFailed only when getItem throws", () => {
+  const throwing = { getItem() { throw new Error("denied"); }, setItem() {} };
+  const a = loadEx(throwing);
+  assert.equal(a.readFailed, true);
+  assert.deepEqual(a.save, newSave());
+  const b = loadEx(fakeStorage({ [SAVE_KEY]: "{깨짐" }));
+  assert.equal(b.readFailed, false);
+  assert.deepEqual(b.save, newSave());
+  const c = loadEx(fakeStorage({ [SAVE_KEY]: JSON.stringify({ xp: 7 }) }));
+  assert.equal(c.readFailed, false);
+  assert.equal(c.save.xp, 7);
+  const d = loadEx(fakeStorage());
+  assert.equal(d.readFailed, false);
+});
+
+test("I2: __proto__ / constructor / prototype keys are not copied", () => {
+  const raw = JSON.parse('{"xp":1,"__proto__":{"polluted":true},"constructor":1,"prototype":2,"streak":{"__proto__":{"p":1},"days":2}}');
+  const s = migrate(raw);
+  assert.equal(Object.getPrototypeOf(s), Object.prototype);
+  assert.equal(Object.getPrototypeOf(s.streak), Object.prototype);
+  assert.equal(s.polluted, undefined);
+  assert.equal(s.streak.p, undefined);
+  assert.equal(Object.hasOwn(s, "constructor"), false);
+  assert.equal(Object.hasOwn(s, "prototype"), false);
+  assert.equal(s.xp, 1);
+  assert.equal(s.streak.days, 2);
+  const st = fakeStorage({ [SAVE_KEY]: '{"__proto__":{"polluted":true}}' });
+  const l = load(st);
+  assert.equal(Object.getPrototypeOf(l), Object.prototype);
+  assert.equal({}.polluted, undefined);
+});
+
+test("M1: newer saveVer is not downgraded", () => {
+  assert.equal(migrate({ saveVer: 3, xp: 1 }).saveVer, 3);
+  assert.equal(migrate({ saveVer: 0 }).saveVer, 1);
+});
+
+test("M2: successive corruptions keep every broken copy", () => {
+  const st = fakeStorage({ [SAVE_KEY]: "{one" });
+  load(st);
+  st.data[SAVE_KEY] = "{two";
+  load(st);
+  st.data[SAVE_KEY] = "{three";
+  load(st);
+  assert.equal(st.data[SAVE_KEY + ".broken"], "{one");
+  assert.equal(st.data[SAVE_KEY + ".broken.1"], "{two");
+  assert.equal(st.data[SAVE_KEY + ".broken.2"], "{three");
+});
+
+test("M2: after .broken.5 is used, .broken.5 is overwritten", () => {
+  const init = { [SAVE_KEY + ".broken"]: "b0" };
+  for (let i = 1; i <= 5; i++) init[`${SAVE_KEY}.broken.${i}`] = "b" + i;
+  init[SAVE_KEY] = "{new";
+  const st = fakeStorage(init);
+  load(st);
+  assert.equal(st.data[SAVE_KEY + ".broken"], "b0");
+  assert.equal(st.data[SAVE_KEY + ".broken.4"], "b4");
+  assert.equal(st.data[SAVE_KEY + ".broken.5"], "{new");
+  assert.equal(st.data[SAVE_KEY + ".broken.6"], undefined);
+});
+
+test("M3: migrate result shares no references with input", () => {
+  const raw = { completed_lessons: ["1-1"], grading_results: { "1-1": { perfect: true, attempts: 1 } }, streak: { days: 1 }, quests: { ids: ["q_xp20"], progress: { q_xp20: 5 } }, extra: { a: 1 } };
+  const s = migrate(raw);
+  s.completed_lessons.push("1-2");
+  s.grading_results["1-1"].attempts = 9;
+  s.quests.ids.push("x");
+  s.quests.progress.q_xp20 = 0;
+  s.extra.a = 2;
+  assert.deepEqual(raw.completed_lessons, ["1-1"]);
+  assert.equal(raw.grading_results["1-1"].attempts, 1);
+  assert.deepEqual(raw.quests.ids, ["q_xp20"]);
+  assert.equal(raw.quests.progress.q_xp20, 5);
+  assert.equal(raw.extra.a, 1);
+});
+
+test("M4: store returns true on success, false when setItem throws", () => {
+  assert.equal(store(fakeStorage(), newSave()), true);
+  const full = { getItem: () => null, setItem() { throw new Error("QuotaExceededError"); } };
+  assert.equal(store(full, newSave()), false);
+});
+
+// ---- final review: value ranges ----
+
+test("range: freezes clamped to integer 0..2", () => {
+  assert.equal(migrate({ freezes: 99 }).freezes, 2);
+  assert.equal(migrate({ freezes: -1 }).freezes, 0);
+  assert.equal(migrate({ freezes: 1.7 }).freezes, 1);
+  assert.equal(migrate({ freezes: 2 }).freezes, 2);
+});
+
+test("range: xp/yeopjeon/streak/stats are non-negative integers", () => {
+  const s = migrate({
+    xp: -3, yeopjeon: -5,
+    streak: { days: -2, best: 4.9 },
+    stats: { lessons: -1, perfect: 2.5, hintfree: "3", fixed: -0.5, review_items: 7 },
+  });
+  assert.equal(s.xp, 0);
+  assert.equal(s.yeopjeon, 0);
+  assert.equal(s.streak.days, 0);
+  assert.equal(s.streak.best, 4);
+  assert.deepEqual(s.stats, { lessons: 0, perfect: 2, hintfree: 3, fixed: 0, review_items: 7 });
+  assert.equal(migrate({ xp: 30.9, yeopjeon: 120 }).xp, 30);
+  assert.equal(migrate({ yeopjeon: 120 }).yeopjeon, 120);
+});
+
+test("range: weak_concepts keeps only finite numbers >= 0", () => {
+  assert.deepEqual(migrate({ weak_concepts: { a: "abc", b: 3 } }).weak_concepts, { b: 3 });
+  assert.deepEqual(
+    migrate({ weak_concepts: { a: -1, b: 0, c: Infinity, d: null, e: 2, f: "2" } }).weak_concepts,
+    { b: 0, e: 2 },
+  );
+});
+
+// ---- 의상 정리(리아 시절 saveVer 1→2 옮기기는 이 앱에 없다: 처음부터 saveVer 1, 옛 id는 환불 없이 버림) ----
+import { OUTFITS } from "../../data/outfits.js";
+
+const v1 = (outfits, outfit = "basic", over = {}) => ({ ...JSON.parse(JSON.stringify(LEDGER_SHAPE)), saveVer: 1, outfits, outfit, ...over });
+
+test("v2: worn outfit not owned → basic; owned new outfit kept", () => {
+  assert.equal(migrate(v1(["basic"], "chef")).outfit, "basic");
+  assert.equal(migrate({ saveVer: 1, outfits: ["basic", "wizard"], outfit: "wizard" }).outfit, "wizard");
+  assert.equal(migrate({ saveVer: 1, outfits: ["basic"], outfit: "wizard" }).outfit, "basic");
+});
+
+test("v2: a v2 save with old/unknown ids loads, no refund (refunds only from v1)", () => {
+  const s = migrate({ saveVer: 1, outfits: ["basic", "rain", "future_x", "gym"], outfit: "future_x", yeopjeon: 10 });
+  assert.deepEqual(s.outfits, ["basic", "gym"]);
+  assert.equal(s.outfit, "basic");
+  assert.equal(s.yeopjeon, 10);
+});
+
+test("v2: every owned id after migrate is in the outfit table", () => {
+  const ids = new Set(OUTFITS.map((o) => o.id));
+  const s = migrate(v1(["basic", "lab", "detective", "camping", "astronaut", "x"], "x"));
+  for (const id of s.outfits) assert.ok(ids.has(id), id);
+  assert.ok(ids.has(s.outfit));
+});
+
+test("v2: newer saveVer (3) is not downgraded and still loads", () => {
+  const s = migrate({ saveVer: 3, outfits: ["basic", "hologram"], outfit: "hologram" });
+  assert.equal(s.saveVer, 3);
+  assert.equal(s.outfit, "basic");
+});
+
+// ---- 판정 C42: 환불 안내는 한 번만 ----
+test("C42 refund notice: take는 한 번만 금액을 돌려주고 깃발(0)을 남긴다", () => {
+  const s = migrate({ ...LEDGER_SHAPE, pending_refund: 180, yeopjeon: 180 });
+  const r1 = takeRefundNotice(s);
+  assert.equal(r1.yeopjeon, 180);
+  assert.equal(r1.save.pending_refund, 0);
+  assert.equal(s.pending_refund, 180, "원본 불변");
+  assert.equal(r1.save.yeopjeon, s.yeopjeon, "바이트는 이미 들어가 있음 — 다시 더하지 않음");
+  const r2 = takeRefundNotice(r1.save);
+  assert.equal(r2.yeopjeon, 0);
+  assert.equal(r2.save, r1.save, "보여 줄 것 없으면 같은 저장");
+  // 저장 → 다시 읽기(새로 고침)해도 다시 나오지 않음
+  const st = fakeStorage();
+  store(st, r1.save);
+  assert.equal(takeRefundNotice(load(st)).yeopjeon, 0);
+});
+
+test("C42 refund notice: 이상한 값은 0으로", () => {
+  for (const bad of [-5, "abc", null, 1.7, Infinity]) assert.ok(migrate({ saveVer: 1, pending_refund: bad }).pending_refund >= 0, String(bad));
+  assert.equal(migrate({ saveVer: 1, pending_refund: -5 }).pending_refund, 0);
+  assert.equal(migrate({ saveVer: 1, pending_refund: 1.7 }).pending_refund, 1);
+  assert.equal(takeRefundNotice(migrate({ saveVer: 1, pending_refund: "x" })).yeopjeon, 0);
+});
+
+test("C42 refund notice text", () => {
+  assert.equal(refundNoticeText(780), "없어진 옷 값 780바이트를 돌려 드렸어요. 새 옷도 구경해 보세요!");
+});
+
+// v0.9 매일 도전: daily 칸은 saveVer 2 그대로, 없거나 깨지면 기본값(옮기기)
+test("migrate v0.9: daily가 없는 옛 저장은 기본 daily를 받음", () => {
+  const old = JSON.parse(JSON.stringify(LEDGER_SHAPE));
+  delete old.daily;
+  const s = migrate(old);
+  assert.equal(s.saveVer, 1);
+  assert.deepEqual(s.daily, LEDGER_SHAPE.daily);
+});
+
+test("migrate v0.9: 깨진 daily 값은 고침, 맞는 값은 그대로", () => {
+  const bad = migrate({ ...LEDGER_SHAPE, daily: { date: 3, picks: "x", done: [9, 1, 1], streak: "7", best: -2, last_done_date: "2026-02-30" } });
+  assert.deepEqual(bad.daily, { date: null, picks: [], done: [1], streak: 7, best: 7, last_done_date: null });
+  assert.deepEqual(migrate({ ...LEDGER_SHAPE, daily: [] }).daily, LEDGER_SHAPE.daily);
+  const good = { date: "2026-11-05", picks: [{ kind: "tpl", id: "2-T1", chapter: 2, seed: 99 }, { kind: "tpl", id: "1-T3", chapter: 1, seed: 0 },
+    { kind: "write", lesson: "1-2", chapter: 1 }], done: [0, 2], streak: 6, best: 10, last_done_date: "2026-11-04" };
+  assert.deepEqual(migrate({ ...LEDGER_SHAPE, daily: good }).daily, good);
+  // 저장 → 읽기 왕복
+  const st = fakeStorage();
+  store(st, { ...newSave(), daily: good });
+  assert.deepEqual(load(st).daily, good);
+});
