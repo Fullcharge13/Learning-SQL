@@ -30,8 +30,17 @@ export const TEMPLATES = [ /* 매일 도전 틀 N-T1 … 2~5개, 6절 */ ];
 ### 1-1. 설명 카드 `{ say, sql? }`
 
 - `say`: 두억이 말풍선(140자, 줄바꿈 가능). `sql`: 보여 줄 SQL. **앱이 실행해서 결과 표를 그린다**(손으로 쓴 표 없음). 50행이 넘으면 앞 50행과 「… 외 N행」.
-- 리아의 `code`·`out`·`files`·`stdin`·`show_only`·`chart` 칸은 없다(쓰면 「old field」 오류).
+- 리아의 `code`·`out`·`files`·`stdin`·`show_only`·`chart` 칸은 없다(쓰면 「old field」 오류). 다른 데이터베이스 SQL은 `sql` 대신 1-1-1절의 `show`·`dialect`.
 - 말풍선 아래에 SQL과 표가 나온다. 말풍선에서는 「아래 SQL」이라고 가리킨다.
+
+### 1-1-1. 보기 전용 비교 카드 `{ say, show, dialect }` (판정 R30, 16장)
+
+- 다른 데이터베이스의 문법을 **보이기만** 하는 설명 카드다. `show`는 SQL 글자, `dialect`는 `"MySQL"`·`"PostgreSQL"` 중 하나(`src/lessondata.js`의 `DIALECTS`, 대소문자까지 같게).
+- 화면은 `dialect` 이름표 + 「보기 전용이에요. 이 장터에서는 돌지 않는 SQL이에요.」 + 점선 코드 상자를 그린다. **실행하지 않아** 결과 표·실행 단추가 없다(`src/ui/dom.js` `cardExample`).
+- 한 카드에 `sql`과 `show`를 함께 두지 않는다. `dialect`는 `show`와만 쓴다(`validateLesson`).
+- 점검기: `show`는 `grammar`·`engine-guard`·실행 검사를 받지 않는다(MySQL·PostgreSQL 함수 이름을 써도 됨). **한 줄 38칸(SQL_COLS)과 `readonly`는 그대로** 받는다.
+- `show`의 문법은 공식 문서로 확인하고 장 머리 주석에 출처를 적는다. 말풍선에는 이 장터(SQLite)의 무엇과 짝인지 말로 짚는다.
+- 레슨 카드 1~2장 한도 안에서 쓴다. 문제에는 `show`의 SQL을 `code`·보기 SQL로 넣을 수 없으니(실행됨) 「PostgreSQL의 TO_CHAR가 하는 일은?」처럼 글자 보기로 묻는다.
 
 ### 1-2. 문제 종류와 칸
 
@@ -69,7 +78,7 @@ export const TEMPLATES = [ /* 매일 도전 틀 N-T1 … 2~5개, 6절 */ ];
 |---|---|---|
 | 장마다 레슨 | **5개**(5번째가 장 평가, R21) | `LESSONS_PER_CHAPTER = 5` |
 | 레슨마다 문제 | **10~14개**, 장 평가는 **10~16개** | `ITEMS_RANGE = [10, 14]`, `EXAM_ITEMS_RANGE = [10, 16]` |
-| 레슨마다 설명 카드 | **1~2장** | `CARDS_RANGE = [1, 2]` |
+| 레슨마다 설명 카드 | **1~2장**(보기 전용 카드 R30도 한 장으로 셈) | `CARDS_RANGE = [1, 2]` |
 | 레슨마다 build | **1~5장: 1개 · 6~13장: 2개 · 14~17장: 2~3개.** 장 평가는 최대 +1이되 **3개를 넘지 않음**(R25) | `buildRange()`, `EXAM_BUILD_MAX = 3` |
 | 카드 더미(`cards` + `extra`) | **12장 이하**, `extra`는 **2~4장** | `BANK_MAX = 12`, `EXTRA_MIN = 2`, `EXTRA_MAX = 4` |
 | 카드 한 장 폭 | **30칸** | `CARD_COLS = 30` |
@@ -284,7 +293,7 @@ export const TEMPLATES = [
   - 제목 「N장 평가」, 설명 카드 1장(정리 + 대표 SQL).
   - 문제 10~16개, build는 2절 한도까지. 그 장의 모든 개념을 고루 묻는다.
 - **TEMPLATES** 2~5개(6절).
-- **16장**: MySQL·PostgreSQL 날짜 비교는 「보기 전용」 카드로 넣기로 했다(설계 §6). 그런데 지금 카드 칸은 `say`·`sql`뿐이고 `sql`은 늘 SQLite로 실행된다. 그래서 다른 데이터베이스 문법은 `sql`에 넣을 수 없다. 16장을 쓸 때 칸을 새로 둘지(점검기·화면 고침) 말풍선 글로만 보일지 먼저 정한다.
+- **16장**: MySQL·PostgreSQL 날짜 비교는 「보기 전용」 카드로 넣는다(설계 §6). 카드 칸 `sql`은 늘 SQLite로 실행되므로 새 칸 `show`·`dialect`를 두었다(판정 R30, 1-1-1절). 16-4가 MySQL·PostgreSQL 카드 두 장을 쓴다.
 
 ## 9. 말투와 용어
 
@@ -371,3 +380,4 @@ e.close();
 - [ ] 틀의 blank 칩을 끼운 SQL이 모두 `SELECT`로 시작한다.
 - [ ] 자리 표시 뒤에 조사가 없다.
 - [ ] 민속 사실을 지어내지 않았다.
+- [ ] 보기 전용 카드(R30)는 `show` + `dialect`(MySQL·PostgreSQL)이고 `sql`과 섞지 않았다. 한 줄 38칸, 문법은 공식 문서로 확인했다.

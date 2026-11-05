@@ -287,7 +287,8 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
   function renderCard(cur) {
     const c = cur.card;
     const first = cur.index === 0;
-    body.innerHTML = `<article class="card-view">
+    // 보기 전용 카드(판정 R30, { say, show, dialect })는 cardExample이 이름표·안내·코드 상자만 그리고 결과 표 자리를 두지 않는다 → 실행 없음
+    body.innerHTML = `<article class="card-view${c.show ? " show-card" : ""}">
       ${first && lesson.goal ? `<p class="goal-line">${icon("book")}<span>오늘의 목표: ${esc(lesson.goal)}</span></p>` : ""}
       <h1 class="lesson-title">${esc(lesson.title)}</h1>
       ${dueogiSays({ outfit: ctx.save.outfit, face: first && lesson.isExam && !review && !daily ? FACES.examStart : FACES.card, text: c.say, size: 84 })}

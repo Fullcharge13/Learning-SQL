@@ -7,7 +7,12 @@ export const LESSONS = [
   {
     id: "1-1", chapter: 1, title: "시험용 조립", goal: "카드로 조건 있는 조회 만들기",
     summary: ["WHERE로 조건에 맞는 행만 본다"],
-    cards: [{ say: "시험용 설명 카드예요. 다음으로 넘겨 주세요." }],
+    cards: [
+      { say: "시험용 설명 카드예요. 다음으로 넘겨 주세요." },
+      // 보기 전용 비교 카드(판정 R30): 실행하지 않는다. 첫 줄은 SQL_COLS(38칸) 꽉 찬 줄(test_show_card가 휴대폰 폭에서 한 줄인지 봄)
+      { say: "시험용 보기 전용 카드예요. 다른 데이터베이스의 SQL이라 실행하지 않아요.",
+        show: "SELECT TO_CHAR(ordered_on, 'YYYY-MM'),\n  ordered_on - INTERVAL '7 days'\nFROM orders", dialect: "PostgreSQL" },
+    ],
     items: [
       {
         type: "choice", concept: "where", q: "조건에 맞는 행만 고르는 낱말은?",

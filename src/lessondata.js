@@ -84,7 +84,7 @@ export function chaptersForConcepts(index, concepts, completed = null) {
 }
 
 // ---- 레슨 형식 검사 (v0.1 작업 7) ----
-// 설명 카드 { say, sql? } · 객관식 보기(전부 글자 또는 전부 { sql }) · 조립(build) 문제를 본다. 오류 글 목록을 돌려줌(비면 통과).
+// 설명 카드 { say, sql? } 또는 보기 전용 카드 { say, show, dialect }(판정 R30) · 객관식 보기(전부 글자 또는 전부 { sql }) · 조립(build) 문제를 본다. 오류 글 목록을 돌려줌(비면 통과).
 // schema(data/schema.js의 SCHEMA)를 받아야 tables 이름을 확인한다(이 파일은 데이터 파일을 import하지 않음).
 const nonEmpty = (v) => typeof v === "string" && v.trim() !== "";
 const OLD_CARD_KEYS = ["code", "out", "files", "stdin", "show_only", "chart"];   // 리아(파이썬) 카드 모양
@@ -100,11 +100,22 @@ function checkTables(where, tables, schema, required) {
   return out;
 }
 
+/** 보기 전용 비교 카드(판정 R30, 16장)의 dialect 이름표. show 칸의 SQL은 이 데이터베이스의 문법이고 실행하지 않는다 */
+export const DIALECTS = ["MySQL", "PostgreSQL"];
+
 function checkCard(where, c) {
   if (!c || typeof c !== "object") return [`${where}: card must be an object`];
   const out = [];
   if (!nonEmpty(c.say)) out.push(`${where}: card needs say`);
   if (c.sql !== undefined && !nonEmpty(c.sql)) out.push(`${where}: card sql must be a non-empty string`);
+  // 보기 전용 카드 { say, show, dialect }: 다른 데이터베이스의 SQL을 보이기만 한다(실행하지 않음). sql과 한 카드에 두지 않는다
+  if (c.show !== undefined) {
+    if (!nonEmpty(c.show)) out.push(`${where}: card show must be a non-empty string`);
+    if (c.sql !== undefined) out.push(`${where}: card has both show and sql (show is view-only, sql runs — use one)`);
+    if (!DIALECTS.includes(c.dialect)) out.push(`${where}: show card needs dialect, one of ${DIALECTS.join(", ")}`);
+  } else if (c.dialect !== undefined) {
+    out.push(`${where}: dialect goes only with show`);
+  }
   for (const k of OLD_CARD_KEYS) if (k in c) out.push(`${where}: card has old field ${k} (use sql)`);
   return out;
 }

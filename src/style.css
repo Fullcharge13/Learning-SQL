@@ -154,8 +154,11 @@ button { cursor: pointer; }
 .chart-svg .c-dot-2, .chart-svg .c-dot-3 { stroke-linejoin: round; }
 .chart-desc { margin: 6px 4px 0; font-size: .82rem; line-height: 1.45; color: var(--ink-2); }
 .chart-diff .chart-note:last-child .chart { border-color: var(--coral); background: var(--coral-soft); }
-.example.show-only .ex-label { display: flex; gap: 6px; align-items: center; }
-.example.show-only .ex-label .ic { width: 18px; height: 18px; }
+/* 보기 전용 비교 카드(판정 R30, 16장): 다른 데이터베이스 SQL. 실행하는 SQL(남색 상자)과 달리 흰 바탕 점선 상자 + 데이터베이스 이름표 */
+.example.show-only .ex-label { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.example.show-only .dialect { display: inline-flex; align-items: center; font-size: .8rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--navy); color: #fff; }
+.example.show-only .show-note { font-weight: 700; color: var(--ink-2); }
+.code.show { background: var(--card); color: var(--ink); border: 2px dashed var(--navy); padding: 10px 12px; }
 .err-own { font-weight: 700; color: var(--coral-ink); }
 
 /* ---------- 상태 줄과 탭 ---------- */

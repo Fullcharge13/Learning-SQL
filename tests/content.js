@@ -80,7 +80,7 @@ export function buildRange(chapter, exam = false) {
 }
 
 const LESSON_KEYS = new Set(["id", "chapter", "title", "goal", "summary", "isExam", "cards", "items", "updated"]);
-const CARD_KEYS = new Set(["say", "sql"]);
+const CARD_KEYS = new Set(["say", "sql", "show", "dialect"]);   // show·dialect: 보기 전용 비교 카드(판정 R30, 16장)
 // 문제 형태별 [꼭 있어야 할 칸, 있어도 되는 칸]. 모르는 칸은 오타로 본다.
 const ITEM_KEYS = {
   choice: [["type", "concept", "q", "options", "answer", "explain"], ["id", "code", "tables"]],
@@ -479,6 +479,13 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     if (!c || typeof c !== "object") return;   // validateLesson이 알림
     for (const k of Object.keys(c)) if (!CARD_KEYS.has(k)) add(`${w} ${k}`, "shape", `카드에 모르는 칸 ${k}`);
     text(`${w}.say`, c.say, SAY_MAX, { oneLine: false });
+    // 보기 전용 카드(판정 R30): show는 MySQL·PostgreSQL 문법이라 실행하지 않는다 → grammar·engine-guard·실행 검사는 건너뛰고,
+    // 휴대폰 폭(SQL_COLS)과 데이터를 바꾸는 낱말(readonly)만 본다. dialect 이름과 sql과의 겹침은 validateLesson이 알린다
+    if (typeof c.show === "string" && c.show.trim()) {
+      sqlLines(`${w} show`, c.show);
+      const bad = [...new Set(sqlWords(c.show).words.filter((x) => WRITE_WORDS.has(x)))];
+      if (bad.length) add(`${w} show`, "readonly", `데이터를 바꾸는 낱말 ${bad.join(", ")} (설계 D11: 보기 전용 카드에도 나오지 않음)`);
+    }
     if (typeof c.sql !== "string" || !c.sql.trim()) return;
     sqlLines(w, c.sql);
     words(w, c.sql);

@@ -104,9 +104,20 @@ export function codeBlock(code, cls = "") {
   return `<pre class="code ${cls}"><code>${esc(code)}</code></pre>`;
 }
 
+/** 보기 전용 카드(판정 R30, 16장)의 안내. show의 SQL은 다른 데이터베이스 문법이라 실행하지 않는다 */
+export const SHOW_NOTE = "보기 전용이에요. 이 장터에서는 돌지 않는 SQL이에요.";
+
+/** 보기 전용 카드 { say, show, dialect }: 데이터베이스 이름표 + 안내 + SQL 상자. 결과 표 자리(.sql-result)가 없어 fillResults가 실행하지 않는다 */
+function showExample(c) {
+  return `<div class="example show-only">
+    <p class="ex-label"><span class="dialect">${esc(c.dialect || "")}</span><span class="show-note">${esc(SHOW_NOTE)}</span></p>
+    <pre class="code sql show" aria-label="${esc(`${c.dialect || ""} SQL, 보기 전용`)}"><code>${esc(c.show)}</code></pre></div>`;
+}
+
 /** 개념 카드의 SQL 칸: SQL(코드 글꼴) + 그 아래 실행 결과 표 자리. 표는 화면을 그린 뒤 ui/sqlview.js의 fillResults가 채운다
  *  (실행기가 준비되기 전에는 「표를 불러오는 중…」). SQL이 없는 카드는 빈 글자 */
 export function cardExample(c) {
+  if (c && c.show) return showExample(c);
   if (!c || !c.sql) return "";
   return `<div class="example sql-example">${codeBlock(c.sql, "sql")}
     <p class="ex-label">실행 결과</p>

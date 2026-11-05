@@ -227,3 +227,35 @@ test("templates: a chapter needs 2..5 templates (shape, 작업 12a 고침 1회�
   assert.equal(count(good.TEMPLATES).length, 0, "틀 3개는 괜찮음");
   assert.match(count([T1])[0].msg, /2~5개/);
 });
+
+// ---- 보기 전용 비교 카드 (판정 R30, 16장): show는 실행하지 않는다 ----
+// 좋은 5장의 카드 하나짜리 레슨에 show 카드를 더해 점검한다(장 번호 5: 날짜 함수도 아직 안 배운 때).
+function withShowCard(card) {
+  const lessons = good.LESSONS.map((l) => ({ ...l, cards: l.cards.slice() }));
+  const target = lessons.find((l) => l.cards.length === 1);
+  target.cards.push({ say: "다른 데이터베이스에서는 이렇게 써요. 이 장터에서는 돌지 않아요.", ...card });
+  return { mod: { ...good, LESSONS: lessons }, lid: target.id };
+}
+
+test("show card: grammar, engine-guard and answer-runs skip show (MySQL/PostgreSQL names are fine)", () => {
+  const code = "SELECT DATE_FORMAT(d, '%Y-%m')\n  AS month, DATEDIFF(a, b) AS days,\n  ordered_on - INTERVAL '7 days'\nFROM orders\nGROUP BY month;\nSELECT TO_CHAR(d, 'YYYY-MM')";
+  const { mod } = withShowCard({ show: code, dialect: "MySQL" });
+  const issues = checkChapter(mod, 5, engine, { concepts: good.CONCEPTS });
+  assert.deepEqual(issues, [], show(issues));
+});
+
+test("show card: lines still obey the SQL column limit, and data-changing words are still caught", () => {
+  const long = withShowCard({ show: "SELECT TO_CHAR(ordered_on, 'YYYY-MM') AS month_key\nFROM orders", dialect: "PostgreSQL" });
+  const wide = checkChapter(long.mod, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(wide.some((i) => i.rule === "shape" && i.where.startsWith(long.lid) && /넓음/.test(i.msg)), show(wide));
+  const del = withShowCard({ show: "DELETE FROM orders", dialect: "MySQL" });
+  const ro = checkChapter(del.mod, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(ro.some((i) => i.rule === "readonly" && i.where.startsWith(del.lid)), show(ro));
+});
+
+test("show card: dialect outside the list and show together with sql are shape issues", () => {
+  const bad1 = withShowCard({ show: "SELECT 1", dialect: "Oracle" });
+  assert.ok(checkChapter(bad1.mod, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && /dialect/.test(i.msg)));
+  const bad2 = withShowCard({ show: "SELECT 1", dialect: "MySQL", sql: "SELECT 1" });
+  assert.ok(checkChapter(bad2.mod, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && /show/.test(i.msg)));
+});

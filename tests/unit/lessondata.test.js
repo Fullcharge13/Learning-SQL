@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SCHEMA } from "../../data/schema.js";
 import {
-  validateLesson,
+  validateLesson, DIALECTS,
   buildLessonIndex, chapterFileName, CHAPTER_FILE_RE, chaptersForConcepts, createLessonData, ChapterLoadError,
 } from "../../src/lessondata.js";
 
@@ -176,6 +176,30 @@ test("card with code rejected", () => {
   const e = errs(lesson({ cards: [{ say: "리아 모양", code: "print(1)", out: "1" }] }));
   assert.ok(e.some((m) => m.includes("code")), e.join("|"));
   assert.ok(errs(lesson({ cards: [{ say: "x", out: "1" }] })).length);
+});
+
+// ---- 보기 전용 비교 카드 (판정 R30, 16장): { say, show, dialect }. show는 실행하지 않는 다른 데이터베이스 SQL ----
+test("show card (view-only, R30) accepted with an allowed dialect", () => {
+  assert.deepEqual(DIALECTS, ["MySQL", "PostgreSQL"]);
+  for (const dialect of DIALECTS) {
+    assert.deepEqual(errs(lesson({ cards: [{ say: "다른 데이터베이스", show: "SELECT DATE_FORMAT(d, '%Y-%m')", dialect }] })), [], dialect);
+  }
+});
+
+test("show card: dialect must be in the list, and goes only with show", () => {
+  const card = (c) => errs(lesson({ cards: [{ say: "x", ...c }] }));
+  assert.ok(card({ show: "SELECT 1" }).some((m) => m.includes("dialect")), "dialect 없음");
+  assert.ok(card({ show: "SELECT 1", dialect: "Oracle" }).some((m) => m.includes("dialect")), "목록 밖");
+  assert.ok(card({ show: "SELECT 1", dialect: "mysql" }).some((m) => m.includes("dialect")), "대소문자까지 같아야 함");
+  assert.ok(card({ sql: "SELECT 1", dialect: "MySQL" }).some((m) => m.includes("dialect")), "dialect는 show와만");
+  assert.ok(card({ dialect: "MySQL" }).some((m) => m.includes("dialect")), "show 없이 dialect");
+});
+
+test("show card: show is a non-empty string and never sits with sql on one card", () => {
+  const card = (c) => errs(lesson({ cards: [{ say: "x", ...c }] }));
+  assert.ok(card({ show: "", dialect: "MySQL" }).length, "빈 show");
+  assert.ok(card({ show: 3, dialect: "MySQL" }).length, "글자가 아님");
+  assert.ok(card({ sql: "SELECT 1", show: "SELECT 1", dialect: "MySQL" }).some((m) => m.includes("show") && m.includes("sql")), "sql과 show를 함께");
 });
 
 test("choice option sql accepted", () => {

@@ -1389,6 +1389,10 @@ def test_build_no_engine():
         items = a.lesson("1-1")["items"]
         a.page.wait_for_selector(".card-view")
         a.page.click("#act")
+        # 보기 전용 카드(판정 R30)는 실행기가 없어도 그대로 읽힌다(실행하지 않으므로 「불러오지 못해」 안내도 없음)
+        a.page.wait_for_selector(".card-view.show-card pre.code.show")
+        assert "불러오지 못해" not in a.page.inner_text(".card-view"), a.page.inner_text(".card-view")
+        a.page.click("#act")
         # 객관식은 그대로 풀림
         a.page.wait_for_selector("article.item")
         idx = a.which_item(items)
@@ -1861,6 +1865,53 @@ def test_sql_cols_fit():
         r = a.js(SQL_COLS_JS, cols)
     assert r["code"] == 1 and r["line"] == 1, "%d columns wrap on iPhone 17e: %s" % (cols, r)
     assert r["codePx"] >= 13 and r["linePx"] >= 13, r
+
+
+SHOW_CARD_JS = r"""() => {
+  const card = document.querySelector('.card-view');
+  const pre = card.querySelector('.example.show-only pre.code.show');
+  const code = pre && pre.querySelector('code');
+  const lh = code ? parseFloat(getComputedStyle(code).lineHeight) : 0;
+  const lines = code ? code.textContent.split('\n').length : 0;
+  const r = pre ? pre.getBoundingClientRect() : null;
+  return { show: card.classList.contains('show-card'), dialect: (card.querySelector('.dialect') || {}).innerText || '',
+    note: (card.querySelector('.show-note') || {}).innerText || '', code: code ? code.textContent : '',
+    results: card.querySelectorAll('.sql-result, [data-sql], .rtable').length, buttons: card.querySelectorAll('button').length,
+    exLabel: [...card.querySelectorAll('.ex-label')].map((e) => e.innerText).join(' / '),
+    lines, rendered: code ? Math.round(code.getBoundingClientRect().height / lh) : 0,
+    left: r && r.left, right: r && r.right, vw: innerWidth, px: pre ? parseFloat(getComputedStyle(pre).fontSize) : 0 };
+}"""
+
+
+def test_show_card():
+    """판정 R30 (16장): 보기 전용 카드 { say, show, dialect }는 다른 데이터베이스 SQL을 이름표·「돌지 않아요」 안내와 함께 코드 상자로만 보인다.
+    실행하지 않으므로 결과 표·실행 단추가 없다(실행기가 준비된 뒤에도). 가장 좁은 폰(iPhone 17e)·17에서 38칸 줄이 한 줄, 넘침 없음."""
+    sd = _shot_dir()
+    for dev in ["iPhone 17e", "iPhone 17"]:
+        with App(dev) as a:
+            a.start()
+            want = next(c for c in a.lesson("1-1")["cards"] if c.get("show"))
+            a.page.click("#continue")
+            a.page.wait_for_selector(".card-view")
+            a.page.click("#act")
+            a.page.wait_for_selector(".card-view.show-card")
+            a.page.wait_for_timeout(1500)   # 실행기가 깨어날 시간: 그래도 표가 생기면 안 됨
+            r = a.js(SHOW_CARD_JS)
+            print("    %s: %s" % (dev, {k: r[k] for k in ("dialect", "results", "buttons", "lines", "rendered", "px", "right", "vw")}))
+            assert r["show"] and r["dialect"] == want["dialect"], r
+            assert "돌지 않" in r["note"] and "실행 결과" not in r["exLabel"], r
+            assert r["code"] == want["show"], r
+            assert r["results"] == 0 and r["buttons"] == 0, "show card must not run: %s" % r
+            assert r["lines"] == 3 and r["rendered"] == r["lines"], "show lines wrap at %s: %s" % (dev, r)
+            assert r["left"] >= 0 and r["right"] <= r["vw"] and r["px"] >= 13, r
+            m = measure(a, "show-card-%s" % slug(dev))
+            assert not m["problems"] and not m["small"] and not m["errors"], m
+            a.shot("show-card-%s.png" % slug(dev), full=True)
+            shutil.copy(os.path.join(OUT, "show-card-%s.png" % slug(dev)), os.path.join(sd, "show-card-%s.png" % slug(dev)))
+            # 「문제 풀기」로 넘어가면 평소 문제 화면
+            a.page.click("#act")
+            a.page.wait_for_selector("article.item")
+            assert not a.errors, a.errors
 
 
 def _select(argv):
