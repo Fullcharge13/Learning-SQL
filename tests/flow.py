@@ -583,6 +583,34 @@ def _to_build(a, lid="1-1"):
     raise AssertionError("build item not reached")
 
 
+RIA_EXPORT = {"saveVer": 5, "current_chapter": 3, "current_lesson": "3-2", "completed_lessons": ["1-1", "1-2", "2-1"],
+              "xp": 340, "bytes": 120, "streak": {"days": 4, "best": 6}, "badges": [], "outfits": ["basic"], "outfit": "basic"}
+
+
+def test_import_ria_save():
+    """작업 16(작업 10 넘김): 설정 「저장 가져오기」에 리아와 파이썬! 저장을 고르면 바꾸지 않고 안내만. 두억이 저장은 확인 창"""
+    with App("iPhone 17", save={"saveVer": 1, "xp": 30, "yeopjeon": 5, "completed_lessons": ["1-1"]}) as a:
+        a.start()
+        a.page.click('[data-go="settings"]')
+        a.page.wait_for_selector(".screen.settings")
+        before = a.save()
+        a.page.set_input_files("#import", files=[{"name": "ria-python-save.json", "mimeType": "application/json",
+                                                  "buffer": json.dumps(RIA_EXPORT).encode()}])
+        a.page.wait_for_selector(".toast.warn")
+        msg = a.page.inner_text(".toast.warn")
+        print("    ria save: %r" % msg)
+        assert "리아와 파이썬!" in msg and "두억이와 SQL!" in msg, msg
+        assert not a.page.query_selector(".modal-back"), "no confirm dialog for a Ria save"
+        assert a.save() == before, "save changed by a rejected import"
+        mine = dict(before, xp=99, yeopjeon=12, completed_lessons=["1-1", "1-2"])
+        a.page.set_input_files("#import", files=[{"name": "dueogi-sql-save.json", "mimeType": "application/json",
+                                                  "buffer": json.dumps(mine).encode()}])
+        a.page.wait_for_selector(".modal-back")
+        body = a.page.inner_text(".modal-back")
+        assert "끝낸 레슨 2개" in body and "XP 99" in body and "엽전 12" in body, body
+        assert not a.errors, a.errors
+
+
 def test_old_save():
     with App("iPhone 17", save={"xp": 30}) as a:
         a.start()

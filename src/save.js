@@ -133,6 +133,36 @@ export function migrate(raw) {
   return s;
 }
 
+// 「저장 가져오기」로 받을 수 있는 파일인지 (작업 16). 리아와 파이썬! 저장은 칸 이름이 거의 같아(completed_lessons·xp·streak…)
+// 두억이 표시를 따로 본다: 엽전(yeopjeon, 숫자)과 saveVer(1 이상 정수)가 있고 리아의 bytes가 없어야 한다.
+// 끝낸 레슨 id는 SQL 레슨 모양(장 1~17, 레슨 1~5 또는 심화 A1~)이어야 한다. 돌려줌 { ok: true } 또는 { ok: false, reason, msg }
+export const IMPORT_MAX_CHAPTER = 17;
+const LESSON_ID = /^([1-9]\d*)-([1-5]|A[1-9]\d*)$/;
+const IMPORT_MSG = {
+  shape: "두억이와 SQL! 저장 파일이 아니에요. 설정의 「저장 내보내기」로 만든 파일을 골라 주세요.",
+  ria: "리아와 파이썬! 저장 파일 같아요. 두 앱의 진도는 따로 저장돼요. 두억이와 SQL!의 「저장 내보내기」로 만든 파일을 골라 주세요.",
+  newer: "더 새 판의 두억이와 SQL!에서 만든 저장이에요. 앱을 새로 고친 뒤 다시 가져와 주세요.",
+  lessons: "저장 파일의 끝낸 레슨 목록이 두억이와 SQL! 레슨과 맞지 않아요. 「저장 내보내기」로 만든 파일인지 확인해 주세요.",
+};
+export function checkImport(raw) {
+  const no = (reason) => ({ ok: false, reason, msg: IMPORT_MSG[reason] });
+  if (!isPlainObject(raw)) return no("shape");
+  if (Object.hasOwn(raw, "bytes")) return no("ria");
+  if (!Object.hasOwn(raw, "yeopjeon")) return Object.hasOwn(raw, "completed_lessons") || Object.hasOwn(raw, "xp") ? no("ria") : no("shape");
+  if (typeof raw.yeopjeon !== "number" || !Number.isFinite(raw.yeopjeon)) return no("shape");
+  if (!Number.isInteger(raw.saveVer) || raw.saveVer < 1) return no("shape");
+  if (raw.saveVer > SAVE_VER) return no("newer");
+  if (Object.hasOwn(raw, "completed_lessons")) {
+    const ids = raw.completed_lessons;
+    const okId = (id) => {
+      const m = typeof id === "string" && LESSON_ID.exec(id);
+      return !!m && Number(m[1]) <= IMPORT_MAX_CHAPTER;
+    };
+    if (!Array.isArray(ids) || !ids.every(okId)) return no("lessons");
+  }
+  return { ok: true };
+}
+
 // 환불 안내(판정 C42): 알릴 금액과 깃발을 내린(0) 새 저장. 알릴 것이 없으면 같은 저장을 그대로 돌려준다.
 export function takeRefundNotice(save) {
   const yeopjeon = save && Number.isInteger(save.pending_refund) && save.pending_refund > 0 ? save.pending_refund : 0;

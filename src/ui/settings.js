@@ -4,7 +4,7 @@ import { esc, toast, dialog, celebrate, icon } from "./dom.js";
 import { collectOfflineStatus } from "../offline.js";
 import { curriculum, chapterWindow } from "../curriculum.js";
 import { applyGoalChange } from "../finish.js";
-import { newSave } from "../save.js";
+import { checkImport } from "../save.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
 import { localDate } from "../today.js";
 
@@ -182,9 +182,10 @@ export function render(root, ctx) {
     if (!f) return;
     let raw;
     try { raw = JSON.parse(await f.text()); } catch { toast("저장 파일을 읽지 못했어요. 내보내기로 만든 .json 파일인지 확인해 주세요.", "warn"); return; }
-    const known = Object.keys(newSave());
-    if (!raw || typeof raw !== "object" || Array.isArray(raw) || !Object.keys(raw).some((k) => known.includes(k))) {
-      toast("두억이와 SQL! 저장 파일이 아니에요. 설정의 「저장 내보내기」로 만든 파일을 골라 주세요.", "warn");
+    // 리아와 파이썬! 저장은 칸 이름이 거의 같아 두억이 표시(yeopjeon·saveVer)와 레슨 id까지 본다(save.js checkImport)
+    const chk = checkImport(raw);
+    if (!chk.ok) {
+      toast(chk.msg, "warn");
       return;
     }
     const next = ctx.migrate(raw);
