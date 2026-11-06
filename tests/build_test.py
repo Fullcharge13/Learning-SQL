@@ -855,16 +855,22 @@ def test_split_advanced():
         assert [l["id"] for l in got["ADVANCED"]] == ["%d-A1" % n, "%d-A2" % n, "%d-A3" % n], got.get("ADVANCED")
         assert all(l["isAdvanced"] is True for l in got["ADVANCED"])
         assert got == src["ch%d.js" % n], "chapter %d file differs from source" % n
+    # 3장부터는 실제 장 파일 그대로다(심화가 이미 들어간 장도 있음). 심화가 없는 장은 ADVANCED·advanced 칸이 없어야 한다.
+    idx = {c["id"]: c for c in _lesson_index(html)}
+    plain = [n for n in table if n > 2 and "ADVANCED" not in src["ch%d.js" % n]]
+    assert plain, "시험에 쓸 심화 없는 장이 하나는 있어야 함"
     for n in table:
         if n > 2:
-            assert "ADVANCED" not in json.loads(_read(os.path.join(ADV_OUT, table[n]))), n
-    idx = {c["id"]: c for c in _lesson_index(html)}
+            got = json.loads(_read(os.path.join(ADV_OUT, table[n])))
+            assert got == src["ch%d.js" % n], "chapter %d file differs from source" % n
+    for n in plain:
+        assert "ADVANCED" not in json.loads(_read(os.path.join(ADV_OUT, table[n]))), n
+        assert "advanced" not in idx[n], n
     stubs = idx[1]["advanced"]
     assert [x["id"] for x in stubs] == ["1-A1", "1-A2", "1-A3"], stubs
     assert set(stubs[0]) == {"id", "chapter", "title", "goal", "concepts", "isAdvanced"}, stubs[0]
     assert stubs[0]["isAdvanced"] is True and stubs[0]["chapter"] == 1 and stubs[0]["concepts"] == ["select"]
     assert [l["id"] for l in idx[1]["lessons"]] == ["1-%d" % k for k in range(1, 6)], "main lessons unchanged"
-    assert "advanced" not in idx[3]
     assert "심화 시험 문제 1-A2" not in html, "advanced lesson text leaked into index.html"
 
 
