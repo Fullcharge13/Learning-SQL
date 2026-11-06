@@ -783,7 +783,7 @@ export const ADVANCED = [
         id: "1-A1-b1", type: "build", concept: "adv_select_value",
         q: "물건 가짓수 40을 표 없이 그대로 보여 줘",
         cards: ["SELECT", "40"],
-        extra: ["FROM", "items", "*"],
+        extra: ["FROM", "items", "7"],
         tables: ["items"],
         hints: [
           "표를 펼치는 게 아니라 값 하나만 보여 달라는 부탁이에요. FROM이 필요할까요?",

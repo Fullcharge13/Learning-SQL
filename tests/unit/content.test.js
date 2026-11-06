@@ -427,6 +427,22 @@ test("advanced words do not leak: -- (1장 심화) and NULLIF (6장 심화)", ()
   assert.ok(issuesAt(adv6, 5, "adv-nullif-q").some(nf), "5장 심화는 6장 심화 낱말을 쓰지 않음");
 });
 
+test("advanced words in code-looking text options are checked too (-- and %)", () => {
+  const cmt = (i) => i.rule === "grammar" && /--/.test(i.msg);
+  const pct = (i) => i.rule === "grammar" && /%/.test(i.msg);
+  const opt = (a) => ({ options: a, answer: 0, q: "FROM 없는 SELECT는 어느 것일까요?" });
+  // 본 과정의 글자 보기가 SQL 모양이면(한글 없음) 심화 전용 주석·% 가 잡힌다
+  const main = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-opt-cmt", undefined, opt(["SELECT 1 -- x", "SELECT 2", "SELECT 3"]))); delete m.LESSONS[0].items[0].code; });
+  assert.ok(issuesAt(main, 3, "adv-opt-cmt").some(cmt), show(issuesAt(main, 3, "adv-opt-cmt")));
+  const mainPct = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-opt-pct", undefined, opt(["SELECT 7 % 2", "SELECT 7", "SELECT 2"]))); delete m.LESSONS[0].items[0].code; });
+  assert.ok(issuesAt(mainPct, 3, "adv-opt-pct").some(pct), show(issuesAt(mainPct, 3, "adv-opt-pct")));
+  // 같은 보기가 그 장 심화 레슨에서는 괜찮고, 한국어 문장 속 「50%」·「--」 설명은 걸리지 않는다
+  const adv = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-opt-cmt", undefined, opt(["SELECT 1 -- x", "SELECT 2", "SELECT 3"]))); delete m.ADVANCED[0].items[0].code; });
+  assert.deepEqual(issuesAt(adv, 1, "adv-opt-cmt").filter(cmt), []);
+  const prose = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-opt-prose", undefined, opt(["50% 할인", "-- 는 메모", "3곳"]))); delete m.LESSONS[0].items[0].code; });
+  assert.deepEqual(issuesAt(prose, 3, "adv-opt-prose").filter((i) => cmt(i) || pct(i)), []);
+});
+
 test("advanced concept in main: advanced concepts only in advanced lessons (and not from a later chapter)", () => {
   const sh = (i) => i.rule === "shape" && /adv_c1/.test(i.msg);
   const main = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-concept-q", "SELECT 1 AS r", { concept: "adv_c1" })); });

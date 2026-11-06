@@ -347,7 +347,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
 
   // ---- 낱말 검사(grammar·readonly) : SQL이 들어가는 모든 칸에 쓴다 ----
   // prose: 글자 보기(SQL 조각일 수도, 한국어 설명일 수도 있음) → 낱말만 보고 따옴표·함수 검사는 하지 않음
-  function words(where, text, { prose = false } = {}) {
+  function words(where, text, { prose = false, codey = false } = {}) {
     const { words: ws, strings, quoted, calls, tokens, comments } = sqlWords(text);
     const late = [], never = [], fns = [], adv = [];
     // 심화 전용(ADVANCED_GRAMMAR): 이 장 심화 레슨에서만. 본 과정은 그 낱말이 GRAMMAR의 이 장 이하에도 있을 때만 됨
@@ -363,6 +363,13 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     for (let i = 0; i + 1 < ws.length; i++) if (ws[i] === "REPLACE" && (ws[i + 1] === "INTO" || ws[i + 1] === "OR")) add(where, "readonly", "REPLACE INTO는 데이터를 바꾸는 문장");
     for (const f of new Set(calls)) if (!SQL_WORDS.has(f) && !TABLE_NAMES.has(f.toLowerCase())) fns.push(f);
     // 기호·괄호 모양(FORMS): 계산·비교 기호, ||, 서브쿼리. 글자 보기(prose)는 「3-4행」「100%」처럼 한국어일 수 있어 보지 않는다
+    // 코드 모양 글자 보기(codey: 한글 없음)는 prose여도 심화 전용 모양(%·--)을 본다(「50% 할인」 같은 한국어 문장은 codey가 아님).
+    // SQL 낱말이 하나도 없는 보기(결과 값 「2026-08 (-55.3%)」)는 SQL이 아니라 건너뜀
+    if (prose && codey && ws.some((w) => SQL_WORDS.has(w))) {
+      const up = tokens.map((t) => t.toUpperCase());
+      for (const f of advForms) if (up.includes(f)) advWord(f);
+      if (comments.some((c) => c.kind === "--")) advWord("--");
+    }
     if (!prose) {
       const up = tokens.map((t) => t.toUpperCase());
       const forms = new Set(up.filter((t) => Object.hasOwn(FORMS, t)));
@@ -601,7 +608,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     const sqlOpts = opts.length > 0 && opts.every((o) => o && typeof o === "object" && typeof o.sql === "string");
     const textOpts = opts.length > 0 && opts.every((o) => typeof o === "string");
     if (textOpts) {
-      opts.forEach((o, i) => { if (!o.trim()) add(w, "shape", `보기 ${i + 1}이 비어 있음`); words(`${w} options[${i}]`, o, { prose: true }); });
+      opts.forEach((o, i) => { if (!o.trim()) add(w, "shape", `보기 ${i + 1}이 비어 있음`); words(`${w} options[${i}]`, o, { prose: true, codey: isCodey(o) }); });
       // 코드 모양 보기는 고정폭 글꼴·줄바꿈 그대로라 좁다(OPT_COLS). 길면 SQL 낱말 앞에서 줄을 나눈다
       opts.forEach((o, i) => { if (isCodey(o)) sqlLines(`${w} options[${i}]`, o, OPT_COLS, "코드 보기 "); });
       if (new Set(opts).size !== opts.length) add(w, "shape", "같은 보기가 두 번 있음");

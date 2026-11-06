@@ -283,7 +283,7 @@ export function mountBuild(host, {
         html = compareHTML(got, exp, mySql) + sayLine("error", "어라?", again);
       } else if (v.reason === "need") {
         play("wrong");
-        html = `<div class="err-panel soft"><h3>${icon("cross")}${esc(needLine(v.missingNeed))}</h3>
+        html = `<div class="err-panel soft"><h3>${icon("cross")}${escCode(needLine(v.missingNeed))}</h3>
           <p>같은 결과를 그 카드를 써서 만들어 볼까요?</p></div>` + sayLine("wrong", "", again);
       } else {
         play("wrong");
@@ -310,7 +310,7 @@ export function mountBuild(host, {
     const li = document.createElement("li");
     li.className = "hint";
     li.dataset.level = String(level);
-    li.innerHTML = `<span class="hint-no">힌트 ${level}</span><p>${esc(text)}</p>`;
+    li.innerHTML = `<span class="hint-no">힌트 ${level}</span><p>${escCode(text)}</p>`;
     hintList.appendChild(li);
     $("#hn").textContent = String(Math.min(level, HINT_LEVELS));
   }

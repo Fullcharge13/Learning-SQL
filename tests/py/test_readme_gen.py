@@ -66,6 +66,12 @@ def test_counts_match_data():
     assert all(len(ch["lessons"]) == 5 for ch in chapters)
     assert all(len(ch.get("advanced", [])) in (0, 3) for ch in chapters)
     assert items > len(main) * 10  # 레슨마다 문제 10개 이상
+    # 바닥(floor): 레슨·문제가 조용히 줄면 잡는다(v0.2 마무리: 본 과정 1112 · 심화 224 · 레슨 85 · 심화 18). 늘면 이 숫자를 올린다
+    main_items = sum(len(l["items"]) for l in main)
+    adv_items = sum(len(l["items"]) for l in adv)
+    assert main_items >= 1112, main_items
+    assert adv_items >= 224, adv_items
+    assert len(main) >= 85 and len(adv) >= 18, (len(main), len(adv))
     version = _app_version()
     assert (n["lessons"], n["advanced"], n["items"], n["builds"], n["version"]) == (len(main), len(adv), items, builds, version)
     assert "# 두억이와 SQL! %s\n" % version in text
@@ -124,3 +130,21 @@ def test_readme_images_exist():
     text, _ = _built()
     for src in re.findall(r'<img src="([^"]+)"', text):
         assert os.path.exists(os.path.join(ROOT, src)), src
+
+
+NEXT_VERSION_LINE = "나머지 장의 심화는 다음 판에 넣어요"
+
+
+def test_next_version_sentence_only_when_some_chapter_lacks_advanced():
+    """모든 장에 심화가 생기면 「나머지 장은 다음 판」 문장을 지운다"""
+    d = copy.deepcopy(_data())
+    chapters = d["chapters"]
+    assert any(not ch.get("advanced") for ch in chapters), "지금은 7장부터 심화가 없음"
+    text, _ = readme_gen.build(copy.deepcopy(d))
+    assert NEXT_VERSION_LINE in text
+    donor = next(ch["advanced"] for ch in chapters if ch.get("advanced"))
+    for ch in chapters:
+        if not ch.get("advanced"):
+            ch["advanced"] = copy.deepcopy(donor)
+    text, _ = readme_gen.build(d)
+    assert NEXT_VERSION_LINE not in text and "다음 판" not in text.split("**심화**")[1].split("\n\n")[0]
