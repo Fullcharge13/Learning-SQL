@@ -47,16 +47,33 @@ def test_check_fails_when_readme_differs(tmp_path, monkeypatch):
         raise AssertionError("--check must fail on a stale README")
 
 
+def _app_version():
+    with open(os.path.join(ROOT, "src", "app.js"), encoding="utf-8") as f:
+        return re.search(r'export const VERSION = "([^"]+)"', f.read()).group(1)
+
+
 def test_counts_match_data():
+    """README의 수는 레슨 데이터에서 직접 센 것과 같다(문제·심화를 더해도 숫자를 고칠 필요 없음).
+    고정 숫자는 구조 규칙(17장, 장마다 본 과정 5레슨, 심화는 장마다 0 또는 3)만 본다."""
     d = _data()
     text, n = _built()
-    lessons = sum(len(ch["lessons"]) for ch in d["chapters"])
-    items = sum(len(l["items"]) for ch in d["chapters"] for l in ch["lessons"])
-    assert (len(d["chapters"]), lessons, items) == (17, 85, 1111)
-    assert n["lessons"] == 85 and n["items"] == 1111 and n["version"] == "v0.1.2"
-    assert "# 두억이와 SQL! v0.1" in text
-    assert "17장 · 레슨 85개 · 문제 1111개" in text
-    assert "## 레슨 85개\n" in text
+    chapters = d["chapters"]
+    main = [l for ch in chapters for l in ch["lessons"]]
+    adv = [l for ch in chapters for l in ch.get("advanced", [])]
+    items = sum(len(l["items"]) for l in main + adv)
+    builds = sum(1 for l in main + adv for i in l["items"] if i["type"] == "build")
+    assert len(chapters) == 17 and len(main) == 85
+    assert all(len(ch["lessons"]) == 5 for ch in chapters)
+    assert all(len(ch.get("advanced", [])) in (0, 3) for ch in chapters)
+    assert items > len(main) * 10  # 레슨마다 문제 10개 이상
+    version = _app_version()
+    assert (n["lessons"], n["advanced"], n["items"], n["builds"], n["version"]) == (len(main), len(adv), items, builds, version)
+    assert "# 두억이와 SQL! %s\n" % version in text
+    adv_part = "심화 레슨 %d개 · " % len(adv) if adv else ""
+    assert "17장 · 레슨 %d개 · %s문제 %d개(그중 카드 조립 %d개)" % (len(main), adv_part, items, builds) in text
+    assert ("## 레슨 %d개" % len(main) + (" + 심화 %d개" % len(adv) if adv else "") + "\n") in text
+    for l in adv:
+        assert re.search(r"^\| %s \| " % re.escape(l["id"]), text, re.M), l["id"]
     assert "배지 %d개" % len(d["BADGES"]) in text and "두억이 의상 %d벌" % len(d["OUTFITS"]) in text
     # 장마다 표 하나, 레슨마다 줄 하나
     for ch in d["chapters"]:
