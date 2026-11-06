@@ -477,3 +477,18 @@ test("comment card in a chapter-1 advanced build: one card, needs `need`, and th
   const noNeed = advMod((m) => { const l = m.ADVANCED[0]; const k = l.items.findIndex((it) => it.type === "build"); const { need, ...rest } = b; l.items[k] = rest; });
   assert.ok(issuesAt(noNeed, 1, "adv-cmt-build").some((i) => i.rule === "drop-one"));
 });
+
+// 판정 R51: 1~5장 심화 조립은 R38 구절 카드(1~3토큰, 30칸 이하)를 쓸 수 있다. 본 과정은 5장까지 카드 하나에 낱말 하나 그대로
+test("R51: chapter 1-5 advanced builds may use 1-3 token phrase cards; main lessons may not", () => {
+  const b = { type: "build", id: "adv-phrase-build", concept: "select", q: "물건 이름과 값을 2로 나눈 나머지를 보여 줘",
+    cards: ["SELECT", "name", ",", "price % 2", "FROM", "items"], extra: ["price / 2", "stock % 2"], tables: ["items"],
+    hints: ["이름 옆에 나머지 열을 하나 더 만들어요.", "% 카드가 든 구절 카드를 놓아요."], explain: "price % 2는 값을 2로 나눈 나머지예요." };
+  const put = (list) => (m) => { const l = m[list][0]; const k = l.items.findIndex((it) => it.type === "build"); l.items[k] = structuredClone(b); };
+  const adv = issuesAt(advMod(put("ADVANCED")), 2, "adv-phrase-build");
+  assert.deepEqual(adv, [], show(adv));
+  const main = issuesAt(advMod(put("LESSONS")), 2, "adv-phrase-build").filter((i) => i.rule === "bank-size");
+  assert.ok(main.some((i) => /카드 하나에 낱말 하나/.test(i.msg) && /price % 2/.test(i.msg)), show(main));
+  // 심화도 3토큰을 넘는 카드는 bank-size
+  const long = advMod((m) => { put("ADVANCED")(m); const l = m.ADVANCED[0]; l.items.find((it) => it.id === "adv-phrase-build").extra = ["price % 2 + 1", "stock % 2"]; });
+  assert.ok(issuesAt(long, 2, "adv-phrase-build").some((i) => i.rule === "bank-size" && /price % 2 \+ 1/.test(i.msg)));
+});

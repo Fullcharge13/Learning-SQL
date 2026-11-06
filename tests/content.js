@@ -36,6 +36,7 @@ export const RULES = [
   "drop-one",      // build 정답 카드 하나를 뺀 모든 경우가 judgeBuild에서 오답
   "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾼 모든 경우가 오답(끼워 넣기는 앱이 R48로 막음)
   "bank-size",     // cards + extra ≤ 12, extra 2~4장, 헷갈림 카드가 정답 카드·서로와 글자가 겹치지 않음, 1~5장은 카드 하나에 낱말 하나
+                   // (1~5장 심화는 1~3토큰 구절 카드까지, 판정 R51)
   "table-truth",   // 설명 카드·객관식 SQL이 돌고, 결과 표 보기끼리 화면에서 다르고, 문제 SQL의 실제 결과가 정답 보기와만 맞음
   "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안(심화 레슨은 + ADVANCED_GRAMMAR[장]). 심화 전용 낱말(주석 --, %, NULLIF …)은
                    // 본 과정·틀에서 금지. 가르치지 않는 낱말·함수, 블록 주석, 큰따옴표 글자 값, == , 'now' 금지
@@ -63,6 +64,7 @@ const TITLE_MAX = 16, GOAL_MAX = 40, SUMMARY_MAX = 32, SAY_MAX = 140, Q_MAX = 80
 const BANK_MAX = 12, EXTRA_MIN = 2, EXTRA_MAX = 4;
 const BUILD_ROWS_MAX = 50;    // 정답 결과가 이보다 길면 비교 표가 잘린다(작업 12 쓰기 규칙)
 const SINGLE_TOKEN_UPTO = 5;  // 1~5장 조립 카드는 낱말 하나가 카드 하나(설계 §4-3)
+export const ADV_PHRASE_TOKENS = 3;   // 판정 R51: 1~5장 심화 조립은 R38 구절 카드(1~3토큰, CARD_COLS 이하)를 쓸 수 있음
 const CARDS_RANGE = [1, 2];   // 설명 카드 수
 const ITEMS_RANGE = [10, 14], EXAM_ITEMS_RANGE = [10, 16];   // 레슨당 문제 「12개 안팎」(설계 §6)
 export const TIMEOUT_MS = 1500;   // 실행 한 번의 제한(앱은 3초, 휴대폰은 이 컴퓨터보다 느림)
@@ -754,7 +756,11 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
       if (c.includes("\n")) add(w, "shape", `카드 ${JSON.stringify(c)}에 줄바꿈`);
       // 주석 카드(「-- 설명」, 1장 심화)는 조각 하나로 센다
       const pieces = (({ tokens, comments }) => tokens.length + comments.length)(sqlWords(c));
-      if (chapter <= SINGLE_TOKEN_UPTO && pieces !== 1) add(w, "bank-size", `${SINGLE_TOKEN_UPTO}장까지는 카드 하나에 낱말 하나: ${JSON.stringify(c)}`);
+      if (chapter <= SINGLE_TOKEN_UPTO) {
+        if (!inAdvanced && pieces !== 1) add(w, "bank-size", `${SINGLE_TOKEN_UPTO}장까지는 카드 하나에 낱말 하나: ${JSON.stringify(c)}`);
+        // 판정 R51: 심화는 구절 카드 1~3토큰까지(폭 30칸은 위에서 봄)
+        if (inAdvanced && (pieces < 1 || pieces > ADV_PHRASE_TOKENS)) add(w, "bank-size", `${SINGLE_TOKEN_UPTO}장까지 심화 카드는 1~${ADV_PHRASE_TOKENS}토큰 구절(판정 R51): ${JSON.stringify(c)}`);
+      }
     }
     // 화면의 카드 더미(문제 id가 씨앗)에서 정답 카드가 정답 순서 그대로 놓이면 보기만 해도 풀림
     if (typeof it.id === "string" && it.id && cards.length >= 3) {
