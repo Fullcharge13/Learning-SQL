@@ -4,6 +4,7 @@
       python3 tests/flow.py --only build    이름이 test_build 이거나 test_build_로 시작하는 시험만(여러 번 줄 수 있음)
       python3 tests/flow.py test_first_lesson   정확한 이름
       python3 tests/flow.py --lesson 1-3    실제 레슨(data/lessons) 하나를 아이폰 17 화면으로 끝까지 풀며 화면마다 캡처
+      python3 tests/flow.py --lesson 1-A1   심화 레슨(v0.2): 1장 평가까지 끝낸 저장으로 학습 길의 별을 눌러 엶
                                             (tests/out/flow/walk-1-3-*.png). 넘침·화면 밖 단추·콘솔 오류가 있으면 실패
 
 - 배포와 같은 빌드를 시험용으로 만든다: python3 build.py --out tests/out/flow/dist --lessons-dir tests/out/flow/lessons-fixture
@@ -1890,8 +1891,26 @@ def test_lesson_no_engine():
 LOADING_TEXT = "표를 불러오는 중"
 
 
+LESSON_ID_RE = re.compile(r"[1-9]\d*-A?[1-9]\d*")
+
+
+def lesson_id_ok(lid):
+    """본 과정 N-k 또는 심화 N-Ak(v0.2)"""
+    return bool(LESSON_ID_RE.fullmatch(lid or ""))
+
+
+def _is_adv(lid):
+    return "-A" in lid
+
+
 def _seed_before(lid):
-    """lid 바로 앞까지 끝낸 저장(그 레슨이 「이어서 하기」가 됨). 레슨 id는 N-1 … N-5"""
+    """lid 바로 앞까지 끝낸 저장(그 레슨이 「이어서 하기」가 됨). 레슨 id는 N-1 … N-5.
+    심화 N-Ak는 장 평가 뒤에 열리므로 1~N장 본 과정을 모두 끝내고 지금 레슨은 (N+1)-1(심화는 하나도 안 함)."""
+    if _is_adv(lid):
+        n = int(lid.split("-")[0])
+        done = ["%d-%d" % (c, j) for c in range(1, n + 1) for j in range(1, 6)]
+        return {"saveVer": 1, "completed_lessons": done, "current_lesson": "%d-1" % (n + 1), "current_chapter": n + 1,
+                "grading_results": {x: {"perfect": True, "attempts": 1} for x in done}}
     n, k = (int(x) for x in lid.split("-"))
     done = ["%d-%d" % (c, j) for c in range(1, n) for j in range(1, 6)] + ["%d-%d" % (n, j) for j in range(1, k)]
     return {"saveVer": 1, "completed_lessons": done, "current_lesson": lid, "current_chapter": n,
@@ -1908,8 +1927,17 @@ def walk_lesson(lid, device="iPhone 17", probe=None):
             os.remove(os.path.join(OUT, f))
     with App(device, save=_seed_before(lid), url=real_url()) as a:
         a.start()
-        assert lid in a.page.inner_text("#continue"), a.page.inner_text("#continue")
-        a.page.click("#continue")
+        if _is_adv(lid):
+            # 심화는 「이어서 하기」가 아니라 학습 길의 별(.star-node)로 연다 — 장 평가를 끝냈으니 열려 있어야 함
+            star = ".star-node[data-lesson='%s']" % lid
+            cls = a.page.get_attribute(star, "class") or ""
+            assert "open" in cls, "advanced star %s not open: %r" % (lid, cls)
+            a.js("(s) => document.querySelector(s).scrollIntoView({ block: 'center' })", star)
+            a.page.wait_for_timeout(200)
+            a.page.click(star)
+        else:
+            assert lid in a.page.inner_text("#continue"), a.page.inner_text("#continue")
+            a.page.click("#continue")
         a.page.wait_for_selector(".screen.lesson")
         items = a.lesson(lid)["items"]
         n = 0
@@ -2337,8 +2365,8 @@ def _lesson_arg(argv):
 def main():
     if "--lesson" in sys.argv[1:] or any(x.startswith("--lesson=") for x in sys.argv[1:]):
         lid = _lesson_arg(sys.argv[1:])
-        if not re.fullmatch(r"[1-9]\d*-[1-9]\d*", lid):
-            raise SystemExit("flow.py: --lesson needs a lesson id like 1-3")
+        if not lesson_id_ok(lid):
+            raise SystemExit("flow.py: --lesson needs a lesson id like 1-3 or 1-A1")
         t0 = time.time()
         shots, fails = walk_lesson(lid)
         print("walk %s: %d screens (%.0fs) -> %s" % (lid, len(shots), time.time() - t0, OUT))
