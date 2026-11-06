@@ -43,7 +43,7 @@
 - test_import_ria_save(작업 16): 다른 앱(리아) 저장 가져오기는 안내만, 두억이 저장은 확인 창
 - test_shot_pin_allowlist(작업 16): 전체 캡처는 .lesson-foot·.tabbar만 옮기고, 결과 창이 열리면 안 옮기며, 실패해도 되돌림
 - test_foot_clear_safe_area(작업 16): --sab 34px + 힌트 모두 펼침 → 조립 화면 내용이 단추 줄 위에 다 보임
-- SKIP(까닭 출력): test_advanced_branch(심화 내용 필요)
+- (심화 가지는 실제 1-A1~3으로 시험)
 """
 
 import atexit
@@ -1030,37 +1030,14 @@ def test_resume_decline():
 
 # ---------------------------------------------------------------- 심화 (v0.7 작업 1)
 
-_adv_env = {}
-
-
-def adv_url():
-    """시험 심화를 1·2장에 끼운 빌드를 따로 띄운다(실제 심화 내용이 없어도 엔진·화면을 시험)."""
-    if _adv_env:
-        return _adv_env["url"]
-    env()
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from fixtures.advanced_dir import make
-    lessons = make(os.path.join(ROOT, "data", "lessons"), os.path.join(OUT, "lessons-adv"), chapters=(1, 2), strip_advanced=(17,))
-    dist = os.path.join(OUT, "dist-adv")
-    r = subprocess.run([sys.executable, os.path.join(ROOT, "build.py"), "--out", dist, "--lessons-dir", lessons],
-                       cwd=ROOT, capture_output=True, text=True)
-    assert r.returncode == 0, "build.py (advanced fixture) failed:\n" + r.stdout + r.stderr
-    httpd = _Server(("127.0.0.1", 0), functools.partial(_Handler, directory=dist))
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    atexit.register(httpd.shutdown)
-    _adv_env["url"] = "http://127.0.0.1:%d/" % httpd.server_address[1]
-    return _adv_env["url"]
-
-
 def _adv_classes(a, chapter):
     return a.js("(n) => [1, 2, 3].map((k) => document.querySelector(`.star-node[data-lesson='${n}-A${k}']`)?.className || null)", chapter)
 
 
 def test_advanced_branch():
-    raise SkipTest('D7: v0.1에는 심화 레슨 내용이 없음(심화 엔진만 넣음) — 심화 내용이 생기면 tests/fixtures/advanced_dir.py로 다시 켬')
-    url = adv_url()
+    url = real_url()
     ch1 = ["1-%d" % k for k in range(1, 6)]
-    seed = {"saveVer": 2, "xp": 120, "yeopjeon": 0, "completed_lessons": ch1, "current_lesson": "2-1", "current_chapter": 2,
+    seed = {"saveVer": 1, "xp": 120, "yeopjeon": 0, "completed_lessons": ch1, "current_lesson": "2-1", "current_chapter": 2,
             "grading_results": {k: {"perfect": True, "attempts": 1} for k in ch1}, "outfits": ["basic"], "outfit": "basic"}
     with App("iPhone 17", save=seed, url=url) as a:
         a.start()
@@ -1249,6 +1226,50 @@ def test_new_content_dot():
         assert _dots(a) == [], _dots(a)
         assert not a.errors, a.errors
 
+
+
+def _updated_lessons_in_data():
+    """data/lessons/ch*.js 에서 `updated: "v0.2"` 가 달린 레슨 id 목록(본 과정·심화 모두)"""
+    ids = []
+    d = os.path.join(ROOT, "data", "lessons")
+    for f in sorted(os.listdir(d)):
+        if not re.fullmatch(r"ch\d+\.js", f):
+            continue
+        with open(os.path.join(d, f), encoding="utf-8") as fh:
+            for m in re.finditer(r'id:\s*"(\d+-A?\d+)"[^\n]*?updated:\s*"v0\.2"', fh.read()):
+                ids.append(m.group(1))
+    return ids
+
+
+def test_old_save_sees_new_content_dot():
+    """v0.1.x 모양 저장(1장 본 과정을 모두 끝냄, 심화 0개, seen_updates 없음)으로 열어도 오류 0,
+    「새 내용」 점은 updated: "v0.2" 인 레슨에만(홈·설정), 심화 별에는 없음"""
+    want = _updated_lessons_in_data()
+    assert want, "data/lessons 에 updated: v0.2 레슨이 하나도 없음"
+    done = ["1-%d" % k for k in range(1, 6)]
+    seed = {"saveVer": 1, "xp": 120, "yeopjeon": 30, "completed_lessons": done, "current_lesson": "2-1", "current_chapter": 2,
+            "grading_results": {k: {"perfect": True, "attempts": 1} for k in done}}
+    with App("iPhone 17", save=seed, url=real_url()) as a:
+        a.start()
+        got = _dots(a)
+        print("    updated v0.2 lessons in data: %s, dots on home: %s" % (want, got))
+        assert sorted(got) == sorted(want), (got, want)
+        assert "새 내용 있음" in a.page.get_attribute('.node[data-lesson="1-4"]', "aria-label")
+        assert "새 내용" not in (a.page.get_attribute('.node[data-lesson="1-3"]', "aria-label") or "")
+        assert a.js("() => document.querySelectorAll('.star-node .new-dot').length") == 0, "advanced stars must have no dot"
+        assert all("open" in c for c in _adv_classes(a, 1)), _adv_classes(a, 1)
+        assert "2-1" in a.page.inner_text("#continue")
+        a.page.click('[data-go="settings"]')
+        a.page.wait_for_selector(".screen.settings")
+        a.page.click('.ch-row[aria-controls="ch-1"]')
+        a.page.wait_for_selector("#ch-1:not([hidden])")
+        rows = a.page.eval_on_selector_all("#ch-1 .ls:not(.adv)", "es => es.map(e => !!e.querySelector('.new-dot'))")
+        assert rows[:5] == [False, False, False, True, False], rows
+        assert a.page.eval_on_selector_all("#ch-1 .ls.adv .new-dot", "es => es.length") == 0
+        assert "심화 0/3" in a.page.inner_text('.ch-row[aria-controls="ch-1"]')
+        s = a.save()
+        assert s["saveVer"] == 1 and s["completed_lessons"] == done, s
+        assert not a.errors, a.errors
 
 
 # ---------------------------------------------------------------- 매일 도전 (리아 v0.9 작업 2 → 두억이 작업 11)
