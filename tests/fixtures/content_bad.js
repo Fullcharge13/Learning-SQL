@@ -240,8 +240,8 @@ const plantA = (rule, lid, where) => ADV_BAD.push([rule, lid, where]);
 
 // answer-runs: 정답이 오류(없는 표 shop) / drop-one: ASC를 빼도 같은 결과
 A(1).items.splice(8, 0,
-  build("bad-adv-error", ["SELECT", "name", "FROM", "shop"], ["owner", "DESC"], { concept: "adv_sort_mix", tables: ["shops"] }),
-  build("bad-adv-drop", ["SELECT", "name", "FROM", "items", "ORDER", "BY", "price", "DESC", ",", "item_id", "ASC"], ["owner"], { concept: "adv_sort_mix" }));
+  build("bad-adv-error", ["SELECT", "name", "FROM", "shop"], ["owner", "DESC"], { concept: "adv_sort_expr", tables: ["shops"] }),
+  build("bad-adv-drop", ["SELECT", "name", "FROM", "items", "ORDER", "BY", "price", "DESC", ",", "item_id", "ASC"], ["owner"], { concept: "adv_sort_expr" }));
 plantA("answer-runs", "5-A1", "bad-adv-error");
 plantA("drop-one", "5-A1", "bad-adv-drop");
 // bank-size(남는 카드): 위 bad-adv-drop은 헷갈림 카드가 1장뿐

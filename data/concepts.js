@@ -79,7 +79,7 @@ export const CONCEPTS = [
   { id: "analysis", name: "종합 분석", chapter: 17 },
   // ---- 심화 (v0.2, 설계 「심화 1~6장」 §2·§3) ----
   // 1장 심화
-  { id: "adv_select_expr", name: "FROM 없는 SELECT 식", chapter: 1, advanced: true },
+  { id: "adv_select_value", name: "FROM 없이 값 보기", chapter: 1, advanced: true },
   { id: "adv_comment", name: "주석 달기(--)", chapter: 1, advanced: true },
   { id: "adv_apply_1", name: "다섯 장부 탐험", chapter: 1, advanced: true },
   // 2장 심화
@@ -95,11 +95,11 @@ export const CONCEPTS = [
   { id: "adv_like_mix", name: "LIKE 무늬 섞기", chapter: 4, advanced: true },
   { id: "adv_apply_4", name: "손님 찾기 의뢰", chapter: 4, advanced: true },
   // 5장 심화
-  { id: "adv_sort_mix", name: "정렬 방향 섞기", chapter: 5, advanced: true },
+  { id: "adv_sort_expr", name: "계산값·별칭으로 정렬", chapter: 5, advanced: true },
   { id: "adv_offset_page", name: "OFFSET 쪽 나누기", chapter: 5, advanced: true },
-  { id: "adv_apply_5", name: "N번째로 비싼 물건", chapter: 5, advanced: true },
+  { id: "adv_apply_5", name: "값으로 N번째 찾기", chapter: 5, advanced: true },
   // 6장 심화
-  { id: "adv_coalesce_multi", name: "COALESCE 여러 값", chapter: 6, advanced: true },
+  { id: "adv_coalesce_where", name: "COALESCE 거르기·정렬", chapter: 6, advanced: true },
   { id: "adv_nullif", name: "NULLIF", chapter: 6, advanced: true },
   { id: "adv_apply_6", name: "빈칸 점검", chapter: 6, advanced: true },
 ];

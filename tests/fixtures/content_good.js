@@ -171,14 +171,14 @@ export const TEMPLATES = [
 // 본 과정 레슨과 같은 한도(문제 10~14, 설명 카드 1~2, 5장 build 1개). 쓰는 낱말은 1~5장 + ADVANCED_GRAMMAR[5](없음).
 // 5-A3은 isAdvanced를 일부러 빼 둔다(ADVANCED 안에 있으면 심화 — build.py가 채움).
 CONCEPTS.push(
-  { id: "adv_sort_mix", name: "정렬 방향 섞기", chapter: 5, advanced: true },
+  { id: "adv_sort_expr", name: "계산값·별칭으로 정렬", chapter: 5, advanced: true },
   { id: "adv_offset_page", name: "OFFSET으로 쪽 나누기", chapter: 5, advanced: true },
   { id: "adv_apply_5", name: "줄 세우기 응용", chapter: 5, advanced: true },
 );
 
 const AB = {
   mix: {
-    type: "build", id: "g5a-mix", concept: "adv_sort_mix", q: "가게를 종류는 거꾸로, 같은 종류 안에서는 이름 가나다순으로 보여 줘",
+    type: "build", id: "g5a-mix", concept: "adv_sort_expr", q: "가게를 종류는 거꾸로, 같은 종류 안에서는 이름 가나다순으로 보여 줘",
     cards: ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "category", "DESC", ",", "name"], extra: ["ASC", "owner"],
     tables: ["shops"], hints: ["기준을 두 개 써요. 첫 기준은 거꾸로예요.", "쉼표 카드로 두 기준을 이어요."],
     explain: "ORDER BY category DESC, name은 종류를 거꾸로 세우고, 같은 종류 안에서는 이름순으로 세워요.",
@@ -203,7 +203,7 @@ const AT = {
     explain: "OFFSET 2는 앞의 두 행을 건너뛰어요.",
   },
 };
-const checkMix = check("adv_sort_mix", "ORDER BY category DESC, name은 무엇을 할까요?", ["종류는 거꾸로, 같은 종류 안은 이름순", "이름은 거꾸로, 종류는 차례로", "종류만 거꾸로 세운다"], 0, "기준마다 방향을 따로 정해요.");
+const checkMix = check("adv_sort_expr", "ORDER BY category DESC, name은 무엇을 할까요?", ["종류는 거꾸로, 같은 종류 안은 이름순", "이름은 거꾸로, 종류는 차례로", "종류만 거꾸로 세운다"], 0, "기준마다 방향을 따로 정해요.");
 const checkPage = check("adv_offset_page", "LIMIT 2 OFFSET 4는 무엇을 할까요?", ["앞의 4행을 건너뛰고 2행을 보여 준다", "앞의 2행을 건너뛰고 4행을 보여 준다", "2행부터 4행까지 지운다"], 0, "OFFSET은 건너뛸 행 수예요.");
 const checkApply = check("adv_apply_5", "종류를 겹치지 않게 거꾸로 세우려면?", ["DISTINCT와 ORDER BY … DESC", "LIMIT와 ASC", "DISTINCT만"], 0, "겹침을 없애고 거꾸로 세워요.");
 
