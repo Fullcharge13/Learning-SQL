@@ -753,3 +753,409 @@ export const TEMPLATES = [
     explain: "값은 비싼 것부터, 같은 값끼리는 번호가 작은 것부터예요. item_id에도 DESC를 붙이면 같은 값끼리 차례가 뒤집혀요.",
   },
 ];
+
+// ---- 5장 심화 (v0.2, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-06-심화-1-6장-디딤돌.md §2 5장) ----
+// - 쓸 수 있는 것: 1~5장 낱말뿐(ADVANCED_GRAMMAR[5]는 비어 있음). 앞 장 심화 낱말(--, 나머지 %)은 쓰지 않는다(R53).
+//   조립은 R51 구절 카드, ORDER BY는 한 장, 둘째 기준 쉼표는 앞 카드에 붙인다(쓰기 안내 13-3).
+// - 빈칸 재고가 있는 가게는 1·5·8번(메밀전·한지·장승). stock으로 셈해 세우는 문제는 빈칸이 없는 2·3·4·6·7번 가게만 쓴다
+//   (빈칸 자리는 데이터베이스마다 달라서, 6장 전에는 피함).
+// - 5-A1 계산한 값으로 줄 세우기(price * stock = 재고를 다 팔면 받을 엽전, 「재고 값어치」):
+//   3번 쌍화탕 814 · 감초 276 · 산삼 240 · 오미자청 150 · 인삼차 120 (가장 비싼 산삼이 셋째).
+//   6번 갓 6380 · 담뱃대 1881 · 복주머니 1288 · 노리개 720 · 보따리 256.
+//   2번 작은 것부터 인절미 54 · 송편 91 · 꿀떡 136 · 식혜 240 · 약과 369 (가장 싼 식혜가 넷째).
+//   4번 구기자 1568 · 약초 주머니 1190 · 익모초 480 · 쑥뜸 360 · 도라지 150 (4번은 stock DESC 차례와 같아 stock은 헷갈림으로 안 씀).
+//   7번(조립) 은방망이 11200 · 도깨비방망이 8000 · 방망이 손잡이 7650 · 금방망이 6800 · 작은 방망이 3240.
+//   ORDER BY에 식·SELECT 별칭(그것 하나만)을 쓰는 것은 주요 데이터베이스가 모두 받아 「이 장터에서는」을 붙이지 않는다.
+//   price / 100의 동점(장승 350·도깨비방망이 320 → 3)은 정수 나누기라 「이 장터에서는」(2-4와 같음).
+// - 5-A2 쪽 나누기: n쪽 = LIMIT k OFFSET (n−1)×k. 비싼 것부터 5행씩 2쪽 = 놋그릇 190 … 빨래방망이 130.
+//   싼 것부터 5행씩이면 1쪽 다섯째 도토리묵(3번)·2쪽 첫째 꿀떡(10번)이 둘 다 8엽전 — 경계에 걸친 동점(겹침·빠짐 설명).
+//   싼 것부터 2쪽 = 꿀떡 8 · 메밀전 9 · 약과 9 · 막걸리 10 · 부채 11. 비싼 것부터 4행씩 3쪽 = 방망이 손잡이 … 갓.
+//   6행씩 7쪽(OFFSET 36) = 4행(송편·인절미·한지·식혜), 5행씩 9쪽(OFFSET 40) = 0행. 손님 10명씩 3쪽 = 21~30번.
+// - 5-A3 의뢰: 뚝딱 공방(shops 8번) 주인 나무쇠(앞 심화 의뢰인 오영감·금순·최보부·달래 할멈과 겹치지 않음). 사연은 꾸민 이야기.
+//   값 차례 5·6·7·8·9·10·11·12 …(DISTINCT price 34행). 행으로 세면 5·6·6·7(인절미·한지 6엽전이 두 번).
+//   DISTINCT … LIMIT 1 OFFSET 3 → 8, DISTINCT 없이 → 7(송편). OFFSET 4 → 9, OFFSET 6 → 11(부채), OFFSET 2 → 7.
+//   8엽전 물건 = 도토리묵(3번)·꿀떡(10번), 7엽전 = 송편, 6엽전 = 인절미·한지. 비싼 쪽 위 12가지는 값이 모두 달라 OFFSET 1 → 350.
+//   5-3·5-5가 이미 묻는 「둘째로 싼 자리의 동점(인절미·한지)」 차례는 다시 묻지 않는다.
+export const ADVANCED = [
+  {
+    id: "5-A1", chapter: 5, isAdvanced: true, title: "계산한 값으로 세우기",
+    goal: "ORDER BY 뒤에 계산식·별칭을 써서 줄 세울 수 있다",
+    summary: [
+      "ORDER BY 뒤에 계산식도 와요",
+      "SELECT의 별칭으로도 세워요",
+      "계산한 값의 동점도 둘째 기준으로",
+    ],
+    cards: [
+      {
+        say: "5장에서 ORDER BY 뒤에 열 이름을 썼죠? 오늘은 한 걸음 더, 계산한 값으로 세워요. 값 × 재고는 재고를 다 팔면 받을 엽전, 「재고 값어치」예요. 식을 ORDER BY 뒤에 그대로 쓰면 돼요. 가장 비싼 산삼은 재고가 2개뿐이라 셋째예요.",
+        sql: "SELECT name, price, stock\nFROM items\nWHERE shop_id = 3\nORDER BY price * stock DESC, item_id",
+      },
+      {
+        say: "SELECT에서 식에 별칭을 붙였다면 ORDER BY에서 그 별칭으로 불러도 돼요. 아래는 바람 보따리 물건을 재고 값어치가 큰 것부터 세웠어요. 계산한 값도 같을 수 있으니 둘째 기준 item_id는 그대로 붙여요.",
+        sql: "SELECT name,\n  price * stock AS stock_value\nFROM items\nWHERE shop_id = 6\nORDER BY stock_value DESC, item_id",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "ORDER BY 뒤에 쓸 수 있는 것을 모두 고른 것은?",
+        options: ["열 이름, 계산식, SELECT에서 붙인 별칭", "열 이름만", "SELECT에 적은 열 이름만"],
+        answer: 0,
+        explain: "ORDER BY는 행마다 값을 하나 구해 그 값으로 세워요. 열 그대로든, price * stock 같은 식이든, 식에 붙인 별칭이든 돼요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "여우골 떡방 물건을 재고 값어치가 작은 것부터 세웠어요. 맨 위에 오는 물건은?",
+        code: "SELECT name, price, stock\nFROM items\nWHERE shop_id = 2\nORDER BY price * stock, item_id",
+        options: ["인절미", "식혜", "약과"],
+        answer: 0,
+        explain: "인절미는 6엽전 × 9개 = 54엽전으로 가장 작아요. 식혜는 가장 싸지만(5엽전) 재고가 48개라 240엽전, 넷째예요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "카드 1의 결과 표에는 price * stock 열이 없어요. 그래도 그 값으로 줄 세울 수 있을까요?",
+        options: ["있다. 세우는 값은 결과 표에 없어도 된다", "없다. 결과 표에 있는 열로만 세운다", "없다. 오류가 난다"],
+        answer: 0,
+        explain: "WHERE의 열이 SELECT에 없어도 됐듯, ORDER BY의 식도 결과 표에 없어도 돼요. 값을 보고 싶을 때만 SELECT에 함께 적어요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "ORDER BY price * stock DESC 에서 DESC가 붙는 것은?",
+        options: ["price * stock 계산한 값 전체", "바로 앞의 stock 하나", "맨 앞의 price 하나"],
+        answer: 0,
+        explain: "DESC는 바로 앞 기준에 붙고, 여기서는 식 price * stock 전체가 기준 하나예요. 그래서 곱한 값이 큰 것부터예요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "ORDER BY price * stock DESC 와 차례가 같은 것은?",
+        options: ["ORDER BY stock * price DESC", "ORDER BY price DESC, stock DESC", "ORDER BY price * stock"],
+        answer: 0,
+        explain: "곱하기는 앞뒤를 바꿔도 값이 같아요. price DESC, stock DESC는 값으로 먼저 세우고 같은 값끼리만 재고를 봐서 달라요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "SELECT에서 price * stock AS stock_value 라고 썼어요. 큰 것부터 세우는 ORDER BY로 맞는 것은?",
+        options: [
+          "ORDER BY stock_value DESC와 ORDER BY price * stock DESC 둘 다",
+          "ORDER BY stock_value DESC만",
+          "ORDER BY price * stock DESC만",
+        ],
+        answer: 0,
+        explain: "별칭은 그 식의 이름이라 ORDER BY에서 이름으로 불러도, 식을 다시 적어도 같은 값이에요. 이름으로 부르면 짧고 읽기 쉬워요.",
+      },
+      {
+        type: "blank", concept: "adv_sort_expr",
+        q: "산삼 약방 물건이 재고 값어치가 큰 것부터 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name,\n  price * stock AS stock_value\nFROM items\nWHERE shop_id = 3\nORDER BY ___ DESC, item_id",
+        chips: ["stock_value", "price", "stock"],
+        answer: 0,
+        explain: "별칭 stock_value로 부르면 쌍화탕(814)이 맨 위예요. price면 산삼이 맨 위예요. stock이면 셋째부터 달라져 산삼이 맨 아래로 가요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "ORDER BY price / 100 DESC 로만 세우면 장승(350)과 도깨비방망이(320)의 차례는?",
+        options: ["정해지지 않는다", "장승이 늘 먼저", "도깨비방망이가 늘 먼저"],
+        answer: 0,
+        explain: "이 장터에서는 정수끼리 나누면 소수점 아래를 버려 둘 다 3이에요. 계산한 값도 동점이 될 수 있으니 item_id 같은 둘째 기준을 붙여요.",
+      },
+      {
+        type: "choice", concept: "adv_sort_expr",
+        q: "달빛 약초방(4번) 물건을 재고 값어치가 큰 것부터 보여 준 결과는?",
+        options: [
+          { sql: "SELECT name, price, stock\nFROM items\nWHERE shop_id = 4\nORDER BY price * stock DESC, item_id" },
+          { sql: "SELECT name, price, stock\nFROM items\nWHERE shop_id = 4\nORDER BY price DESC, item_id" },
+          { sql: "SELECT name, price, stock\nFROM items\nWHERE shop_id = 4\nORDER BY price * stock, item_id" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "구기자(28엽전 × 56개 = 1568)가 맨 위인 표가 정답이에요. 값으로만 세우면 약초 주머니가, 작은 것부터면 도라지가 맨 위예요.",
+      },
+      {
+        type: "order", concept: "adv_sort_expr",
+        q: "여우골 떡방 물건을 재고 값어치가 큰 것부터 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price, stock", "FROM items", "WHERE shop_id = 2", "ORDER BY price * stock DESC,", "item_id"],
+        expect: "name | price | stock\n약과 | 9 | 41\n식혜 | 5 | 48\n꿀떡 | 8 | 17\n송편 | 7 | 13\n인절미 | 6 | 9",
+        explain: "식이 들어가도 ORDER BY 자리는 늘 맨 끝이에요. 약과(9 × 41 = 369)가 맨 위, 인절미(54)가 맨 아래예요.",
+      },
+      {
+        id: "5-A1-b1", type: "build", concept: "adv_sort_expr",
+        q: "방망이 대장간(7번) 물건을 재고 값어치가 큰 것부터 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "WHERE", "shop_id = 7", "ORDER BY", "price * stock", "DESC,", "item_id"],
+        extra: ["ASC,", "DESC"],
+        tables: ["items"],
+        hints: [
+          "7번 가게 물건만 고른 다음, 값과 재고를 곱한 값으로 큰 것부터 세워요. 같은 값에 대비해 번호도 붙여요.",
+          "ORDER BY 다음에 price * stock, 쉼표가 붙은 DESC, 그리고 item_id를 놓아요.",
+        ],
+        explain: "은방망이(280 × 40 = 11200)가 맨 위예요! 가장 비싼 금방망이는 재고가 17개라 6800엽전, 넷째예요. 식으로 세우니 값만 볼 때와 차례가 달라졌죠.",
+      },
+      {
+        type: "check", concept: "adv_sort_expr",
+        q: "계산한 값으로 줄 세우기에 대해 맞는 말은?",
+        options: [
+          "ORDER BY 뒤에 식이나 별칭을 쓸 수 있고, 그 값이 결과 표에 없어도 된다",
+          "ORDER BY 뒤에는 열 이름만 올 수 있다",
+          "식으로 세우면 동점이 생기지 않아 둘째 기준이 필요 없다",
+        ],
+        answer: 0,
+        explain: "식이든 별칭이든 행마다 구한 값으로 세워요. 계산한 값도 같을 수 있으니 고유한 둘째 기준은 그대로 붙여요.",
+      },
+    ],
+  },
+  {
+    id: "5-A2", chapter: 5, isAdvanced: true, title: "OFFSET으로 쪽 나누기",
+    goal: "OFFSET을 셈해 n쪽을 보고, 쪽이 겹치지 않게 할 수 있다",
+    summary: [
+      "n쪽 = OFFSET (n−1) × 한 쪽 행 수",
+      "쪽 경계의 동점은 겹치거나 빠져요",
+      "그래서 고유한 둘째 기준까지 세워요",
+    ],
+    cards: [
+      {
+        say: "5장에서 OFFSET으로 위에서 몇 행을 건너뛰었죠? 오늘은 장부를 쪽으로 나눠요. 한 쪽에 5행씩이면 1쪽은 LIMIT 5, 2쪽은 1쪽 5행을 건너뛴 LIMIT 5 OFFSET 5. n쪽은 앞 쪽을 다 건너뛰니 OFFSET이 (n−1) × 5예요.",
+        sql: "SELECT item_id, name, price\nFROM items\nORDER BY price DESC, item_id\nLIMIT 5 OFFSET 5",
+      },
+      {
+        say: "쪽 나누기엔 고유한 둘째 기준이 꼭 필요해요. 싼 것부터 5행씩이면 1쪽 끝 도토리묵과 2쪽 첫 꿀떡이 둘 다 8엽전이에요. 값으로만 세우면 쪽을 열 때마다 둘의 차례가 바뀔 수 있어, 꿀떡이 두 쪽에 다 나오거나 아예 빠질 수 있어요.",
+        sql: "SELECT item_id, name, price\nFROM items\nWHERE price <= 9\nORDER BY price, item_id",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "한 쪽에 k행씩 나눌 때, n쪽을 보는 OFFSET은?",
+        options: ["(n − 1) × k", "n × k", "n − 1"],
+        answer: 0,
+        explain: "n쪽을 보려면 앞의 n − 1쪽을 모두 건너뛰어요. 한 쪽이 k행이니 (n − 1) × k행이에요. n × k는 한 쪽 더 넘어가요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "한 쪽에 5행씩일 때 1쪽의 OFFSET은?",
+        options: ["0이라서 LIMIT 5만 써도 같다", "1", "5"],
+        answer: 0,
+        explain: "1쪽은 건너뛸 쪽이 없어 (1 − 1) × 5 = 0이에요. OFFSET 0은 하나도 안 건너뛰니 LIMIT 5와 같아요. OFFSET 5는 2쪽이에요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "한 쪽에 4행씩 나눈 장부라면, 이 SQL은 몇 쪽일까요?",
+        code: "SELECT name, price\nFROM items\nORDER BY price DESC, item_id\nLIMIT 4 OFFSET 8",
+        options: ["3쪽", "2쪽", "8쪽"],
+        answer: 0,
+        explain: "OFFSET 8은 4행짜리 쪽 두 개를 건너뛴 거예요. 1쪽·2쪽을 지나 3쪽, 방망이 손잡이부터 갓까지예요.",
+      },
+      {
+        type: "blank", concept: "adv_offset_page",
+        q: "한 쪽에 6행씩, 비싼 것부터 볼 때 2쪽이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name, price\nFROM items\nORDER BY price DESC, item_id\nLIMIT 6 OFFSET ___",
+        chips: ["6", "12", "2"],
+        answer: 0,
+        explain: "2쪽은 1쪽 6행을 건너뛰니 OFFSET 6이에요. 작은 방망이부터 갓까지 나와요. 12는 3쪽, 2는 쪽 수를 그대로 넣은 실수예요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "한 쪽에 3행씩인 장부의 2쪽이에요. 이 쪽에 나오는 물건은?",
+        code: "SELECT name\nFROM items\nORDER BY price DESC, item_id\nLIMIT 3 OFFSET 3",
+        options: ["쇠솥", "장승", "작은 방망이"],
+        answer: 0,
+        explain: "1쪽 금방망이·장승·도깨비방망이를 건너뛰고 은방망이·쇠솥·놋그릇이 2쪽이에요. 작은 방망이는 그다음 3쪽이에요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "한 쪽에 6행씩인 장부의 마지막 7쪽이에요. 몇 행일까요?",
+        code: "SELECT name\nFROM items\nORDER BY price DESC, item_id\nLIMIT 6 OFFSET 36",
+        options: ["4행", "6행", "0행"],
+        answer: 0,
+        explain: "물건 40가지 중 앞 6쪽이 36행이라 남은 건 4행이에요. 마지막 쪽은 LIMIT보다 짧을 수 있어요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "물건 40가지를 5행씩 나눌 때 9쪽을 열면 결과는 어떨까요?",
+        code: "SELECT name\nFROM items\nORDER BY price DESC, item_id\nLIMIT 5 OFFSET 40",
+        options: ["행이 하나도 없는 표", "8쪽과 같은 5행", "OFFSET이 너무 커서 오류가 난다"],
+        answer: 0,
+        explain: "40행을 모두 건너뛰면 남는 행이 없어 0행이에요. 오류가 아니라 「쪽이 끝났다」는 신호예요. 5행씩이면 8쪽이 마지막이에요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "물건을 ORDER BY price로만 세워 쪽을 나누면 무엇이 걱정일까요?",
+        options: [
+          "쪽 경계에 걸친 동점 행이 두 쪽에 겹치거나 빠질 수 있다",
+          "OFFSET 때문에 오류가 난다",
+          "마지막 쪽이 늘 비어 있다",
+        ],
+        answer: 0,
+        explain: "쪽마다 SQL을 따로 돌리니, 동점끼리의 차례가 그때마다 다를 수 있어요. item_id처럼 행마다 다른 둘째 기준을 붙이면 쪽이 늘 같아요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "싼 것부터 5행씩, ORDER BY price, item_id로 나누면 꿀떡(10번)은 어디에 나올까요?",
+        options: ["2쪽 맨 위", "1쪽 맨 아래", "1쪽과 2쪽 모두"],
+        answer: 0,
+        explain: "8엽전 동점끼리는 번호 차례라 3번 도토리묵이 1쪽 다섯째, 10번 꿀떡이 2쪽 첫째로 늘 정해져요. 겹치지도 빠지지도 않아요.",
+      },
+      {
+        type: "choice", concept: "adv_offset_page",
+        q: "손님을 번호 차례로 한 쪽에 10명씩 나눌 때, 3쪽을 보여 준 결과는?",
+        options: [
+          { sql: "SELECT customer_id, name\nFROM customers\nORDER BY customer_id\nLIMIT 10 OFFSET 20" },
+          { sql: "SELECT customer_id, name\nFROM customers\nORDER BY customer_id\nLIMIT 10 OFFSET 30" },
+          { sql: "SELECT customer_id, name\nFROM customers\nORDER BY customer_id\nLIMIT 10 OFFSET 3" },
+        ],
+        answer: 0, tables: ["customers"],
+        explain: "21번 솔아부터 30번 백설까지인 표가 정답이에요. OFFSET 30은 4쪽(31번부터), OFFSET 3은 4번부터라 쪽이 어긋나요.",
+      },
+      {
+        type: "order", concept: "adv_offset_page",
+        q: "물건을 싼 것부터 한 쪽에 5행씩 볼 때, 2쪽을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price", "FROM items", "ORDER BY price, item_id", "LIMIT 5 OFFSET 5"],
+        expect: "name | price\n꿀떡 | 8\n메밀전 | 9\n약과 | 9\n막걸리 | 10\n부채 | 11",
+        explain: "고유한 둘째 기준으로 세운 다음 1쪽 5행을 건너뛰었어요. 경계의 꿀떡이 2쪽 맨 위에 딱 한 번 나와요.",
+      },
+      {
+        id: "5-A2-b1", type: "build", concept: "adv_offset_page",
+        q: "물건을 비싼 것부터 한 쪽에 5개씩 볼 때, 2쪽을 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "ORDER BY", "price DESC,", "item_id", "LIMIT 5", "OFFSET 5"],
+        extra: ["OFFSET 10", "LIMIT 10"],
+        tables: ["items"],
+        hints: [
+          "비싼 차례로 세우고 같은 값은 번호로 정한 뒤, 1쪽만큼 건너뛰고 한 쪽만큼 남겨요.",
+          "ORDER BY price DESC, item_id 다음에 LIMIT 5와 OFFSET 5를 놓아요.",
+        ],
+        explain: "놋그릇(190)부터 빨래방망이(130)까지, 2쪽 완성! OFFSET 10이면 3쪽, LIMIT 10이면 한 쪽이 10행이 돼요.",
+      },
+      {
+        type: "check", concept: "adv_offset_page",
+        q: "OFFSET으로 쪽 나누기에 대해 맞는 말은?",
+        options: [
+          "한 쪽이 k행이면 n쪽은 OFFSET (n−1)×k로 보고, 고유한 둘째 기준으로 세운다",
+          "n쪽은 OFFSET n으로 본다",
+          "둘째 기준이 없어도 쪽끼리 겹치는 일은 없다",
+        ],
+        answer: 0,
+        explain: "앞 쪽들을 건너뛰고 한 쪽만큼 남기는 것이 쪽 나누기예요. 동점이 경계에 걸려도 흔들리지 않게 item_id까지 세워요.",
+      },
+    ],
+  },
+  {
+    id: "5-A3", chapter: 5, isAdvanced: true, title: "값으로 N번째 찾기",
+    goal: "N번째 값을 찾고 그 값의 물건을 모두 고를 수 있다",
+    summary: [
+      "행으로 세면 같은 값이 여러 번 세어져요",
+      "값으로 N번째 = DISTINCT + OFFSET N−1",
+      "그 값의 물건은 WHERE로 모두 찾아요",
+    ],
+    cards: [
+      {
+        say: "5장에서 OFFSET으로 N번째 물건을 찾았죠? 오늘은 의뢰예요! 뚝딱 공방 나무쇠 님이 「네 번째로 싼 값이 얼마고, 그 값에 파는 물건이 뭔지 알려 주게」래요. 행으로 세면 아래처럼 넷째가 송편 7엽전인데, 6엽전이 두 번 세어졌어요.",
+        sql: "SELECT name, price\nFROM items\nORDER BY price, item_id\nLIMIT 4",
+      },
+      {
+        say: "값으로 세려면 DISTINCT로 같은 값을 하나로 합친 다음 OFFSET으로 건너뛰어요. 5·6·7을 건너뛰니 네 번째로 싼 값은 8엽전! 둘째 걸음은 그 값을 WHERE 조건에 넣어 8엽전 물건을 모두 찾는 거예요.",
+        sql: "SELECT DISTINCT price\nFROM items\nORDER BY price\nLIMIT 1 OFFSET 3",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "카드 1에서 행으로 센 넷째 송편의 값 7엽전은, 값으로 세면 몇 번째로 싼 값일까요?",
+        options: ["세 번째", "네 번째", "두 번째"],
+        answer: 0,
+        explain: "값은 5·6·6·7인데 6엽전 두 행은 같은 값이라 한 번만 세요. 그래서 7엽전은 5·6 다음 세 번째예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "DISTINCT를 뺀 이 SQL이 보여 주는 값은?",
+        code: "SELECT price\nFROM items\nORDER BY price\nLIMIT 1 OFFSET 3",
+        options: ["7", "8", "6"],
+        answer: 0,
+        explain: "행으로 세어 5·6·6을 건너뛰니 넷째 행 송편의 7엽전이에요. 의뢰가 묻는 네 번째로 싼 「값」은 8엽전이라 달라요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "SELECT 바로 뒤에 DISTINCT를 붙이면 결과가 8엽전으로 바뀌는 까닭은?",
+        options: [
+          "6엽전 두 행이 하나로 합쳐져 값이 5·6·7·8 차례가 되어서",
+          "DISTINCT가 OFFSET을 하나 더 건너뛰게 해서",
+          "DISTINCT가 값을 큰 것부터 세워서",
+        ],
+        answer: 0,
+        explain: "DISTINCT는 같은 값을 한 번만 남겨요. 그 뒤에 줄 세우고 3행을 건너뛰니 넷째 값 8엽전이 나와요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_5",
+        q: "값으로 세어 다섯 번째로 싼 값이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT DISTINCT price\nFROM items\nORDER BY price\nLIMIT 1 OFFSET ___",
+        chips: ["4", "5", "3"],
+        answer: 0,
+        explain: "다섯 번째는 앞 4개 값을 건너뛰어 OFFSET 4, 9엽전이에요. 5를 넣으면 여섯 번째 10엽전, 3이면 네 번째 8엽전이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "네 번째로 싼 값이 8엽전인 걸 알았어요. 그 값에 파는 물건을 모두 보려면?",
+        options: [
+          "WHERE price = 8 로 그 값의 행을 모두 고른다",
+          "ORDER BY price LIMIT 1 OFFSET 3 으로 넷째 행을 본다",
+          "WHERE price = 4 로 고른다",
+        ],
+        answer: 0,
+        explain: "같은 값의 물건이 여럿일 수 있어 LIMIT 1로는 하나만 나와요. 값을 WHERE에 넣으면 그 값의 물건이 빠짐없이 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "의뢰의 둘째 걸음 SQL이에요. 결과는 몇 행일까요?",
+        code: "SELECT item_id, name, price\nFROM items\nWHERE price = 8\nORDER BY item_id",
+        options: ["2행", "1행", "4행"],
+        answer: 0,
+        explain: "8엽전 물건은 도토리묵(3번)과 꿀떡(10번) 2가지예요. 나무쇠 님께 둘 다 알려 드려야 해요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "비싼 쪽에서 값으로 센 두 번째 값이에요. 이 SQL이 보여 주는 값은?",
+        code: "SELECT DISTINCT price\nFROM items\nORDER BY price DESC\nLIMIT 1 OFFSET 1",
+        options: ["350", "400", "320"],
+        answer: 0,
+        explain: "비싼 쪽 위 12가지는 값이 모두 달라, 값으로 세나 행으로 세나 둘째는 장승의 350엽전이에요. 같은 값이 있는 곳에서만 둘이 달라져요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_5",
+        q: "값으로 세어 세 번째로 싼 값의 물건을 모두 보여 준 결과는?",
+        options: [
+          { sql: "SELECT item_id, name, price\nFROM items\nWHERE price = 7\nORDER BY item_id" },
+          { sql: "SELECT item_id, name, price\nFROM items\nWHERE price = 6\nORDER BY item_id" },
+          { sql: "SELECT item_id, name, price\nFROM items\nWHERE price = 8\nORDER BY item_id" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "값 차례는 5·6·7이라 세 번째 값은 7엽전, 송편 한 행이 정답이에요. 6엽전 인절미·한지는 두 번째 값이에요. 행으로 센 셋째 한지의 값이라 헷갈리기 쉬워요.",
+      },
+      {
+        type: "order", concept: "adv_apply_5",
+        q: "값으로 세어 일곱 번째로 싼 값을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT DISTINCT price", "FROM items", "ORDER BY price", "LIMIT 1 OFFSET 6"],
+        expect: "price\n11",
+        explain: "값 5·6·7·8·9·10을 건너뛰어 11엽전(부채)이에요. 행으로 세면 6엽전과 8엽전이 두 번씩 세어져, 일곱째 행은 9엽전 메밀전이에요.",
+      },
+      {
+        id: "5-A3-b1", type: "build", concept: "adv_apply_5",
+        q: "나무쇠 님 의뢰: 물건값 가운데 네 번째로 싼 값을 알려 줘",
+        cards: ["SELECT", "DISTINCT", "price", "FROM", "items", "ORDER BY", "price", "LIMIT 1", "OFFSET 3"],
+        extra: ["OFFSET 4", "name"],
+        tables: ["items"],
+        hints: [
+          "같은 값은 한 번만 세도록 겹침을 없애고, 싼 것부터 세운 뒤 앞의 값 세 개를 건너뛰어요.",
+          "SELECT DISTINCT price로 시작해 ORDER BY price, LIMIT 1, OFFSET 3을 놓아요.",
+        ],
+        explain: "8엽전, 의뢰의 첫째 걸음 완성! DISTINCT가 빠지면 7엽전이 나와요. 이제 WHERE price = 8로 도토리묵·꿀떡을 찾아 드리면 끝이에요.",
+      },
+      {
+        type: "check", concept: "adv_apply_5",
+        q: "값으로 N번째 찾기에 대해 맞는 말은?",
+        options: [
+          "DISTINCT로 같은 값을 합친 뒤 OFFSET N−1로 N번째 값을 찾고, 그 값의 물건은 WHERE로 모두 고른다",
+          "행으로 세는 N번째와 값으로 세는 N번째는 언제나 같다",
+          "N번째 값의 물건은 LIMIT 1로 하나만 보면 충분하다",
+        ],
+        answer: 0,
+        explain: "같은 값이 있으면 행으로 센 N번째와 값으로 센 N번째가 달라요. 값을 찾고, 그 값으로 다시 거르는 두 걸음이 의뢰의 답이에요.",
+      },
+    ],
+  },
+];
