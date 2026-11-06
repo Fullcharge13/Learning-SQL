@@ -3,6 +3,8 @@
 // 1장 낱말은 SELECT·FROM과 * 뿐이다. 열 고르기(2장)·조건(3장)·LIMIT(5장)은 쓰지 않는다.
 // 조립 정답은 50행 이하여야 해서 SELECT * FROM 으로 쓸 수 있는 표는 shops(8행)·items(40행) 둘뿐이다.
 // customers(60)·orders(591)·order_items(1,241)는 설명 카드·객관식·빈자리·순서 문제에서만 통째로 본다.
+// v0.2 보강(디딤돌 조사 docs/specs/2026-11-06-심화-1-6장-디딤돌.md): 1-4 카드 1에서 50행 넘는 표의 「… 외 N행」 읽기를
+// 처음 짚고(손님 60명 = 50 + 10), 주문 591행을 세는 객관식 하나를 더했다. 1-A3 「다섯 장부 탐험」이 기대는 기초다.
 export const CHAPTER = { id: 1, title: "장터 장부 펼치기" };
 
 export const LESSONS = [
@@ -363,16 +365,16 @@ export const LESSONS = [
     ],
   },
   {
-    id: "1-4", chapter: 1, title: "장터의 다섯 장부",
+    id: "1-4", chapter: 1, title: "장터의 다섯 장부", updated: "v0.2",
     goal: "장터의 다섯 표가 무엇을 적는지 안다",
     summary: [
       "shops 가게, items 물건, customers 손님",
       "orders 주문 · order_items 주문 내역",
-      "찾는 것이 어느 표에 있는지 먼저 생각",
+      "50행 넘는 표는 「… 외 N행」까지 세요",
     ],
     cards: [
       {
-        say: "장터 장부는 다섯 권이에요. shops 가게, items 물건, customers 손님, orders 주문, order_items 주문 내역. 손님 장부를 펼쳐 볼까요? 도깨비, 사람, 여우 손님이 다 있어요.",
+        say: "장터 장부는 다섯 권이에요. shops 가게, items 물건, customers 손님, orders 주문, order_items 주문 내역. 손님 장부는 행이 많아 앞 50행만 그리고, 맨 아래 「… 외 10행」으로 남은 행 수를 알려 줘요.",
         sql: "SELECT * FROM customers",
       },
       {
@@ -415,7 +417,15 @@ export const LESSONS = [
         code: "SELECT * FROM customers",
         options: ["60행", "40행", "8행"],
         answer: 0,
-        explain: "장터 손님 장부에는 60명이 적혀 있어요. 손님 한 명이 행 하나예요.",
+        explain: "앞 50행에 「… 외 10행」을 더해 60행이에요. 장터 손님 장부에는 60명, 한 명이 행 하나예요.",
+      },
+      {
+        type: "choice", concept: "rowcol",
+        q: "이 SQL을 돌리면 앞 50행 아래에 「… 외 541행」이 붙어요. 주문 표는 모두 몇 행일까요?",
+        code: "SELECT * FROM orders",
+        options: ["591행", "50행", "541행"],
+        answer: 0,
+        explain: "화면에 그린 50행에 남은 541행을 더해 591행이에요. 50은 그린 행, 541은 그리지 않은 행의 수예요.",
       },
       {
         type: "choice", concept: "rowcol",

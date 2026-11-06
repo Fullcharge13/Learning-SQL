@@ -298,3 +298,55 @@ test("adv_old_save: 심화 진도가 없는 옛 저장도 그대로 열림(saveV
   assert.equal(c.advDone, 0);
   assert.equal(c.done, 5);
 });
+
+// ---- v0.2 작업 2: 심화를 건너뛴 학습자의 진도 (설계 「심화 1~6장」 §1 성공 기준, 계획 Review Focus 1) ----
+// 실제 장 파일 17개 + 1~6장 심화 18개(장 파일에 아직 없으면 시험용 심화를 끼움). 앱의 「다음 레슨」은
+// app.js finish()와 같은 규칙: 본 과정 목록(chapters.flatMap(c => c.lessons))에서 아직 안 끝낸 첫 레슨.
+test("skip advanced keeps progress: 1-1~6-5를 끝내면 지금 레슨 7-1, 완주는 본 과정 85개, 심화를 끝내도 지금 레슨 그대로", async () => {
+  const real = await Promise.all(Array.from({ length: 17 }, (_, i) => import(`../../data/lessons/ch${i + 1}.js`)));
+  const mods = real.map((m, i) => (i < 6 && !(m.ADVANCED || []).length
+    ? { ...m, ADVANCED: [1, 2, 3].map((k) => lesson(`${i + 1}-A${k}`, i + 1, { isAdvanced: true })) }
+    : m));
+  const idx = buildLessonIndex(mods);
+  const main = idx.flatMap((c) => c.lessons.map((l) => l.id));
+  assert.equal(main.length, 85, "본 과정 레슨 85개");
+  assert.ok(main.every((id) => !isAdvancedId(id)), "본 과정 목록에 심화가 섞이지 않음");
+  assert.equal(advancedIds(idx).length, 18, "1~6장 심화 18개");
+  const nextOf = (completed) => {
+    const done = new Set(completed);
+    const l = idx.flatMap((c) => c.lessons).find((x) => !done.has(x.id));
+    return l ? { id: l.id, chapter: l.chapter } : null;
+  };
+  const upTo6 = main.slice(0, main.indexOf("6-5") + 1);
+  assert.equal(upTo6.length, 30);
+
+  // 6-5(장 평가)를 끝낸 순간: 지금 레슨 7-1
+  const before = { ...newSave(), completed_lessons: upTo6.slice(0, -1), current_lesson: "6-5", current_chapter: 6 };
+  const n1 = nextOf(upTo6);
+  assert.deepEqual(n1, { id: "7-1", chapter: 7 });
+  let { save } = finishLesson(before, info({ id: "6-5", chapter: 6, isExam: true }, { nextLessonId: n1.id, nextChapter: n1.chapter, advancedIds: advancedIds(idx) }), at());
+  assert.equal(save.current_lesson, "7-1");
+  assert.equal(save.current_chapter, 7);
+  const c0 = curriculum({ chapters: idx, completed: save.completed_lessons, currentId: save.current_lesson });
+  assert.deepEqual([c0.done, c0.total, c0.advDone, c0.advTotal], [30, 85, 0, 18]);
+  assert.deepEqual(c0.current, { id: "7-1", title: idx[6].lessons[0].title });
+  for (const k of [1, 2, 3, 4, 5, 6]) assert.ok(c0.chapters[k - 1].advanced.every((l) => l.status === "open"), `${k}장 심화는 열림(선택)`);
+
+  // 심화 3개(서로 다른 장)를 끝내도 지금 레슨·본 과정 수는 그대로
+  for (const id of ["1-A1", "4-A2", "6-A3"]) {
+    const n = nextOf([...save.completed_lessons, id]);
+    ({ save } = finishLesson(save, info(lesson(id, Number(id.split("-")[0]), { isAdvanced: true }),
+      { nextLessonId: n.id, nextChapter: n.chapter, advancedIds: advancedIds(idx) }), at()));
+    assert.equal(save.current_lesson, "7-1", `${id} 뒤에도 지금 레슨 7-1`);
+    assert.equal(save.current_chapter, 7);
+  }
+  const c1 = curriculum({ chapters: idx, completed: save.completed_lessons, currentId: save.current_lesson });
+  assert.deepEqual([c1.done, c1.total, c1.advDone], [30, 85, 3]);
+  assert.equal(c1.current.id, "7-1");
+
+  // 과정 완주(C39)는 본 과정 85개 기준: 심화 0개로도 완주, 본 과정 하나 빠지면 심화 18개를 다 해도 아님
+  assert.equal(courseJustFinished({ chapters: idx, completed: main, firstTime: true, lessonId: "17-5" }), true);
+  assert.equal(courseJustFinished({ chapters: idx, completed: [...main.slice(0, -1), ...advancedIds(idx)], firstTime: true, lessonId: "6-A3" }), false);
+  assert.equal(courseJustFinished({ chapters: idx, completed: [...main.slice(0, -1), ...advancedIds(idx)], firstTime: true, lessonId: "16-5" }), false);
+  assert.equal(nextOf(main), null, "본 과정을 다 끝내면 다음 본 과정 레슨 없음(심화는 다음 레슨이 되지 않음)");
+});
