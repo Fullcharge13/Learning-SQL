@@ -332,3 +332,24 @@ test("doneFace eat: 매일 도전으로 엽전을 받으면 고기 먹기(엽전
   assert.equal(milestoneFace(30), "laugh");
   assert.equal(milestoneFace(100), "laugh");
 });
+
+test("generic_pool: 정답·연속 정답·연속 기록 대사는 문제 종류와 결과 표를 가정하지 않음 (v0.1.2)", () => {
+  // 정답 대사는 고르기·빈칸·순서·카드·조립 어디에서나 무작위로 나온다(엽전 대사가 표 이름 문제 뒤에 나온 사고).
+  // 엽전(돈)·결과 표·「고른」(고르기 전용) 같은 말은 일반 풀에 둘 수 없다.
+  const BAD = [/(^|\s)(결과\s*)?표(가|를|는|이|도|만)?(\s|$|[.,!?…])/, /결과/, /고른|골랐/];
+  for (const s of ["correct", "combo", "streak_up", "streak_broken"]) {
+    for (const l of LINES[s]) {
+      for (const re of BAD) assert.ok(!re.test(l.text), `${s}: ${re} → ${l.text}`);
+    }
+  }
+  // 엽전 말은 문제 바로 뒤에 나오는 정답·연속 정답 풀에만 금지(연속 기록 대사는 완료 화면에만 나옴)
+  for (const s of ["correct", "combo"]) {
+    for (const l of LINES[s]) assert.ok(!/엽전/.test(l.text), `${s}: ${l.text}`);
+  }
+});
+
+test("generic_pool: 정답 대사는 자리 표시 없는 줄이 2개 이상 (값이 없을 때도 번갈아 나옴)", () => {
+  for (const s of ["correct", "combo"]) {
+    assert.ok(LINES[s].filter((l) => !/\{\w+\}/.test(l.text)).length >= 2, s);
+  }
+});

@@ -53,7 +53,7 @@ def test_counts_match_data():
     lessons = sum(len(ch["lessons"]) for ch in d["chapters"])
     items = sum(len(l["items"]) for ch in d["chapters"] for l in ch["lessons"])
     assert (len(d["chapters"]), lessons, items) == (17, 85, 1111)
-    assert n["lessons"] == 85 and n["items"] == 1111 and n["version"] == "v0.1.1"
+    assert n["lessons"] == 85 and n["items"] == 1111 and n["version"] == "v0.1.2"
     assert "# 두억이와 SQL! v0.1" in text
     assert "17장 · 레슨 85개 · 문제 1111개" in text
     assert "## 레슨 85개\n" in text

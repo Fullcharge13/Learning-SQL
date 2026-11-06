@@ -543,6 +543,9 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 
 /* ---------- 완료 ---------- */
 .done main { padding-top: calc(var(--sat) + 20px); padding-bottom: calc(110px + var(--sab)); }
+/* v0.1.2: 홈 화면 앱은 상태 표시줄이 투명해서(viewport-fit=cover) 내린 본문이 시계 밑으로 지나갔다.
+   위쪽 안전 여백(--sat)만큼 배경색 띠를 화면에 붙여 덮는다. 안전 여백이 0이면 높이 0이라 보이지 않는다. */
+.done::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background: var(--paper); z-index: 20; }
 .done-hero { text-align: center; margin-bottom: 14px; }
 .done-hero .dueogi-wrap { display: inline-block; }
 .done-hero .sfx { font-size: 1.1rem; right: -20px; top: 6px; }

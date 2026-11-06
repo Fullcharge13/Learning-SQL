@@ -585,6 +585,104 @@ def test_first_lesson():
         assert not a.errors, a.errors
 
 
+# v0.1.2: 완료 화면을 내리면 제목이 상태 표시줄(시계) 밑으로 지나가며 겹침(실제 아이폰 홈 화면 앱). 투명 상태 표시줄 영역(--sat)을
+# 배경색 띠가 덮어야 한다. 시험 브라우저에는 안전 여백이 없으니 --sat를 47px로 직접 둔다.
+DONE_SAT_JS = r"""() => {
+  const SAT = 47, de = document.documentElement;
+  de.style.setProperty('--sat', SAT + 'px');
+  const scr = document.querySelector('.screen.done');
+  const maxY = document.documentElement.scrollHeight - innerHeight;
+  const h1 = scr.querySelector('h1');
+  // 제목 윗변이 띠 아래(>= SAT)로 올라오는 쪽이 아니라, 제목이 띠 안으로 들어가는 자리까지 내린다
+  const h1Doc = h1.getBoundingClientRect().top + scrollY;
+  const y = Math.min(maxY, Math.max(0, h1Doc - 10));
+  scrollTo(0, y);
+  const hits = [], seen = new Set();
+  for (let py = 1; py < SAT; py += 3) for (let px = 4; px < innerWidth; px += 12) {
+    const el = document.elementFromPoint(px, py);
+    if (el && el.closest('main') && el.tagName !== 'MAIN') { hits.push(el.tagName + '@' + px + ',' + py); }
+    if (el) seen.add(el.tagName + '.' + el.className);
+  }
+  const cs = getComputedStyle(scr, '::before');
+  const h1Top = h1.getBoundingClientRect().top;
+  return { sat: getComputedStyle(scr).getPropertyValue('--sat').trim() || getComputedStyle(de).getPropertyValue('--sat').trim(),
+           maxY, y, scrollY, h1Top, hits: hits.length, sample: hits.slice(0, 4), seen: [...seen],
+           strip: { pos: cs.position, top: cs.top, height: cs.height, bg: cs.backgroundColor, content: cs.content } };
+}"""
+
+
+def test_done_not_under_status_bar():
+    """v0.1.2: 완료 화면에서 --sat(위쪽 안전 여백)를 47px로 두고 제목이 그 높이 안으로 올라오게 내려도,
+    위쪽 47px 안 어느 점에서도 본문(main) 요소가 보이지 않는다 = 배경색 띠가 덮고 있다. 띠는 fixed·높이 47px·불투명."""
+    fails = []
+    for dev in ("iPhone 17e", "iPhone 17"):
+        with App(dev) as a:
+            a.start()
+            a.page.click("#continue")
+            a.play("1-1")
+            a.page.wait_for_selector(".screen.done")
+            a.page.wait_for_timeout(400)
+            a.dismiss()
+            p = a.js(DONE_SAT_JS)
+            a.page.wait_for_timeout(150)
+            print("    %s: maxY %s scrollY %s h1Top %.1f, content under top 47px: %d %s, strip %s" % (
+                dev, p["maxY"], p["scrollY"], p["h1Top"], p["hits"], p["sample"], p["strip"]))
+            a.shot("done-sat47-%s.png" % slug(dev))
+            if p["maxY"] < 40:
+                fails.append("%s: done screen does not scroll (maxY %s), the test proves nothing" % (dev, p["maxY"]))
+            if p["h1Top"] >= 47:
+                fails.append("%s: title (top %.1f) never entered the top 47px, scroll more" % (dev, p["h1Top"]))
+            if p["hits"]:
+                fails.append("%s: content visible in the top 47px (%d points, e.g. %s)" % (dev, p["hits"], p["sample"]))
+            st = p["strip"]
+            if st["pos"] != "fixed" or abs(float(st["height"].replace("px", "") or 0) - 47) > 0.5 or st["bg"] in ("rgba(0, 0, 0, 0)", "transparent"):
+                fails.append("%s: no opaque fixed 47px cover strip: %s" % (dev, st))
+            assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
+TAB_SAT_JS = r"""async () => {
+  const SAT = 47;
+  document.documentElement.style.setProperty('--sat', SAT + 'px');
+  scrollTo(0, document.documentElement.scrollHeight);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 100))));
+  // 상태 줄(header.status)은 sticky라 끝까지 내려도 화면 맨 위(0)에 붙어 안전 여백(47px)을 덮는다.
+  // 충돌 검사(elementFromPoint)는 홈에서 backdrop-filter 줄 밑의 목록을 잘못 돌려줘서 쓰지 않고, 줄의 자리·불투명도를 잰다.
+  const h = document.querySelector('header.status'), r = h.getBoundingClientRect(), cs = getComputedStyle(h);
+  const m = cs.backgroundColor.match(/[\d.]+/g).map(Number);
+  return { scrollable: document.documentElement.scrollHeight - innerHeight, scrollY, top: r.top, bottom: r.bottom, pos: cs.position,
+           z: cs.zIndex, alpha: m.length > 3 ? m[3] : 1, pad: parseFloat(cs.paddingTop) };
+}"""
+
+
+def test_tab_screens_not_under_status_bar():
+    """v0.1.2: 홈·배지·의상실·설정은 위쪽에 붙는 상태 줄(header.status)이 안전 여백을 덮는다. --sat 47px로 끝까지 내려도
+    위쪽 47px 안에 상태 줄 밖의 본문이 보이지 않는다."""
+    fails = []
+    with App("iPhone 17e") as a:
+        a.start()
+        a.page.click("#continue")
+        a.play("1-1")
+        a.page.wait_for_selector(".screen.done")
+        a.dismiss()
+        a.page.click("#home")
+        for tab in ("home", "badges", "closet", "settings"):
+            a.page.wait_for_selector(".screen.with-tabs")
+            if tab != "home" or not a.page.query_selector(".screen.home"):
+                a.page.click(".tab[data-go=%s]" % tab)
+                a.page.wait_for_selector(".screen.%s" % tab)
+            a.page.wait_for_timeout(200)
+            p = a.js(TAB_SAT_JS)
+            print("    %s: scrollable %s scrollY %s, status header %.0f..%.0f %s z%s alpha %s pad-top %s" % (
+                tab, p["scrollable"], p["scrollY"], p["top"], p["bottom"], p["pos"], p["z"], p["alpha"], p["pad"]))
+            if p["scrollY"] < 50:
+                fails.append("%s: did not scroll (%s)" % (tab, p["scrollY"]))
+            if p["pos"] != "sticky" or p["top"] > 0.5 or p["bottom"] < 47 or p["pad"] < 47 or p["alpha"] < 0.9:
+                fails.append("%s: status header does not cover the top 47px after scrolling: %s" % (tab, p))
+        assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
 def _to_build(a, lid="1-1"):
     """lid 레슨을 조립 문제까지 진행"""
     items = a.lesson(lid)["items"]
