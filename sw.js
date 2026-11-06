@@ -12,8 +12,8 @@
 // - 게임 저장본 이름에 판 번호와 내용 지문이 들어 있어, 새 판을 올리면 활성화 때 옛 저장본을 지운다.
 //   지우는 것은 dueogi- 로 시작하는 저장본뿐이다(같은 주소의 리아 ria- 저장본은 건드리지 않는다).
 
-const VERSION = "v0.1.1";
-const GAME_CACHE = "dueogi-game-v0.1.1-098c3e6596";
+const VERSION = "v0.2";
+const GAME_CACHE = "dueogi-game-v0.2-74ecba15e6";
 const ENGINE_CACHE = "dueogi-engine-1.15.2";
 const GAME_FILES = ["./", "index.html", "worker.js", "manifest.webmanifest", "licenses.txt", "icons/apple-touch-icon.png", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 const ENGINE_FILES = ["sql-wasm.wasm"];
@@ -33,7 +33,7 @@ async function goodWasm(res) {
     return false;
   }
 }
-const CHAPTER_FILES = ["lessons/ch1-91574105.json", "lessons/ch2-c1f7044c.json", "lessons/ch3-bfc1a00f.json", "lessons/ch4-89282b25.json", "lessons/ch5-d8c9886d.json", "lessons/ch6-20b081fe.json", "lessons/ch7-1e63c313.json", "lessons/ch8-1f688824.json", "lessons/ch9-702c94dd.json", "lessons/ch10-014aadf4.json", "lessons/ch11-b76c29ac.json", "lessons/ch12-53c37ba5.json", "lessons/ch13-7073a039.json", "lessons/ch14-bb727b92.json", "lessons/ch15-cc6fb470.json", "lessons/ch16-b0504a29.json", "lessons/ch17-5a7de6f3.json"];
+const CHAPTER_FILES = ["lessons/ch1-7b58e651.json", "lessons/ch2-8963f452.json", "lessons/ch3-886d5519.json", "lessons/ch4-cb10ffbd.json", "lessons/ch5-4a07baac.json", "lessons/ch6-a3487fa6.json", "lessons/ch7-1e63c313.json", "lessons/ch8-1f688824.json", "lessons/ch9-702c94dd.json", "lessons/ch10-014aadf4.json", "lessons/ch11-b76c29ac.json", "lessons/ch12-53c37ba5.json", "lessons/ch13-7073a039.json", "lessons/ch14-bb727b92.json", "lessons/ch15-cc6fb470.json", "lessons/ch16-b0504a29.json", "lessons/ch17-5a7de6f3.json"];
 const CHAPTER_RE = /\/lessons\/ch[1-9]\d*-[0-9a-f]{8}\.json$/;
 const NETWORK_TIMEOUT_MS = 4000; // 게임 파일: 이보다 느리면 저장본을 먼저 보여 줌
 self.addEventListener("install", (event) => {
