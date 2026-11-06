@@ -12,8 +12,8 @@
 // - 게임 저장본 이름에 판 번호와 내용 지문이 들어 있어, 새 판을 올리면 활성화 때 옛 저장본을 지운다.
 //   지우는 것은 dueogi- 로 시작하는 저장본뿐이다(같은 주소의 리아 ria- 저장본은 건드리지 않는다).
 
-const VERSION = "v0.2";
-const GAME_CACHE = "dueogi-game-v0.2-74ecba15e6";
+const VERSION = "v0.2.1";
+const GAME_CACHE = "dueogi-game-v0.2.1-2f1d3befe5";
 const ENGINE_CACHE = "dueogi-engine-1.15.2";
 const GAME_FILES = ["./", "index.html", "worker.js", "manifest.webmanifest", "licenses.txt", "icons/apple-touch-icon.png", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png"];
 const ENGINE_FILES = ["sql-wasm.wasm"];
