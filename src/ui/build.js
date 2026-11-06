@@ -23,7 +23,9 @@ import { runExpected, settleTimeout } from "../slowdevice.js";
 
 export const HINT_LEVELS = 4;
 export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다
-const SYSTEM_ERRORS = new Set(["load", "worker"]);
+// 학습자 탓이 아닌 실패: 세지 않고 systemLine으로 안내. busy(느린 기기에서 10초도 넘음)는 결과의 error가 아니라
+// settleTimeout의 busy 표시로 먼저 걸러지지만, 같은 묶음이라는 것을 드러내려고 함께 둔다
+export const SYSTEM_ERRORS = new Set(["load", "worker", "busy"]);
 export const ENGINE_WAIT_LINE = "실행기 준비 중이에요";
 export const ENGINE_FAIL_LINE = "실행기를 아직 받지 못했어요. 인터넷이 될 때 「다시 시도」를 눌러 주세요. 다른 문제는 그대로 풀 수 있어요.";
 
@@ -193,7 +195,8 @@ export function mountBuild(host, {
   const waitMoreHTML = () => `<p class="muted">휴대폰이 바빠 보여서 조금 더 기다려 볼게요…</p>`;
   // 시간 초과면 느린 기기인지 보고 한 번 더(src/slowdevice.js). 돌려준 { r, busy }
   const settle = (r, text) => settleTimeout(r, {
-    sql, text, expected, onRetry: () => { if (!st.destroyed) show(waitMoreHTML()); },
+    sql, text, expectedText: cardsToSql(item.cards), expected,
+    onWait: () => { if (!st.destroyed) show(waitMoreHTML()); },
   });
 
   async function doRun() {

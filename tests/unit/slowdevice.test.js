@@ -7,7 +7,7 @@ import { SqlRun, DEFAULT_TIMEOUT_MS } from "../../src/sqlrun.js";
 import {
   SLOW_EXPECTED_MS, SLOW_RETRY_TIMEOUT_MS, isSlowDevice, runExpected, settleTimeout,
 } from "../../src/slowdevice.js";
-import { systemLine } from "../../src/ui/build.js";
+import { systemLine, SYSTEM_ERRORS } from "../../src/ui/build.js";
 import { explain } from "../../src/grade.js";
 
 const OK = (ms = 5) => ({ columns: ["a"], rows: [[1]], error: null, truncated: false, timeout: false, ms });
@@ -47,7 +47,7 @@ test("isSlowDevice: 정답 실행 시간 > 1000ms, 정답 자체가 시간 초�
 test("(a) 빠른 기기 + 시간 초과 → 다시 돌리지 않고 그대로(오답·ON 안내)", async () => {
   const sql = fakeSql({ MINE: TIMEOUT(3000), ANS: OK(8) });
   const first = await sql.run("MINE");
-  const s = await settleTimeout(first, { sql, text: "MINE", expected: () => runExpected(sql, "ANS") });
+  const s = await settleTimeout(first, { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS") });
   assert.equal(s.busy, false);
   assert.equal(s.retried, false);
   assert.equal(s.r.error, "timeout", "시간 초과 결과가 그대로 채점으로 감");
@@ -57,27 +57,30 @@ test("(a) 빠른 기기 + 시간 초과 → 다시 돌리지 않고 그대로(�
 test("(b) 느린 기기 + 다시 돌려 끝남 → 그 결과로 채점", async () => {
   const sql = fakeSql({ MINE: (t) => (t > DEFAULT_TIMEOUT_MS ? OK(4200) : TIMEOUT(3000)), ANS: OK(1500) });
   const first = await sql.run("MINE");
-  const s = await settleTimeout(first, { sql, text: "MINE", expected: () => runExpected(sql, "ANS") });
+  const s = await settleTimeout(first, { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS") });
   assert.equal(s.busy, false);
   assert.equal(s.retried, true);
   assert.equal(s.r.error, null);
   assert.deepEqual(s.r.rows, [[1]]);
+  // 정답이 1초를 넘으면 한 번 더 재 보고(작은 쪽), 그래도 느리면 10초로 다시
   assert.deepEqual(sql.calls, [
-    { sql: "MINE", timeoutMs: 3000 }, { sql: "ANS", timeoutMs: 3000 }, { sql: "MINE", timeoutMs: 10000 },
+    { sql: "MINE", timeoutMs: 3000 }, { sql: "ANS", timeoutMs: 3000 }, { sql: "ANS", timeoutMs: 3000 }, { sql: "MINE", timeoutMs: 10000 },
   ]);
 });
 
 test("(c) 느린 기기 + 다시 돌려도 시간 초과 → 세지 않음(busy), 두억이 「휴대폰이 바빠」 안내", async () => {
   const sql = fakeSql({ MINE: TIMEOUT(3000), ANS: OK(2400) });
   const first = await sql.run("MINE");
-  const s = await settleTimeout(first, { sql, text: "MINE", expected: () => runExpected(sql, "ANS") });
+  const s = await settleTimeout(first, { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS") });
   assert.equal(s.busy, true);
   assert.equal(s.retried, true);
   const line = systemLine("busy", "basic");
   assert.equal(line.text.startsWith(explain("busy", "basic")), true);
   assert.match(line.text, /휴대폰이 좀 바빠서 오래 걸렸어요\. 잠시 뒤 다시 눌러 볼까요\?/);
   assert.match(line.text, /제출 횟수에 들어가지 않아요/);
-  assert.doesNotMatch(line.text, /ON/, "느린 기기에는 ON 안내를 하지 않음");
+  // 고침 3: 바쁨 안내에도 ON을 부드럽게 짚는다(두 말투 모두)
+  assert.match(line.text, /혹시 표를 잇는 조건\(ON\)이 빠지진 않았는지도/);
+  assert.match(explain("busy", "detective"), /ON/);
   const det = systemLine("busy", "detective");
   assert.notEqual(det.text, line.text, "탐정 말투가 따로 있음");
   assert.ok(det.text.startsWith(explain("busy", "detective")));
@@ -95,12 +98,60 @@ test("시간 초과가 아니면 정답을 재지도, 다시 돌리지도 않음
   const sql = fakeSql({ ANS: OK() });
   let asked = 0;
   for (const r of [OK(), { columns: [], rows: [], error: "no such table: x" }, { columns: [], rows: [], error: "worker" }]) {
-    const s = await settleTimeout(r, { sql, text: "MINE", expected: () => { asked++; return runExpected(sql, "ANS"); } });
+    const s = await settleTimeout(r, { sql, text: "MINE", expectedText: "ANS", expected: () => { asked++; return runExpected(sql, "ANS"); } });
     assert.equal(s.r, r);
     assert.equal(s.busy, false);
   }
   assert.equal(asked, 0);
   assert.equal(sql.calls.length, 0);
+});
+
+// ---- 고침 1: 한 번 멈칫한 빠른 기기를 느린 기기로 보지 않음 ----
+test("고침 1: 정답 첫 측정만 멈칫(1500ms)하고 다시 재면 빠름(8ms) → 작은 값으로 빠른 기기, 오답·ON 안내", async () => {
+  let n = 0;
+  const sql = fakeSql({ MINE: TIMEOUT(3000), ANS: () => (n++ === 0 ? OK(1500) : OK(8)) });
+  const first = await sql.run("MINE");
+  const s = await settleTimeout(first, { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS") });
+  assert.equal(s.busy, false);
+  assert.equal(s.retried, false, "10초로 다시 돌리지 않음");
+  assert.equal(s.r.error, "timeout");
+  assert.match(explain(s.r.error, "basic"), /ON/, "지금처럼 ON 안내");
+  assert.deepEqual(sql.calls.map((c) => c.sql + ":" + c.timeoutMs), ["MINE:3000", "ANS:3000", "ANS:3000"], "정답은 딱 한 번 더");
+});
+
+test("고침 1: 다시 잰 정답이 실행기 문제(worker)면 첫 측정을 그대로 씀", async () => {
+  let n = 0;
+  const sql = fakeSql({ MINE: (t) => (t > DEFAULT_TIMEOUT_MS ? OK(4000) : TIMEOUT(3000)),
+    ANS: () => (n++ === 0 ? OK(1500) : { columns: [], rows: [], error: "worker", ms: 1 }) });
+  const s = await settleTimeout(await sql.run("MINE"), { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS") });
+  assert.equal(s.retried, true);
+  assert.equal(s.r.error, null);
+});
+
+// ---- 고침 2: 기다림 안내는 첫 시간 초과 바로 뒤, 정답을 재기 전에 ----
+test("고침 2: onWait는 학습자 첫 시간 초과 직후, 정답 측정보다 먼저 한 번", async () => {
+  const order = [];
+  const sql = fakeSql({ MINE: TIMEOUT(3000), ANS: OK(2000) });
+  const orig = sql.run;
+  sql.run = (q, o) => { order.push("run:" + q + ":" + ((o && o.timeoutMs) || 3000)); return orig(q, o); };
+  await settleTimeout(TIMEOUT(3000), {
+    sql, text: "MINE", expectedText: "ANS",
+    expected: () => { order.push("expected"); return runExpected(sql, "ANS"); },
+    onWait: () => order.push("wait"),
+  });
+  assert.equal(order[0], "wait", order.join(" "));
+  assert.equal(order.filter((x) => x === "wait").length, 1);
+  // 시간 초과가 아니면 부르지 않음
+  let waited = 0;
+  await settleTimeout(OK(), { sql, text: "MINE", expectedText: "ANS", expected: () => runExpected(sql, "ANS"), onWait: () => waited++ });
+  assert.equal(waited, 0);
+});
+
+// ---- 고침 4: busy도 시스템 오류 묶음에 ----
+test("고침 4: SYSTEM_ERRORS에 busy가 들어 있음(세지 않는 실패)", () => {
+  assert.ok(SYSTEM_ERRORS.has("busy"));
+  assert.ok(SYSTEM_ERRORS.has("load") && SYSTEM_ERRORS.has("worker"));
+  assert.ok(!SYSTEM_ERRORS.has("timeout"), "빠른 기기 시간 초과는 학습자 SQL 탓으로 셈");
 });
 
 // ---- (d) SqlRun: 한 번만 쓰는 제한 시간, 실행 시간 ms ----

@@ -1523,6 +1523,8 @@ def test_build_slow_device():
         calls = a.js("() => window.__slow.calls")
         print("    slow-ok: calls %s" % calls)
         assert ["retry", 10000] in calls, calls
+        # 고침 1: 정답이 1초를 넘으면 한 번 더 재고(두 번 다 느려야) 다시 돌림 → learner, 정답, 정답 다시, retry
+        assert [c[0] for c in calls] == ["learner", "other", "other", "retry"], calls
         assert "휴대폰이 좀 바빠서" not in a.page.inner_text("#console")
         assert not a.errors, a.errors
     finally:
@@ -1537,7 +1539,8 @@ def test_build_slow_device():
         run_msg = a.page.inner_text("#console")
         print("    slow-busy run: %r" % run_msg.replace("\n", " / "))
         assert "휴대폰이 좀 바빠서 오래 걸렸어요. 잠시 뒤 다시 눌러 볼까요?" in run_msg, run_msg
-        assert "ON" not in run_msg and "timeout" not in run_msg, run_msg
+        # 고침 3: 바쁨 안내에도 ON을 부드럽게 짚음. 원래 시간 초과 패널(timeout: 3초…)은 보이지 않음
+        assert "혹시 표를 잇는 조건(ON)이 빠지진 않았는지도" in run_msg and "timeout" not in run_msg, run_msg
         a.js("() => { window.__slow.learnerNext = true; }")
         a.build_press("submit")
         a.page.wait_for_selector("#console .err-panel.soft")

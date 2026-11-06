@@ -33,16 +33,28 @@ export async function runExpected(sql, text) {
  * @param r      sql.run(text) 결과
  * @param sql    { run(sql, { timeoutMs }) }
  * @param text   학습자 SQL
+ * @param expectedText 정답 SQL(느려 보일 때 한 번 더 재는 데 씀)
  * @param expected () => Promise<정답 결과>(runExpected, 화면에서는 문제마다 한 번만 실행해 둔 것)
- * @param onRetry 다시 돌리기 직전에 부름(「조금 더 기다려 볼게요」 표시)
+ * @param onWait 학습자 SQL이 처음 시간 초과된 바로 뒤, 정답을 재기 전에 한 번 부름(「조금 더 기다려 볼게요」 표시).
+ *               아주 느린 기기는 3초 + 정답 재기 + 10초로 최악 25초쯤 기다리므로 처음부터 알린다
  * @returns { r, busy, retried } — busy면 r은 쓰지 않고 세지 않는다
+ *
+ * 정답이 1초를 넘게 걸렸으면(가비지 수집·주 스레드 멈칫 한 번일 수 있음) 정답을 딱 한 번 더 재서
+ * 작은 쪽으로 판정한다. 두 번 다 느려야 느린 기기. 다시 잰 것이 실행기 문제(worker·load)면 첫 측정을 쓴다.
+ * 문제마다 한 번 실행해 둔 정답 결과(expected)는 그대로 두고, 시간 초과가 날 때마다 이렇게 다시 확인한다.
  */
-export async function settleTimeout(r, { sql, text, expected, onRetry = null }) {
+export async function settleTimeout(r, { sql, text, expectedText = null, expected, onWait = null }) {
   if (!isTimeout(r)) return { r, busy: false, retried: false };
+  if (onWait) { try { onWait(); } catch (_) { /* 표시는 없어도 됨 */ } }
   let exp = null;
   try { exp = await expected(); } catch (_) { exp = null; }
-  if (!isSlowDevice(exp)) return { r, busy: false, retried: false };
-  if (onRetry) { try { onRetry(); } catch (_) { /* 표시는 없어도 됨 */ } }
+  let slow = isSlowDevice(exp);
+  if (slow && expectedText != null) {
+    const again = await sql.run(expectedText);
+    const engineTrouble = again && again.error && !isTimeout(again);
+    if (!engineTrouble) slow = isSlowDevice(again);   // 두 번 다 느려야(작은 쪽이 1초 넘어야) 느린 기기
+  }
+  if (!slow) return { r, busy: false, retried: false };
   const r2 = await sql.run(text, { timeoutMs: SLOW_RETRY_TIMEOUT_MS });
   if (isTimeout(r2)) return { r: r2, busy: true, retried: true };
   return { r: r2, busy: false, retried: true };
