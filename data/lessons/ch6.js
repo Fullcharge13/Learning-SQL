@@ -850,7 +850,8 @@ export const TEMPLATES = [
 // - 6-A3 의뢰: 산삼 약방(shops 3번) 주인 한약수(앞 심화 의뢰인 오영감·금순·최보부·달래 할멈·나무쇠와 겹치지 않음). 사연은 꾸민 이야기.
 //   값(price)·주인(owner) IS NULL → 0행(점검 통과). stock = 0 → 짚신뿐. stock IS NULL OR stock = 0 → 4행.
 //   stock > 0 → 36행(= 40 − 빈칸 3 − 짚신), 적은 것부터 산삼 2·놋그릇 2·인삼차 4·빨래방망이 4·오미자청 6.
-//   재고 모르는 물건이 있는 가게 1·5·8. 나이 모르는 손님 마을 차례: 안여울·조은솔(느티나무골)·황소담(솔바위골)·표다솜·돌쇠(은행나무마을).
+//   재고 모르는 물건이 있는 가게 1·5·8. stock < 3 OR stock IS NULL 가게 번호 1·3·5·5·8·8 → DISTINCT 1·3·5·8(빈자리 문제, fix round 2:
+//   IS NULL만이면 가게마다 하나씩이라 DISTINCT가 보이는 차이를 못 냈음. WHERE 안 COALESCE는 A3에서 쓰지 않아 OR IS NULL로 씀). 나이 모르는 손님 마을 차례: 안여울·조은솔(느티나무골)·황소담(솔바위골)·표다솜·돌쇠(은행나무마을).
 //   A3는 A1·A2를 했다고 기대하지 않아 NULLIF·WHERE 안 COALESCE를 쓰지 않는다.
 //   6-1~6-4가 이미 묻는 것(0과 빈칸의 뜻, = NULL 0행, IFNULL로 채운 뒤의 걱정, OR IS NULL 빈자리)은 다시 묻지 않는다.
 export const ADVANCED = [
@@ -858,7 +859,7 @@ export const ADVANCED = [
     id: "6-A1", chapter: 6, isAdvanced: true, title: "빈칸 채워 거르고 세우기",
     goal: "채울 값을 골라 WHERE·ORDER BY에서 빈칸을 넣고 뺄 수 있다",
     summary: [
-      "COALESCE는 WHERE·ORDER BY에도 와요",
+      "빈칸을 무엇으로 채울지부터 골라요",
       "채울 값에 따라 빈칸이 걸리고 빠져요",
       "채울 값으로 빈칸이 설 자리를 정해요",
     ],
@@ -1194,11 +1195,11 @@ export const ADVANCED = [
       },
       {
         type: "blank", concept: "adv_apply_6",
-        q: "재고를 모르는 물건이 있는 가게 번호를 겹치지 않게 보이도록 빈자리를 채워 보세요.",
-        code: "SELECT ___ shop_id\nFROM items\nWHERE stock IS NULL\nORDER BY shop_id",
+        q: "재고가 3개 밑이거나 모르는 물건이 있는 가게 번호를 겹치지 않게 보이도록 빈자리를 채워 보세요.",
+        code: "SELECT ___ shop_id\nFROM items\nWHERE stock < 3\n  OR stock IS NULL\nORDER BY shop_id",
         chips: ["DISTINCT", "*", "IS"],
         answer: 0,
-        explain: "1·5·8번 가게예요. 빈칸 물건이 가게마다 하나씩이라, 그 가게에 재고를 세어 달라고 부탁하면 돼요. * 나 IS를 넣으면 오류가 나요.",
+        explain: "1·3·5·8번 가게예요. 5번(짚신·한지)과 8번(놋그릇·장승)은 물건이 둘씩 걸렸지만 DISTINCT가 한 번씩만 보여요. * 나 IS를 넣으면 오류가 나요.",
       },
       {
         type: "order", concept: "adv_apply_6",

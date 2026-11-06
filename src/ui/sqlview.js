@@ -90,7 +90,7 @@ export function choiceOptionFailed(node, hideSql) {
     return;
   }
   node.classList.add("sql-text");
-  node.textContent = node.dataset.sql;
+  node.textContent = node.dataset.sql;   // 실행기가 없을 때만 보이는 SQL 글자(밑줄 감싸기 없음 — 드문 경우라 그대로 둠)
   if (b) { b.classList.add("mono"); b.setAttribute("aria-label", `${n}번 보기: ${node.dataset.sql}`); }
 }
 
@@ -98,7 +98,7 @@ export function choiceOptionFailed(node, hideSql) {
  *  (들고 있는 result, 없으면 화면에 그려 둔 표 drawnHTML, 그것도 없으면 표 없이) */
 export function answerFeedbackHTML(right, answerIndex, code, drawnHTML = null) {
   const rq = optSql(right);
-  if (rq == null) return `<p class="answer">정답: <span class="${isCodey(right) ? "mono" : ""}">${esc(right)}</span></p>`;
+  if (rq == null) return `<p class="answer">정답: <span class="${isCodey(right) ? "mono" : ""}">${escCode(right)}</span></p>`;
   const head = `<p class="answer">정답: ${answerIndex + 1}번 보기</p>`;
   if (!sameSql(rq, code)) return head + codeBlock(rq, "sql");
   const table = right.result ? resultHTML(right.result, "opt", rq) : drawnHTML || "";

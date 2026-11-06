@@ -1918,9 +1918,10 @@ def _seed_before(lid):
             "grading_results": {x: {"perfect": True, "attempts": 1} for x in done}}
 
 
-def walk_lesson(lid, device="iPhone 17", probe=None):
+def walk_lesson(lid, device="iPhone 17", probe=None, wrong_once=None, probe_result=False):
     """실제 레슨 lid를 처음부터 끝까지 정답으로 풀며 화면마다 캡처·측정한다. 돌려줌: (캡처 이름 목록, 문제점 목록)
-    probe(app, kind)가 있으면 카드·문제 화면마다 캡처 전에 불러 그 문제점 목록을 더한다."""
+    probe(app, kind)가 있으면 카드·문제 화면마다 캡처 전에 불러 그 문제점 목록을 더한다(probe_result면 결과 창에서도).
+    wrong_once(item)가 참인 터치 문제는 처음 한 번 일부러 틀린다(결과 창 「정답:」 줄을 보려고). 다시 나오면 맞게 푼다."""
     shots, fails = [], []
     tag = "walk-%s" % lid
     for f in os.listdir(OUT) if os.path.isdir(OUT) else []:
@@ -1942,6 +1943,7 @@ def walk_lesson(lid, device="iPhone 17", probe=None):
         a.page.wait_for_selector(".screen.lesson")
         items = a.lesson(lid)["items"]
         n = 0
+        wronged = set()
 
         def at(kind, full=True):
             nonlocal n
@@ -1949,7 +1951,7 @@ def walk_lesson(lid, device="iPhone 17", probe=None):
             # 결과 창은 0.28초 동안 아래에서 올라온다(.result animation up) — 다 올라온 뒤에 잰다
             a.page.wait_for_timeout(400 if kind == "result" else 150)
             name = "%s-%02d-%s.png" % (tag, n, kind)
-            if probe and kind not in ("result", "done"):
+            if probe and (kind not in ("result", "done") or (kind == "result" and probe_result)):
                 fails.extend("%s %s: %s" % (device, name, p) for p in probe(a, kind))
                 a.js("() => window.scrollTo(0, 0)")
             m = measure(a, name)
@@ -1984,10 +1986,16 @@ def walk_lesson(lid, device="iPhone 17", probe=None):
             else:
                 tables_drawn()
                 at(it["type"])
-                a.answer_touch(it)
+                miss = bool(wrong_once and idx not in wronged and wrong_once(it))
+                if miss:
+                    wronged.add(idx)
+                a.answer_touch(it, correct=not miss)
                 a.page.wait_for_selector("#result:not([hidden])")
             at("result", full=False)
-            if not a.cont():
+            ok = a.cont()
+            if miss and ok:
+                fails.append("item %d (%s) judged right with a wrong answer" % (idx, it["type"]))
+            elif not miss and not ok:
                 fails.append("item %d (%s) judged wrong with the stored answer" % (idx, it["type"]))
         a.page.wait_for_selector(".screen.done", timeout=10_000)
         a.page.wait_for_timeout(300)
@@ -2324,28 +2332,35 @@ UNDERSCORE_JS = r"""() => {
     gaps.push(+(b.left - a.right).toFixed(2));
   }
   const one = root.querySelector('.us');
-  return { raw, gaps, transform: one ? getComputedStyle(one).transform : null };
+  const ans = document.querySelector('#result:not([hidden]) .answer');
+  const answerUs = ans && ans.textContent.includes('__') ? 1 : 0;   // 결과 창 「정답:」 줄에 이어진 밑줄이 있었나(감쌌는지는 raw가 봄)
+  return { raw, gaps, answerUs, transform: one ? getComputedStyle(one).transform : null };
 }"""
 
 
 def test_underscore_gap():
     """fix round(4~6장 심화): 이어진 밑줄 '__'·'___'이 휴대폰(iPhone 17e) 고정폭 글꼴에서 한 줄로 붙어 보여 셀 수 없었다.
-    4-A2를 끝까지 풀며 화면마다: 「__」가 든 글자 조각이 남지 않음(모두 span.us), 이웃한 밑줄 사이 틈 1px 이상.
+    4-A2를 끝까지 풀며 화면마다(결과 창 포함, 밑줄 무늬 글자 보기는 한 번 틀려 「정답:」 줄도): 「__」가 든 글자 조각이 남지 않음(모두 span.us), 이웃한 밑줄 사이 틈 1px 이상.
     밑줄 너비는 그대로라(transform) SQL_COLS 한 줄 칸 수는 test_sql_cols_fit가 따로 본다. 캡처 walk-4-A2-*.png"""
-    seen = {"pairs": 0, "min": None}
+    seen = {"pairs": 0, "min": None, "answers": 0}
 
     def probe(a, kind):
         r = a.js(UNDERSCORE_JS)
         out = ["%s: underscore run not wrapped: %r" % (kind, x) for x in r["raw"]]
         out += ["%s: adjacent underscores gap %.2fpx < 1px (transform %s)" % (kind, g, r["transform"]) for g in r["gaps"] if g < 1]
         seen["pairs"] += len(r["gaps"])
+        seen["answers"] += r["answerUs"]
         if r["gaps"]:
             seen["min"] = min(r["gaps"] + ([seen["min"]] if seen["min"] is not None else []))
         return out
 
-    shots, fails = walk_lesson("4-A2", "iPhone 17e", probe=probe)
-    print("    4-A2 on iPhone 17e: %d screens, %d adjacent underscore pairs, smallest gap %s px" % (len(shots), seen["pairs"], seen["min"]))
+    # 글자 보기(밑줄 무늬) 문제는 한 번 틀려 결과 창 「정답: '___'」 줄도 본다(answerFeedbackHTML)
+    codey = lambda it: it["type"] == "choice" and isinstance(it["options"][it["answer"]], str) and "__" in it["options"][it["answer"]]
+    shots, fails = walk_lesson("4-A2", "iPhone 17e", probe=probe, wrong_once=codey, probe_result=True)
+    print("    4-A2 on iPhone 17e: %d screens, %d adjacent underscore pairs, smallest gap %s px, answer lines %d" % (
+        len(shots), seen["pairs"], seen["min"], seen["answers"]))
     assert seen["pairs"] >= 20, seen
+    assert seen["answers"] >= 1, "no wrong-answer 「정답」 line with underscores was probed: %s" % seen
     assert not fails, "\n".join(fails[:40])
 
 

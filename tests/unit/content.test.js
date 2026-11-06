@@ -492,3 +492,15 @@ test("R51: chapter 1-5 advanced builds may use 1-3 token phrase cards; main less
   const long = advMod((m) => { put("ADVANCED")(m); const l = m.ADVANCED[0]; l.items.find((it) => it.id === "adv-phrase-build").extra = ["price % 2 + 1", "stock % 2"]; });
   assert.ok(issuesAt(long, 2, "adv-phrase-build").some((i) => i.rule === "bank-size" && /price % 2 \+ 1/.test(i.msg)));
 });
+
+test("blank: a code with a literal '___' pattern besides the blank marker is reported (the screen splits on ___)", () => {
+  const lit = { type: "blank", concept: "distinct", q: "세 글자 이름 손님의 마을을 한 번씩만 보이게 채워 보세요",
+    code: "SELECT ___ village\nFROM customers\nWHERE name LIKE '___'", chips: ["DISTINCT", "ORDER", "LIMIT"], answer: 0,
+    explain: "DISTINCT는 SELECT 바로 뒤에 써요." };
+  let swapped = 0;
+  const mod = { ...good, LESSONS: good.LESSONS.map((l) => ({ ...l,
+    items: l.items.map((it) => (it.type === "blank" && /village/.test(it.code) ? (swapped++, lit) : it)) })) };
+  assert.ok(swapped > 0);
+  const issues = checkChapter(mod, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(issues.some((i) => i.rule === "shape" && /___/.test(i.msg) && /정확히 하나/.test(i.msg)), show(issues));
+});

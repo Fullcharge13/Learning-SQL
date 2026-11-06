@@ -90,7 +90,7 @@ export function mountBuild(host, {
     </div>`;
   body.innerHTML = `<article class="item build">
     <span class="tag build-tag">${tag ? esc(tag) : "카드 조립"}</span>
-    <h1 class="q">${esc(item.q || "카드를 눌러 SQL을 만들어 보세요.")}</h1>
+    <h1 class="q">${escCode(item.q || "카드를 눌러 SQL을 만들어 보세요.")}</h1>
     <div class="eng-chip" id="engchip" role="status" aria-live="polite" hidden></div>
     <p class="ex-label">내가 만든 SQL <small>(누르면 빠져요)</small></p>
     <div class="bline" id="bline" aria-label="조립 줄"></div>
