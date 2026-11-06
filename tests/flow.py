@@ -1458,6 +1458,106 @@ def test_build_extra_card():
         assert not a.errors, a.errors
 
 
+# v0.1.1 느린 기기: 실행기를 감싸 「느린 휴대폰」을 흉내 낸다. Chromium CPU 감속(Emulation.setCPUThrottlingRate)은
+# 페이지 주 스레드만 늦추고 sql.js가 도는 작업자(Web Worker)는 늦추지 않아, 정답 실행 시간이 1초를 넘게 만들 수 없다.
+# 그래서 실제 SqlRun.run을 감싸서: 학습자 첫 실행(기본 제한)은 시간 초과, 정답 SQL 실행은 실제 결과에 ms만 mode대로
+# (fast: 실제 값 그대로, slow: 1500ms), 10초 제한으로 다시 돌린 학습자 실행은 mode가 slow-ok면 실제 결과, 아니면 시간 초과.
+SLOW_STUB_JS = r"""(mode) => {
+  const sql = window.__dueogi.ctx.sql;
+  const orig = sql.run.bind(sql);
+  const st = window.__slow = { mode, learnerNext: false, calls: [] };
+  const TO = (ms) => ({ columns: [], rows: [], error: "timeout", truncated: false, timeout: true, ms });
+  sql.run = async (text, opts = {}) => {
+    const limit = opts.timeoutMs || sql.timeoutMs;
+    if (st.learnerNext && limit === sql.timeoutMs) {   // 학습자 첫 실행: 3초 시간 초과
+      st.learnerNext = false; st.calls.push(["learner", limit]); return TO(limit);
+    }
+    if (limit > sql.timeoutMs) {                       // 느린 기기로 보고 10초로 다시 돌린 학습자 실행
+      st.calls.push(["retry", limit]);
+      return st.mode === "slow-ok" ? orig(text, opts) : TO(limit);
+    }
+    st.calls.push(["other", limit]);                   // 정답 SQL(또는 시간 초과 아닌 보통 실행)
+    const r = await orig(text, opts);
+    return st.mode === "fast" ? r : { ...r, ms: 1500 };
+  };
+}"""
+
+
+def _slow_build(mode):
+    a = App("iPhone 17", url=real_url())
+    a.start()
+    a.page.click("#continue")
+    items = _to_build(a, "1-1")
+    it = next(x for x in items if x["type"] == "build")
+    a.wait_engine()
+    a.js(SLOW_STUB_JS, mode)
+    return a, it
+
+
+def test_build_slow_device():
+    """v0.1.1 「느린 기기면 한 번 더 기다리기」: (a) 빠른 기기 시간 초과는 그대로 오답·ON 안내,
+    (b) 느린 기기는 10초로 다시 돌려 끝나면 채점(통과), (c) 다시 돌려도 시간 초과면 세지 않고 「휴대폰이 좀 바빠서」"""
+    # (a) 빠른 기기: 정답 실행이 실제 시간(수 ms) → 다시 돌리지 않음, 제출 1번째 오답 + ON 안내
+    a, it = _slow_build("fast")
+    try:
+        a.place(it["cards"])
+        a.js("() => { window.__slow.learnerNext = true; }")
+        a.build_press("submit")
+        a.page.wait_for_selector("#console .cmp")
+        con = a.page.inner_text("#console")
+        calls = a.js("() => window.__slow.calls")
+        print("    fast: calls %s | %r" % (calls, con.split("\n")[0:3]))
+        assert "제출 1번째" in con and "timeout: 3초 안에 끝나지 않음" in con and "ON" in con, con
+        assert not any(c[0] == "retry" for c in calls), calls
+        assert a.page.is_hidden("#result")
+        assert not a.errors, a.errors
+    finally:
+        a.close()
+    # (b) 느린 기기 + 다시 돌려 끝남 → 정답 카드라 통과, 첫 제출로 셈
+    a, it = _slow_build("slow-ok")
+    try:
+        a.place(it["cards"])
+        a.js("() => { window.__slow.learnerNext = true; }")
+        a.build_press("submit")
+        a.page.wait_for_selector("#result:not([hidden])")
+        calls = a.js("() => window.__slow.calls")
+        print("    slow-ok: calls %s" % calls)
+        assert ["retry", 10000] in calls, calls
+        assert "휴대폰이 좀 바빠서" not in a.page.inner_text("#console")
+        assert not a.errors, a.errors
+    finally:
+        a.close()
+    # (c) 느린 기기 + 다시 돌려도 시간 초과 → 「실행」·「제출」 모두 바쁨 안내, 제출 수·오답 기록 없음. 그다음 정상 제출은 1번째
+    a, it = _slow_build("slow-busy")
+    try:
+        a.place(it["cards"])
+        a.js("() => { window.__slow.learnerNext = true; }")
+        a.build_press("run")
+        a.page.wait_for_selector("#console .err-panel.soft")
+        run_msg = a.page.inner_text("#console")
+        print("    slow-busy run: %r" % run_msg.replace("\n", " / "))
+        assert "휴대폰이 좀 바빠서 오래 걸렸어요. 잠시 뒤 다시 눌러 볼까요?" in run_msg, run_msg
+        assert "ON" not in run_msg and "timeout" not in run_msg, run_msg
+        a.js("() => { window.__slow.learnerNext = true; }")
+        a.build_press("submit")
+        a.page.wait_for_selector("#console .err-panel.soft")
+        sub_msg = a.page.inner_text("#console")
+        assert "휴대폰이 좀 바빠서" in sub_msg and "제출 횟수에 들어가지 않아요" in sub_msg, sub_msg
+        assert "제출 1번째" not in sub_msg and a.page.is_hidden("#result"), sub_msg
+        a.shot("build-slow-busy.png")
+        calls = a.js("() => window.__slow.calls")
+        assert [c[0] for c in calls].count("retry") == 2, calls
+        # 휴대폰이 한가해짐: 다음 제출은 바로 통과, 오답 없이 첫 제출(바쁨은 세지 않음)
+        a.build_press("submit")
+        a.page.wait_for_selector("#result:not([hidden])")
+        title = a.page.inner_text("#result h2")
+        print("    slow-busy then pass: %r" % title)
+        assert "고쳐서" not in title, "busy was not counted as an error: %s" % title
+        assert not a.errors, a.errors
+    finally:
+        a.close()
+
+
 def test_build_no_engine():
     with App("iPhone 17", block=("**/sql-wasm.wasm",)) as a:
         a.page.wait_for_function("() => window.__dueogi.ctx.sql.status === 'failed'", timeout=20_000)

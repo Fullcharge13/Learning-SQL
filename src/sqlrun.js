@@ -4,15 +4,21 @@
 //   sq.onstatus = (status, phase) => {};   // status: "loading"|"ready"|"failed", phase: "first-load"|"restart"
 //   const off = sq.listen((status, phase) => {}); // 여러 화면이 함께 들을 때
 //   sq.preload();
-//   const r = await sq.run("SELECT 1");    // { columns, rows, error, truncated, timeout }
+//   const r = await sq.run("SELECT 1");    // { columns, rows, error, truncated, timeout, ms }
+//   const r2 = await sq.run(sql, { timeoutMs: 10000 }); // 이번 실행만 제한 시간을 바꿈(v0.1.1 느린 기기 다시 돌리기)
 //
 // - 실행은 한 번에 하나씩(대기열). 제한 시간(기본 3초)을 넘으면 작업자를 끝내고 새로 띄운다 → error "timeout".
 // - 작업자는 실행을 받자마자 "started"를 보낸다. 제한 시간이 지나도 확인이 없었다면 작업자가 이미
 //   죽어 있던 것이므로 error "worker". 불러오기 실패는 error "load". run()은 거부하지 않는다.
 // - 불러오기 실패는 붙잡아 두지 않고 다음 preload()·run()에서 다시 시도한다.
+// - ms(v0.1.1): 작업자에게 SQL을 보낸 때부터 결과(또는 시간 초과)까지의 시간. 대기열에서 앞 실행을 기다린 시간과
+//   실행기를 (다시) 띄우는 시간은 빼고 잰다 — 그 기기에서 SQL 하나가 얼마나 걸리는지만 보려고.
+//   실행기를 못 받아 보내지도 못한 실패(load)에는 ms가 없다.
 
 export const DEFAULT_TIMEOUT_MS = 3000;
 export const DEFAULT_LOAD_TIMEOUT_MS = 30000;
+
+const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
 
 function baseHref() {
   return (typeof location !== "undefined" && location.href) || import.meta.url;
@@ -54,8 +60,9 @@ export class SqlRun {
 
   preload() { return this._readyP || this._spawn(); }
 
-  run(sql) {
-    const job = this._queue.then(() => this._runOne(sql));
+  run(sql, { timeoutMs } = {}) {
+    const limit = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : this.timeoutMs;
+    const job = this._queue.then(() => this._runOne(sql, limit));
     this._queue = job.then(() => {}, () => {});
     return job;
   }
@@ -160,7 +167,7 @@ export class SqlRun {
     this._spawn();
   }
 
-  async _runOne(sql) {
+  async _runOne(sql, timeoutMs = this.timeoutMs) {
     // 멈춘 작업자는 onCrash가 곧바로 _restart()로 새로 띄우므로, 여기서는 준비만 기다린다
     try {
       await this.preload();
@@ -170,14 +177,14 @@ export class SqlRun {
     if (!this._worker) return failResult("load");
     const w = this._worker;
     const id = ++this._nextId;
-    const timeoutMs = this.timeoutMs;
+    const t0 = now();
     return new Promise((resolve) => {
       let timer = null;
       const finish = (r) => {
         if (!this._pending || this._pending.id !== id) return;
         this._pending = null;
         clearTimeout(timer);
-        resolve(r);
+        resolve({ ...r, ms: now() - t0 });
       };
       this._pending = { id, started: false, finish };
       timer = setTimeout(() => {

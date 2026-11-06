@@ -10,6 +10,8 @@
 // - hadError: 이 문제에서 「실행」·「제출」이 SQL 오류(시간 초과·조회 전용 포함)를 낸 적이 있음.
 //   실행기를 못 받은 것(load·worker)은 학습자 잘못이 아니라서 세지 않고, 제출 수에도 넣지 않는다.
 // - 실행기가 준비되지 않았으면(받는 중·실패) 「실행」·「제출」을 막고 안내 줄을 보인다. 카드 놓기·힌트는 된다.
+// - 시간 초과(v0.1.1, src/slowdevice.js): 정답 SQL이 이 기기에서 1초 넘게 걸리는 느린 기기면 10초로 한 번 더 돌린다.
+//   또 넘으면 「휴대폰이 좀 바빠서…」(busy)로 세지 않는다. 빠른 기기의 시간 초과는 그대로 오답·ON 안내.
 import { newBuild, tap, sqlOf, usedTexts, hint as hintStep } from "../build.js";
 import { cardsToSql, judgeBuild, explain, needLine, extraLine } from "../grade.js";
 import { SCHEMA } from "../../data/schema.js";
@@ -17,6 +19,7 @@ import { FACES } from "../say.js";
 import { esc, icon, codeBlock, dueogiSays } from "./dom.js";
 import { tableHTML } from "./table.js";
 import { openTables } from "./tables.js";
+import { runExpected, settleTimeout } from "../slowdevice.js";
 
 export const HINT_LEVELS = 4;
 export const AUTO_SOLUTION_AFTER = 3;   // 틀린 제출이 이만큼이면 정답을 같이 본다
@@ -39,10 +42,12 @@ export function wrongWhy(v, got, exp, outfit) {
   return "행이 기대 결과와 달라요. 조건이나 차례를 다시 살펴봐요.";
 }
 
-/** 학습자 탓이 아닌 실행 실패 안내. kind "load"(실행기를 못 받음) 또는 "worker"(실행기가 멈춤·정답 SQL 실행 실패) */
+/** 학습자 탓이 아닌 실행 실패 안내. kind "load"(실행기를 못 받음), "busy"(느린 기기에서 다시 돌려도 시간 초과, v0.1.1)
+ *  또는 "worker"(실행기가 멈춤·정답 SQL 실행 실패) */
 export function systemLine(kind, outfit) {
   const tail = " 이번 실행은 제출 횟수에 들어가지 않아요.";
   if (kind === "load") return { head: ENGINE_WAIT_LINE, text: ENGINE_FAIL_LINE + tail };
+  if (kind === "busy") return { head: null, text: explain("busy", outfit) + tail };
   return { head: null, text: explain("worker", outfit) + tail };
 }
 
@@ -185,6 +190,11 @@ export function mountBuild(host, {
   function show(html) { consoleEl.innerHTML = html; }
 
   function setBusy(b) { st.busy = b; paintButtons(); }
+  const waitMoreHTML = () => `<p class="muted">휴대폰이 바빠 보여서 조금 더 기다려 볼게요…</p>`;
+  // 시간 초과면 느린 기기인지 보고 한 번 더(src/slowdevice.js). 돌려준 { r, busy }
+  const settle = (r, text) => settleTimeout(r, {
+    sql, text, expected, onRetry: () => { if (!st.destroyed) show(waitMoreHTML()); },
+  });
 
   async function doRun() {
     if (st.busy || st.passed || !ready()) return;
@@ -193,8 +203,10 @@ export function mountBuild(host, {
     show(sayLine("running", "타닥타닥") || `<p class="muted">실행하는 중…</p>`);
     try {
       const ranSql = sqlOf(B);
-      const r = await sql.run(ranSql);
+      const s = await settle(await sql.run(ranSql), ranSql);
       if (st.destroyed) return;
+      if (s.busy) { show(systemHTML("busy")); return; }
+      const r = s.r;
       if (r.error && SYSTEM_ERRORS.has(r.error)) { show(systemHTML(r.error)); return; }
       if (r.error) {
         st.hadError = true;
@@ -209,7 +221,7 @@ export function mountBuild(host, {
 
   function expected() {
     if (!expP) {
-      expP = sql.run(cardsToSql(item.cards)).then((r) => {
+      expP = runExpected(sql, cardsToSql(item.cards)).then((r) => {
         if (r.error) expP = null;   // 다음 제출에 다시(실행기가 다시 뜨는 중이었을 수 있음)
         return r;
       });
@@ -233,11 +245,14 @@ export function mountBuild(host, {
     show(sayLine("running", "타닥타닥") || `<p class="muted">채점하는 중…</p>`);
     try {
       const mySql = sqlOf(B);
-      const got = await sql.run(mySql);
+      const s = await settle(await sql.run(mySql), mySql);
       if (st.destroyed) return;
+      if (s.busy) { show(systemHTML("busy")); return; }   // 느린 기기: 세지 않음(제출 수·hadError·기록 그대로)
+      const got = s.r;
       if (got.error && SYSTEM_ERRORS.has(got.error)) { show(systemHTML(got.error)); return; }
       const exp = await expected();
       if (st.destroyed) return;
+      if (exp.error === "timeout") { show(systemHTML("busy")); return; }   // 정답마저 10초를 넘는 아주 느린 기기
       if (exp.error) {
         // 문제 정답이 실행되지 않음: 학습자 탓이 아니므로 세지 않는다(내용 점검기가 막아야 하는 경우)
         console.warn("build answer failed", item.id, exp.error);
