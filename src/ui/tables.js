@@ -1,4 +1,4 @@
-// 「쓸 표 보기」 시트 (설계 §3): 문제가 쓰는 표마다 한글 이름, 열 목록(`name — 이름`), `SELECT * FROM 표 LIMIT 5` 결과.
+// 「쓸 표 보기」 시트 (설계 §3): 문제가 쓰는 표마다 한글 이름, 열 목록(`name — 이름`), `SELECT * FROM 표` 결과(작은 표는 통째로, 큰 표는 앞 20행 + 전체 행 수 — v0.2.1).
 //   openTables(names, sql) → 닫힐 때 resolve하는 약속. 닫기 단추·Esc·바깥 누르기로 닫힘(dialog 도우미).
 // 시트를 닫은 뒤에 끝난 실행은 아무것도 그리지 않는다.
 import { SCHEMA } from "../../data/schema.js";
@@ -11,7 +11,7 @@ export function tablesHTML(names) {
     return `<section class="tbl-sec" data-table="${esc(n)}">
       <h3 class="tbl-name">${esc(t.ko)} <small class="mono">${esc(n)}</small></h3>
       <ul class="col-list">${Object.entries(t.cols).map(([c, ko]) => `<li><code>${esc(c)}</code> — ${esc(ko)}</li>`).join("")}</ul>
-      <div class="sql-result" data-sql="${esc(`SELECT * FROM ${n} LIMIT 5`)}" data-box="sheet"><p class="muted">표를 불러오는 중…</p></div>
+      <div class="sql-result" data-sql="${esc(`SELECT * FROM ${n}`)}" data-box="sheet"><p class="muted">표를 불러오는 중…</p></div>
     </section>`;
   }).join("");
 }

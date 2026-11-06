@@ -57,7 +57,7 @@ export const LINES = {
     { text: "이 단서로 한 걸음만 더 가 봐요.", face: "think" },
   ],
   lesson_done: [
-    { text: "짠! 레슨 완료. {xp} XP 받았어요.", face: "cheer" },
+    { text: "짠! 끝까지 풀었어요. {xp} XP 받았어요.", face: "cheer" },
     { text: "{name}님, 끝까지 해냈어요. 오늘 배운 건 이제 진짜 실력이야.", face: "cheer" },
     { text: "수고했어요. {xp} XP만큼 장부가 두꺼워졌네요.", face: "cheer" },
     { text: "완주! 다음 레슨도 장터에 펼쳐 둘게요.", face: "cheer" },

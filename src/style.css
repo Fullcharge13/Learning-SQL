@@ -523,7 +523,8 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 .sql-example .code { margin-bottom: 8px; }
 .sql-result { min-width: 0; }
 .sql-result .rtable { margin: 0 0 8px; }
-.sql-result[data-box="card"] .rt-scroll, .sql-result[data-box="sheet"] .rt-scroll { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
+.sql-result[data-box="card"] .rt-scroll { max-height: 30vh; overflow-y: auto; overscroll-behavior: contain; }
+/* 쓸 표 보기(v0.2.1): 시트 표는 작은 상자 안에서 따로 굴러가지 않는다 — 시트 전체가 위아래로 굴러가 모든 행이 보임(닫기는 아래에 붙음) */
 .opt.sqlopt { align-items: flex-start; min-width: 0; }   /* 표가 넓으면 보기 단추가 아니라 표 상자(.rt-scroll)만 옆으로 밀림 */
 .opt.sqlopt .opt-key { margin-top: 2px; }
 .opt.sqlopt .opt-text { flex: 1; min-width: 0; }

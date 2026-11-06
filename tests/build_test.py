@@ -7,7 +7,7 @@
    - first html ≤ 650KB: dist/index.html 한 장, 바깥 <script src>·<link rel="stylesheet"> 없음, 압축 전 650KB 이하
    - wasm present: dist/sql-wasm.wasm이 node_modules/sql.js/dist의 것과 같은 바이트. worker.js는 sql.js를 묶어 넣은
      한 파일(실행 중 글자를 코드로 바꾸지 않음: new Function·eval·importScripts 없음 → 엄격한 CSP에서도 돎)
-   - version v0.2 shown: index.html·sw.js에 판 표시, 첫 화면 .ver에도(브라우저 시험)
+   - version v0.2.1 shown: index.html·sw.js에 판 표시, 첫 화면 .ver에도(브라우저 시험)
    - no pyodide/codemirror strings: 배포 파일 어디에도 리아 시절 이름이 없음
    - sw deletes only dueogi- caches: sw.js의 지우기 조건 검사 + sw.js를 Node에서 돌려 activate가 ria- 저장본을 남기는지
    - manifest·아이콘, licenses.txt(sql.js MIT 전문, SQLite 퍼블릭 도메인 문구), 빌드 폴더 청소, node 없음 안내
@@ -102,7 +102,7 @@ def _dist_text_files(folder=DIST):
 # ---------------------------------------------------------------- 정적 검사
 
 def test_html_static():
-    """first html ≤ 650KB, version v0.2 shown (글자), 바깥 파일 없음"""
+    """first html ≤ 650KB, version v0.2.1 shown (글자), 바깥 파일 없음"""
     out = _build()
     html = _read(os.path.join(DIST, "index.html"))
     raw = len(html.encode("utf-8"))
@@ -112,9 +112,9 @@ def test_html_static():
     assert raw <= MAX_RAW, "first html too big: %d bytes > %d" % (raw, MAX_RAW)
     assert not re.search(r"<script\b[^>]*\ssrc\s*=", html, re.I), "external <script src> in index.html"
     assert 'rel="stylesheet"' not in html, "CSS must be inlined"
-    assert APP_VERSION == "v0.2", APP_VERSION
-    assert '<meta name="dueogi-version" content="v0.2">' in html
-    assert 'window.DUEOGI_VERSION = "v0.2";' in html
+    assert APP_VERSION == "v0.2.1", APP_VERSION
+    assert '<meta name="dueogi-version" content="v0.2.1">' in html
+    assert 'window.DUEOGI_VERSION = "v0.2.1";' in html
     assert "<title>두억이와 SQL!</title>" in html, re.search(r"<title>.*?</title>", html).group(0)
     assert "/node_modules/" not in html
     assert '<link rel="manifest" href="manifest.webmanifest">' in html
@@ -215,8 +215,8 @@ def test_sw_static():
     _build()
     sw = _read(os.path.join(DIST, "sw.js"))
     assert "__DUEOGI_" not in sw and "__DUEOGI_" not in sw, "placeholders left in sw.js"
-    assert 'const VERSION = "v0.2";' in sw
-    assert re.search(r'const GAME_CACHE = "dueogi-game-v0\.2-[0-9a-f]{10}";', sw), sw[:600]
+    assert 'const VERSION = "v0.2.1";' in sw
+    assert re.search(r'const GAME_CACHE = "dueogi-game-v0\.2\.1-[0-9a-f]{10}";', sw), sw[:600]
     assert 'const ENGINE_CACHE = "%s";' % ENGINE_CACHE in sw and ENGINE_CACHE == "dueogi-engine-1.15.2", ENGINE_CACHE
     engine = json.loads(re.search(r"const ENGINE_FILES = (\[[^\]]*\]);", sw).group(1))
     assert engine == ["sql-wasm.wasm"], engine
@@ -593,7 +593,7 @@ def test_browser_offline():
         keys = b.cache_keys()
         print("    caches: %s" % keys)
         assert [k for k in keys if k.startswith("dueogi-")] == sorted([k for k in keys if k.startswith("dueogi-game-")] + [ENGINE_CACHE]), keys
-        # 3) 오프라인 → 새로고침 → 첫 화면 v0.2 → 1-1 첫 조립 문제 「실행」
+        # 3) 오프라인 → 새로고침 → 첫 화면 v0.2.1 → 1-1 첫 조립 문제 「실행」
         b.context.set_offline(True)
         resp = pg.reload()
         assert resp is not None and resp.from_service_worker, "offline page not served by sw.js"

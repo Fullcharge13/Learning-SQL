@@ -1740,18 +1740,25 @@ SQL_CHOICE_JS = """() => [...document.querySelectorAll('.opt')].map((b) => { con
 SHEET_JS = """() => [...document.querySelectorAll('.tables-sheet .tbl-sec')].map((s) => ({
   table: s.dataset.table, name: s.querySelector('.tbl-name').innerText.replace(/\\n/g, ' '),
   cols: [...s.querySelectorAll('.col-list li')].map((li) => li.innerText), rows: s.querySelectorAll('tbody tr').length,
-  heads: [...s.querySelectorAll('thead th')].map((th) => th.innerText.replace(/\\n/g, '/')) }))"""
+  heads: [...s.querySelectorAll('thead th')].map((th) => th.innerText.replace(/\\n/g, '/')),
+  foot: (s.querySelector('.rt-foot') || {}).innerText || '' }))"""
+
+# v0.2.1: 시트는 작은 표를 통째로(가게 8·물건 40·손님 60), 큰 표는 앞 20행 + 「전체 N행」
+SHEET_ROWS = {"shops": 8, "items": 40, "customers": 60, "orders": 20, "order_items": 20}
+SHEET_TOTAL = {"orders": 591, "order_items": 1241}
 
 
 def _sheet_checks(a, want):
-    """「쓸 표 보기」 시트가 열려 있어야 함: 표마다 한글 이름·열 목록·5행. want: {표: 한글 이름}"""
+    """「쓸 표 보기」 시트가 열려 있어야 함: 표마다 한글 이름·열 목록·SHEET_ROWS행(큰 표는 「전체 N행」). want: {표: 한글 이름}"""
     a.page.wait_for_selector(".modal[role=dialog] .tables-sheet")
     a.page.wait_for_function("(n) => document.querySelectorAll('.tables-sheet .rtable').length === n", arg=len(want), timeout=20_000)
     secs = a.js(SHEET_JS)
     assert [x["table"] for x in secs] == list(want), secs
     for x in secs:
         assert x["name"].startswith(want[x["table"]]) and x["table"] in x["name"], x
-        assert x["rows"] == 5, x
+        assert x["rows"] == SHEET_ROWS[x["table"]], x
+        if x["table"] in SHEET_TOTAL:
+            assert "전체 %d행" % SHEET_TOTAL[x["table"]] in x["foot"], x
         assert any(c.startswith(x["heads"][0].split("/")[0]) and " — " in c for c in x["cols"]), x
     return secs
 
@@ -2140,8 +2147,11 @@ def _foot_probe(no_has=False):
         if p["footBottom"] > p["vh"] + 0.5 or p["footTop"] < -0.5:
             out.append("%s: button bar %s..%s outside the screen (vh %d)" % (kind, p["footTop"], p["footBottom"], p["vh"]))
         for name, r in p["targets"].items():
-            # 긴 설명 카드는 위가 화면 밖으로 나가는 것이 정상 — 카드 끝만 본다
-            if r and (r["b"] > p["footTop"] + 0.5 or (r["t"] < 0 and name != "card end")):
+            # 긴 설명 카드는 위가 화면 밖으로 나가는 것이 정상 — 카드 끝만 본다.
+            # v0.2.1: 「쓸 표 보기」는 객관식·빈칸·순서 문제에서 보기 위(문제 SQL 아래)에 있어, 긴 문제를 끝까지 내리면 위로 지나가는 것이 정상.
+            #   단추 줄 밑에 가리지 않는지는 모든 화면에서, 끝에서도 보이는지는 단추가 맨 아래에 있는 카드 조립 화면에서만 본다.
+            top_ok = name == "card end" or (name == "쓸 표 보기" and kind != "build")
+            if r and (r["b"] > p["footTop"] + 0.5 or (r["t"] < 0 and not top_ok)):
                 out.append("%s: %s %s..%s not fully above the button bar top %s after scrolling to the end (%s, sh %d, vh %d)" % (
                     kind, name, r["t"], r["b"], p["footTop"], p["pos"], p["sh"], p["vh"]))
         # 캡처: 전체 화면 캡처의 맨 아래 띠 = 끝까지 내린 화면의 맨 아래 띠(단추 줄)
@@ -2386,6 +2396,51 @@ def test_underscore_gap():
         len(shots), seen["pairs"], seen["min"], seen["answers"]))
     assert seen["pairs"] >= 20, seen
     assert seen["answers"] >= 1, "no wrong-answer 「정답」 line with underscores was probed: %s" % seen
+    assert not fails, "\n".join(fails[:40])
+
+
+LEDGER_Q_JS = """() => {
+  const art = document.querySelector('article.item');
+  if (!art) return null;
+  const sqlText = [...art.querySelectorAll('pre.code, .order-pool .line, .sqlopt')].map((n) => n.dataset.sql || n.innerText).join(' ');
+  const t = ['shops', 'items', 'customers', 'orders', 'order_items'].filter((x) => new RegExp('\\\\b' + x + '\\\\b').test(sqlText));
+  return { q: (art.querySelector('h1.q') || {}).innerText || '', tables: t, btn: !!art.querySelector('#tablesbtn') };
+}"""
+
+
+def test_sheet_on_ledger_questions():
+    """v0.2.1 (아이폰 확인): 1-2 「국밥의 값은?」·「shops 열 개수는?」에 「쓸 표 보기」가 없어 데이터를 볼 수 없었다.
+    1-2를 끝까지 풀며 SQL에 장부 이름이 보이는 문제 화면마다 단추가 있어야 하고, 「국밥」 문제에서 시트를 열면 물건 40행이 다 보인다."""
+    seen = {"ledger": 0, "gukbap": 0}
+
+    def probe(a, kind):
+        if kind not in ("choice", "blank", "order"):
+            return []
+        r = a.js(LEDGER_Q_JS)
+        if not r or not r["tables"]:
+            return []
+        seen["ledger"] += 1
+        out = [] if r["btn"] else ["no 쓸 표 보기 on ledger question %r (%s)" % (r["q"], r["tables"])]
+        if r["btn"] and "국밥" in r["q"]:
+            seen["gukbap"] += 1
+            a.page.click("#tablesbtn")
+            secs = _sheet_checks(a, {"items": "물건"})
+            print("    국밥 sheet: %d rows, foot %r" % (secs[0]["rows"], secs[0]["foot"]))
+            a.page.wait_for_timeout(600)  # 시트가 아래에서 다 올라온 뒤
+            box = a.js("() => { const b = document.querySelector('.modal .btn.primary').getBoundingClientRect(); return { top: b.top, bottom: b.bottom, vh: innerHeight }; }")
+            inner = a.js("() => [...document.querySelectorAll('.tables-sheet .rt-scroll')].map((n) => n.scrollHeight - n.clientHeight)")
+            if any(d > 2 for d in inner):
+                out.append("sheet table scrolls inside a small box (hidden rows %r px) — rows look like only 5" % inner)
+            if not (box["top"] >= 0 and box["bottom"] <= box["vh"]):
+                out.append("닫기 off screen with 40 rows: %r" % box)
+            a.shot("sheet-1-2-gukbap.png", full=False)
+            a.page.click(".modal .btn.primary")
+            a.page.wait_for_selector(".modal-back", state="detached", timeout=3000)
+        return out
+
+    shots, fails = walk_lesson("1-2", probe=probe)
+    print("    1-2: %d ledger question screens, 국밥 sheet opened %d" % (seen["ledger"], seen["gukbap"]))
+    assert seen["ledger"] >= 3 and seen["gukbap"] >= 1, seen
     assert not fails, "\n".join(fails[:40])
 
 

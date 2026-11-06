@@ -12,6 +12,7 @@ import { mountBuild } from "./build.js";
 import { dueogiSVG } from "../dueogi.js";
 import { fillResults, choiceOptionHTML, choiceOptionFailed, optionsShowCode, answerFeedbackHTML } from "./sqlview.js";
 import { openTables } from "./tables.js";
+import { tablesForItem } from "../itemtables.js";
 
 const GUARD_MS = 400;
 const WAIT_MS = 300;    // 장 파일이 이보다 늦으면 「준비 중」 (v0.3 작업 1)
@@ -310,8 +311,14 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       ${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}`;
   }
 
-  const tablesButton = (it) => (it.tables && it.tables.length
+  const tablesButton = (it) => (tablesForItem(it).length
     ? `<div class="help-row"><button class="btn ghost small" id="tablesbtn">${icon("table")}<span>쓸 표 보기</span></button></div>` : "");
+
+  // 「쓸 표 보기」 단추 연결 (객관식·빈칸·순서 공용, v0.2.1)
+  function wireTables(it) {
+    const tb = body.querySelector("#tablesbtn");
+    if (tb) tb.addEventListener("click", () => { openTables(tablesForItem(it), ctx.sql); });
+  }
 
   function renderChoice(cur) {
     const orig = cur.item;
@@ -324,8 +331,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     body.innerHTML = `<article class="item">${itemHead(cur)}${tablesButton(it)}
       <div class="options" role="radiogroup" aria-label="보기">${it.options.map(choiceOptionHTML).join("")}</div>
     </article>`;
-    const tb = body.querySelector("#tablesbtn");
-    if (tb) tb.addEventListener("click", () => { openTables(it.tables, ctx.sql); });
+    wireTables(it);
     S.cleanupItem = fillResults(body, ctx.sql, {
       onFilled(node, r) {
         const b = node.closest(".opt");
@@ -356,10 +362,11 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const codeHTML = () => `<pre class="code blank-code"><code>${parts.map((p, i) => escCode(p) + (i < parts.length - 1
       ? `<span class="slot${pick >= 0 ? " filled" : ""}">${pick >= 0 ? escCode(it.chips[pick]) : "    "}</span>` : "")).join("")}</code></pre>`;
     body.innerHTML = `<article class="item">${itemHead(cur)}
-      <div id="bc">${codeHTML()}</div>
+      <div id="bc">${codeHTML()}</div>${tablesButton(it)}
       <div class="chips" role="radiogroup" aria-label="빈자리에 넣을 조각">${it.chips.map((c, i) =>
         `<button class="chip mono" role="radio" aria-checked="false" data-i="${i}">${escCode(c)}</button>`).join("")}</div>
     </article>`;
+    wireTables(it);
     const act = footButton("확인", { disabled: true });
     body.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
       pick = +b.dataset.i;
@@ -378,13 +385,14 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const it = cur.item;
     const order = shuffleOrder(it.lines, newSeed());
     const chosen = [];
-    body.innerHTML = `<article class="item">${itemHead(cur)}
+    body.innerHTML = `<article class="item">${itemHead(cur)}${tablesButton(it)}
       <p class="ex-label">내가 맞춘 SQL <small>(누르면 빠져요)</small></p>
       <ol class="order-answer" id="oa" aria-label="고른 순서"></ol>
       <p class="ex-label">줄 조각 <small>(누른 순서대로 들어가요)</small></p>
       <div class="order-pool" id="op">${order.map((li) =>
         `<button class="line mono" data-li="${li}">${escCode(it.lines[li])}</button>`).join("")}</div>
     </article>`;
+    wireTables(it);
     const act = footButton("확인", { disabled: true });
     const oa = body.querySelector("#oa");
     const paint = () => {

@@ -13,7 +13,10 @@ import { isCodey } from "../textkind.js";
 
 export const LOADING_LINE = "표를 불러오는 중…";
 export const FAIL_LINE = "실행기를 불러오지 못해 표를 보여 줄 수 없어요";
-export { OPT_ROWS };          // 객관식 보기의 작은 표(값은 src/template.js — 매일 도전 틀이 「화면에서 같아 보임」을 같은 값으로 판정)
+export { OPT_ROWS };
+// 「쓸 표 보기」 시트(v0.2.1): 이 행 수 이하의 표는 통째로, 넘으면 앞 SHEET_HEAD행 + 「전체 N행」
+export const SHEET_FULL = 60;
+export const SHEET_HEAD = 20;          // 객관식 보기의 작은 표(값은 src/template.js — 매일 도전 틀이 「화면에서 같아 보임」을 같은 값으로 판정)
 
 /** 실행기가 준비되면 true, 실패하면 false로 끝나는 약속. cancel()을 부르면 더 듣지 않는다(약속은 끝나지 않음) */
 export function whenEngine(sql) {
@@ -35,9 +38,14 @@ export function whenEngine(sql) {
 /** 결과 표 HTML (box: card·opt·sheet). 객관식 보기(opt)는 앞 OPT_ROWS행, 포커스 없음.
  *  sql: 이 표를 만든 SQL(별칭이 진짜 열 이름을 가리면 한글 뜻을 달지 않으려고) */
 export function resultHTML(r, box, sql = null) {
-  return tableHTML(r, box === "opt"
-    ? { ko: SCHEMA, max: OPT_ROWS, label: "보기 결과 표", focusable: false, sql }
-    : { ko: SCHEMA, label: box === "sheet" ? "표 미리 보기" : "실행 결과 표", sql });
+  if (box === "opt") return tableHTML(r, { ko: SCHEMA, max: OPT_ROWS, label: "보기 결과 표", focusable: false, sql });
+  if (box === "sheet") {
+    const n = Array.isArray(r && r.rows) ? r.rows.length : 0;
+    return n > SHEET_FULL
+      ? tableHTML(r, { ko: SCHEMA, max: SHEET_HEAD, label: "표 미리 보기", sql, more: `처음 ${SHEET_HEAD}행만 보여요 · 전체 ${n}행` })
+      : tableHTML(r, { ko: SCHEMA, max: SHEET_FULL, label: "표 보기", sql });
+  }
+  return tableHTML(r, { ko: SCHEMA, label: "실행 결과 표", sql });
 }
 
 function paint(node, r, box, sql) {

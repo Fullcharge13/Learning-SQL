@@ -107,9 +107,10 @@ function cell(v) {
 /**
  * @param r  { columns, rows, truncated }
  * @param o  { ko?: SCHEMA, tables?: string[], max = 50, label?: 읽기 도구용 이름, focusable = true (false: 단추 안에 넣는 표 — 따로 포커스를 받지 않음),
- *              sql?: 이 표를 만든 SQL — 주면 별칭이 가린 열 이름에는 한글 뜻을 달지 않는다 }
+ *              sql?: 이 표를 만든 SQL — 주면 별칭이 가린 열 이름에는 한글 뜻을 달지 않는다,
+ *              more?: 잘렸을 때 「… 외 N행」 대신 쓸 글(「쓸 표 보기」 시트) }
  */
-export function tableHTML(r, { ko = null, tables = null, max = TABLE_MAX, label = "결과 표", focusable = true, sql = null } = {}) {
+export function tableHTML(r, { ko = null, tables = null, max = TABLE_MAX, label = "결과 표", focusable = true, sql = null, more: moreText = null } = {}) {
   const columns = Array.isArray(r && r.columns) ? r.columns : [];
   const rows = Array.isArray(r && r.rows) ? r.rows : [];
   const shown = rows.slice(0, Math.max(0, max));
@@ -120,7 +121,7 @@ export function tableHTML(r, { ko = null, tables = null, max = TABLE_MAX, label 
     return `<th scope="col"><span class="col-en">${esc(c)}</span>${k ? `<span class="col-ko">${esc(k)}</span>` : ""}</th>`;
   }).join("");
   const body = shown.map((row) => `<tr>${(Array.isArray(row) ? row : []).map(cell).join("")}</tr>`).join("");
-  const more = rest > 0 ? `… 외 ${rest}행${r && r.truncated ? " 이상" : ""}` : "";
+  const more = rest > 0 ? moreText || `… 외 ${rest}행${r && r.truncated ? " 이상" : ""}` : "";
   const count = rows.length === 0 ? "0행 (조건에 맞는 행이 없어요)" : `${rows.length}행${r && r.truncated ? " 이상" : ""}`;
   return `<div class="rtable">
     <div class="rt-scroll"${focusable ? ` tabindex="0" role="region" aria-label="${esc(label)}"` : ""}>
