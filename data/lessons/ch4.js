@@ -775,3 +775,417 @@ export const TEMPLATES = [
     explain: "NOT BETWEEN은 범위를 뒤집어 {A}엽전보다 싸거나 {B}엽전보다 비싼 물건을 골라요. 싼 쪽만 고르는 < {A} 와 달라요.",
   },
 ];
+
+// ---- 4장 심화 (v0.2, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-06-심화-1-6장-디딤돌.md §2 4장) ----
+// - 쓸 수 있는 것: 1~4장 낱말뿐(ADVANCED_GRAMMAR[4]는 비어 있음). 앞 장 심화 낱말(--, 나머지 %)은 쓰지 않는다(R53).
+//   LIKE 무늬 안의 % 는 4장 본 과정 그대로다. 줄 세우기(ORDER BY, 5장)·IS NULL(6장)은 쓰지 않는다.
+// - NOT·NOT IN은 빈칸 없는 열(category, kind, village, shop_id, price, name)에만 쓴다. 재고·나이(NULL 있음)는 쓰지 않는다.
+// - 4-A1 NOT과 괄호(shops category 먹거리·약재·잡화·공방 각 2):
+//   NOT category = '먹거리' OR category = '잡화' 6행(잡화는 이미 「먹거리 아님」이라 OR가 더하는 것 없음, 빼려던 잡화가 남음),
+//   NOT (category = '먹거리' OR category = '잡화') 4행(약재·공방). NOT 먹거리 OR NOT 약재 8행(모두).
+//   customers NOT (kind = '사람' OR kind = '여우') 24행(도깨비), NOT kind = '사람' OR kind = '여우' 36행(도깨비+여우).
+//   items NOT (shop_id = 1 OR shop_id = 2) 30행. NOT shop_id = 7 AND price > 200 2행(쇠솥 260·장승 350, NOT은 바로 뒤 조건에만),
+//   NOT (shop_id = 7 AND price > 200) 37행. customers NOT (village = '여우고개' OR village = '달빛마을') 51행.
+//   조립은 디딤돌 계획 그대로: NOT ( 약재 OR 공방 ) → 먹거리·잡화 4행. 카드는 먹거리·잡화로 보여 줘 조립이 베끼기가 되지 않게 했다.
+// - 4-A2 LIKE 섞기(items 이름 글자 수: 1글자 갓 1, 2글자 15, 3글자 12, 4글자 이상 12, 띄어쓰기도 한 글자):
+//   '_' 1행(갓), '__' 15행, '__%' 39행, '___' 12행, '___%' 24행(= '%___'), '____%' 12행, '____' 5행,
+//   '__ %' 3행(약초 주머니·비단 주머니·작은 방망이), '% %' 4행(+ 방망이 손잡이), '_방%' 2행(금방망이·은방망이).
+//   '____%' AND price < 30 → 도토리묵 8·오미자청 25·복주머니 28.
+//   LIKE 무늬 글자 값은 헷갈림 카드로 낱장으로 두지 않는다(R33). 조립은 무늬를 LIKE와 붙인 구절 카드(R51)로 두어
+//   표 이름 뒤에 끼워도 별칭이 될 수 없다. 이 장터 이름은 모두 한글이라 LIKE의 영어 대소문자 차이(데이터베이스마다 다름)는 다루지 않는다.
+// - 4-A3 의뢰: 도깨비 국밥집(shops 1번) 주인 달래 할멈(앞 심화 의뢰인 오영감·금순·최보부와 겹치지 않음). 의뢰 사연은 꾸민 이야기이고
+//   장부 사실(주문 등)을 주장하지 않는다. 여우고개 손님 3명(신아람·해랑·방실이), 두 글자 이름 손님 14명,
+//   AND → 해랑 1행, OR → 16행(3 + 14 − 해랑 1), 여우고개 AND '___' → 신아람·방실이 2행, 여우고개 AND '_' → 0행,
+//   여우고개 AND '%이' → 방실이. 달빛마을(6명) 두 글자 이름은 단비. (여우고개 OR 달빛마을) AND '__' → 해랑·단비 2행,
+//   괄호 없이 쓰면 여우고개 3명 + 단비 = 4행, 괄호 + '___' → 7행.
+export const ADVANCED = [
+  {
+    id: "4-A1", chapter: 4, isAdvanced: true, title: "NOT과 괄호 위치",
+    goal: "NOT이 뒤집는 범위를 괄호로 정해 「둘 다 아님」을 고를 수 있다",
+    summary: [
+      "NOT은 바로 뒤 조건 하나만 뒤집어요",
+      "NOT ( … )은 괄호 안 전체를 뒤집어요",
+      "둘 다 아님 = 조건마다 NOT + AND",
+    ],
+    cards: [
+      {
+        say: "4장에서 NOT으로 조건을 뒤집었죠? 오늘은 괄호째 뒤집어 봐요. 먼저 괄호 없이! NOT은 바로 뒤 조건 하나에만 붙어서, 아래는 「먹거리가 아님」 또는 「잡화」예요. 빼려던 잡화 가게 2곳이 그대로 남아 6곳이죠.",
+        sql: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '잡화'",
+      },
+      {
+        say: "조건 둘을 괄호로 묶고 그 앞에 NOT을 두면 괄호 안 전체가 뒤집혀요. 「먹거리도 잡화도 아님」, 약재·공방 4곳! 괄호 없이 쓰려면 조건마다 NOT을 붙이고 OR를 AND로 바꿔요. 「이것도 아니고 저것도 아니다」니까요.",
+        sql: "SELECT name, category\nFROM shops\nWHERE NOT (category = '먹거리'\n  OR category = '잡화')",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "괄호가 없는 이 SQL에서 NOT이 뒤집는 것은?",
+        code: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '잡화'",
+        options: ["바로 뒤 조건 하나, 먹거리 조건만", "OR로 이은 두 조건 모두", "OR 뒤의 잡화 조건만"],
+        answer: 0,
+        explain: "괄호가 없으면 NOT은 바로 뒤 조건 하나에만 붙어요. 그래서 「먹거리가 아님」 또는 「잡화」로 읽혀요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "바람 보따리(잡화)가 이 결과에 남는 까닭은?",
+        code: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '잡화'",
+        options: [
+          "NOT이 먹거리 조건에만 붙어 잡화는 뒤집히지 않아서",
+          "NOT이 두 조건을 모두 뒤집어서",
+          "잡화 가게는 NOT과 상관없이 빠질 수 없어서",
+        ],
+        answer: 0,
+        explain: "잡화 가게는 먹거리가 아니니 앞 조건부터 참이에요. 잡화까지 빼려면 두 조건을 괄호로 묶고 그 앞에 NOT을 둬요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, kind\nFROM customers\nWHERE NOT (kind = '사람'\n  OR kind = '여우')",
+        options: ["24행", "36행", "60행"],
+        answer: 0,
+        explain: "괄호 안 「사람 또는 여우」 36명을 통째로 뒤집어, 사람도 여우도 아닌 도깨비 손님 24명이 남아요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "괄호를 뺀 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, kind\nFROM customers\nWHERE NOT kind = '사람'\n  OR kind = '여우'",
+        options: ["36행", "24행", "48행"],
+        answer: 0,
+        explain: "NOT은 사람 조건만 뒤집어 도깨비 24명과 여우 12명이 남아요. 여우는 이미 「사람이 아님」에 들어 있어 OR가 더 늘리지 않아요.",
+      },
+      {
+        type: "blank", concept: "adv_not_paren",
+        q: "1번 가게 물건도 2번 가게 물건도 아닌 것만 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name, shop_id\nFROM items\nWHERE NOT ___ shop_id = 1\n  OR shop_id = 2)",
+        chips: ["(", "IN", "AND"],
+        answer: 0,
+        explain: "NOT 뒤에 괄호를 열어 두 조건을 함께 뒤집어요. 먹거리 가게 두 곳의 10가지가 빠져 30가지예요. IN이나 AND를 넣으면 오류가 나요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "「먹거리도 약재도 아닌 가게」를 괄호 없이 바르게 쓴 조건은?",
+        options: [
+          "NOT category = '먹거리'\n  AND NOT category = '약재'",
+          "NOT category = '먹거리'\n  OR NOT category = '약재'",
+          "NOT category = '먹거리'\n  AND category = '약재'",
+        ],
+        answer: 0,
+        explain: "「이것도 아니고 저것도 아니다」는 조건마다 NOT을 붙여 AND로 이어요. NOT 하나를 빼먹으면 약재 가게만 남아요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR NOT category = '약재'",
+        options: ["8행", "4행", "6행"],
+        answer: 0,
+        explain: "먹거리 가게는 약재가 아니고, 약재 가게는 먹거리가 아니에요. 어느 가게든 둘 중 하나는 참이라 8곳이 모두 나와요. 「둘 다 아님」은 AND예요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "이 SQL과 결과가 같은 조건은?",
+        code: "SELECT name, category\nFROM shops\nWHERE NOT (category = '먹거리'\n  OR category = '잡화')",
+        options: [
+          "category NOT IN\n  ('먹거리', '잡화')",
+          "category IN\n  ('먹거리', '잡화')",
+          "NOT category = '먹거리'\n  OR category = '잡화'",
+        ],
+        answer: 0,
+        explain: "IN 목록은 = 를 OR로 이은 것이니, NOT IN은 그 OR를 통째로 뒤집은 것과 같아요. 약재·공방 4곳이 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "NOT 뒤가 AND일 때, 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, price\nFROM items\nWHERE NOT shop_id = 7\n  AND price > 200",
+        options: ["2행", "37행", "5행"],
+        answer: 0,
+        explain: "AND 앞이어도 NOT은 shop_id = 7 하나만 뒤집어요. 「7번 가게가 아니고 200엽전 넘는」 쇠솥·장승 2가지예요. 37은 괄호로 둘을 함께 뒤집은 결과예요.",
+      },
+      {
+        type: "choice", concept: "adv_not_paren",
+        q: "먹거리 가게도 공방도 아닌 가게를 보여 준 결과는 어느 것일까요?",
+        options: [
+          { sql: "SELECT name, category\nFROM shops\nWHERE NOT (category = '먹거리'\n  OR category = '공방')" },
+          { sql: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '공방'" },
+          { sql: "SELECT name, category\nFROM shops\nWHERE category = '먹거리'\n  OR category = '공방'" },
+        ],
+        answer: 0, tables: ["shops"],
+        explain: "category가 약재와 잡화뿐인 4곳이 정답이에요. 공방이 섞인 6곳은 NOT이 먹거리에만 붙은 것, 먹거리와 공방 4곳은 NOT이 없는 것이에요.",
+      },
+      {
+        type: "order", concept: "adv_not_paren",
+        q: "여우고개에도 달빛마을에도 살지 않는 손님을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, village", "FROM customers", "WHERE NOT (village = '여우고개'", "OR village = '달빛마을')"],
+        explain: "NOT과 여는 괄호를 WHERE 줄에, 닫는 괄호를 OR 줄 끝에 두어 두 마을을 함께 뒤집었어요. 9명이 빠져 51명이 나와요.",
+      },
+      {
+        id: "4-A1-b1", type: "build", concept: "adv_not_paren",
+        q: "약재 가게도 공방도 아닌 가게를 보여 줘",
+        cards: ["SELECT", "*", "FROM", "shops", "WHERE", "NOT (", "category = '약재'", "OR", "category = '공방'", ")"],
+        extra: ["AND", "category = '먹거리'"],
+        tables: ["shops"],
+        hints: [
+          "「약재 또는 공방」을 먼저 한 덩어리로 묶고, 그 덩어리를 통째로 뒤집어요.",
+          "WHERE 다음에 NOT (, 약재 조건, OR, 공방 조건, 닫는 괄호를 놓아요.",
+        ],
+        explain: "먹거리·잡화 가게 4곳이 나왔어요! 괄호 앞의 NOT 하나가 「약재 또는 공방」 전체를 뒤집었죠. AND로 묶으면 약재이면서 공방인 가게가 없어, 뒤집은 결과는 8곳 모두예요.",
+      },
+      {
+        type: "check", concept: "adv_not_paren",
+        q: "NOT과 괄호 위치에 대해 맞는 말은?",
+        options: [
+          "괄호가 없으면 NOT은 바로 뒤 조건 하나만 뒤집는다",
+          "NOT은 언제나 WHERE 뒤의 조건 전체를 뒤집는다",
+          "NOT (A OR B)는 NOT A OR NOT B와 같다",
+        ],
+        answer: 0,
+        explain: "뒤집을 범위는 괄호가 정해요. 「둘 다 아님」은 NOT (A OR B), 괄호 없이 쓰면 NOT A AND NOT B예요.",
+      },
+    ],
+  },
+  {
+    id: "4-A2", chapter: 4, isAdvanced: true, title: "LIKE 무늬 섞기",
+    goal: "_ 와 % 를 섞은 무늬로 글자 수와 자리를 정해 찾을 수 있다",
+    summary: [
+      "'__%' = 두 글자 이상인 글자",
+      "_ 개수 = 꼭 있어야 할 글자 수",
+      "띄어쓰기도 한 글자로 쳐요",
+    ],
+    cards: [
+      {
+        say: "4장에서 % 는 몇 글자든, _ 는 딱 한 글자였죠? 오늘은 둘을 섞어 봐요. 먼저 _ 만 두 개면 딱 두 글자 이름이에요. 여기에 % 를 뒤에 붙이면 「두 글자 다음에 몇 글자든」, 곧 두 글자 이상이 돼요.",
+        sql: "SELECT name, price\nFROM items\nWHERE name LIKE '__'",
+      },
+      {
+        say: "띄어쓰기도 한 글자로 쳐요. 아래 무늬는 「두 글자, 띄어쓰기, 그 뒤 몇 글자든」이라 약초 주머니, 비단 주머니, 작은 방망이가 나와요. 방망이 손잡이는 앞이 세 글자라 빠져요.",
+        sql: "SELECT name, price\nFROM items\nWHERE name LIKE '__ %'",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "LIKE '__%' 는 어떤 이름을 찾을까요?",
+        options: ["두 글자 이상인 이름", "딱 두 글자인 이름", "두 글자 이하인 이름"],
+        answer: 0,
+        explain: "_ 두 개로 두 글자는 꼭 있어야 하고, 뒤의 % 는 0글자부터 몇 글자든 받아요. 그래서 두 글자 이상이에요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "한 글자 이름인 갓은 이 SQL의 결과에 나올까요?",
+        code: "SELECT name\nFROM items\nWHERE name LIKE '__%'",
+        options: ["나오지 않는다. 꼭 있어야 할 두 글자가 안 된다", "나온다. % 가 모자란 글자를 채운다", "갓 행에서 오류가 난다"],
+        answer: 0,
+        explain: "% 는 0글자도 되지만 _ 자리는 꼭 한 글자씩 있어야 해요. 갓은 한 글자라 _ 두 개를 채우지 못해요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name\nFROM items\nWHERE name LIKE '_'",
+        options: ["1행", "0행", "40행"],
+        answer: 0,
+        explain: "_ 하나는 딱 한 글자예요. 물건 중 한 글자 이름은 갓 하나예요. 40행은 '%' 하나로 모든 이름을 찾을 때예요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "이름이 딱 세 글자인 물건을 찾는 무늬는?",
+        options: ["'___'", "'___%'", "'%___'"],
+        answer: 0,
+        explain: "% 없이 _ 세 개면 딱 세 글자예요. '___%'와 '%___'는 % 가 앞이냐 뒤냐만 다를 뿐, 둘 다 세 글자 이상을 찾아요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "LIKE '___%' 와 결과가 같은 무늬는?",
+        options: ["'%___'", "'___'", "'__%'"],
+        answer: 0,
+        explain: "% 가 앞에 있든 뒤에 있든, 꼭 있어야 할 글자는 _ 세 개예요. 그래서 둘 다 세 글자 이상이에요. '__%'는 두 글자 이름도 넣어요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "LIKE '% %' 는 어떤 이름을 찾을까요?",
+        options: ["띄어쓰기가 하나라도 든 이름", "% 가 둘이라 모든 이름", "두 낱말뿐인 이름은 빼고 찾는다"],
+        answer: 0,
+        explain: "가운데 띄어쓰기는 진짜 띄어쓰기 한 글자예요. 그 앞뒤로 몇 글자든 와도 되니, 띄어쓰기가 든 이름이에요.",
+      },
+      {
+        type: "blank", concept: "adv_like_mix",
+        q: "이름에 띄어쓰기가 든 물건만 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name\nFROM items\nWHERE name LIKE ___",
+        chips: ["'% %'", "'%%'", "'_ _'"],
+        answer: 0,
+        explain: "카드에서 본 3가지에 방망이 손잡이까지 4가지예요. '%%'는 띄어쓰기가 없어 40가지 모두, '_ _'는 「한 글자, 띄어쓰기, 한 글자」뿐이라 0가지예요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "이 SQL의 결과에 나오는 물건은?",
+        code: "SELECT name\nFROM items\nWHERE name LIKE '_방%'",
+        options: ["금방망이", "도깨비방망이", "방망이 손잡이"],
+        answer: 0,
+        explain: "_ 하나 다음에 「방」이니 둘째 글자가 방인 이름이에요. 금방망이·은방망이가 나와요. 방망이 손잡이는 첫 글자가 방이에요.",
+      },
+      {
+        type: "choice", concept: "adv_like_mix",
+        q: "이름이 딱 세 글자인 물건을 보여 준 결과는 어느 것일까요?",
+        options: [
+          { sql: "SELECT name, price\nFROM items\nWHERE name LIKE '___'" },
+          { sql: "SELECT name, price\nFROM items\nWHERE name LIKE '___%'" },
+          { sql: "SELECT name, price\nFROM items\nWHERE name LIKE '__'" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "막걸리·인절미처럼 세 글자 이름만 든 12행이 정답이에요. 24행은 세 글자 이상, 15행은 두 글자 이름이에요.",
+      },
+      {
+        type: "order", concept: "adv_like_mix",
+        q: "이름이 네 글자 이상이고 30엽전 미만인 물건을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price", "FROM items", "WHERE name LIKE '____%'", "AND price < 30"],
+        expect: "name | price\n도토리묵 | 8\n오미자청 | 25\n복주머니 | 28",
+        explain: "섞은 무늬도 LIKE 조건 하나라 AND로 다른 조건과 이어요. 네 글자 이상 12가지 중 30엽전 미만은 3가지예요.",
+      },
+      {
+        id: "4-A2-b1", type: "build", concept: "adv_like_mix",
+        q: "이름이 세 글자 이상인 물건을 보여 줘",
+        cards: ["SELECT", "*", "FROM", "items", "WHERE", "name", "LIKE '___%'"],
+        extra: ["LIKE '___'", "LIKE '__%'"],
+        tables: ["items"],
+        hints: [
+          "꼭 있어야 할 글자 수만큼 _ 를 두고, 그 뒤는 몇 글자든 받아요.",
+          "WHERE name 다음에 _ 세 개 뒤에 % 가 붙은 LIKE 카드를 놓아요.",
+        ],
+        explain: "세 글자 12가지와 네 글자 이상 12가지, 24가지가 나왔어요! 딱 세 글자는 '___', 두 글자 이상은 '__%'예요.",
+      },
+      {
+        type: "check", concept: "adv_like_mix",
+        q: "_ 와 % 를 섞은 무늬에 대해 맞는 말은?",
+        options: [
+          "_ 개수만큼 글자가 꼭 있어야 하고, % 는 그 밖을 몇 글자든 채운다",
+          "% 가 있으면 _ 는 아무 뜻이 없다",
+          "띄어쓰기는 글자로 세지 않는다",
+        ],
+        answer: 0,
+        explain: "_ 는 자리 하나, % 는 0글자부터 몇 글자든이에요. 띄어쓰기도 한 글자라 _ 나 무늬 속 띄어쓰기로 찾을 수 있어요.",
+      },
+    ],
+  },
+  {
+    id: "4-A3", chapter: 4, isAdvanced: true, title: "손님 찾기 의뢰",
+    goal: "단서를 AND로 하나씩 더하며 행 수로 확인해 손님을 찾을 수 있다",
+    summary: [
+      "단서는 AND로 하나씩 더해요",
+      "AND를 더하면 행이 같거나 줄어요",
+      "AND·OR가 섞이면 괄호로 묶어요",
+    ],
+    cards: [
+      {
+        say: "4장에서 AND로 조건을 이었죠? 오늘은 의뢰예요! 도깨비 국밥집 달래 할멈이 「국밥값을 두 번 내고 간 손님을 찾아 주게. 여우고개에 살고 이름이 두 글자였어」래요. 첫 단서만 걸면 3명이에요.",
+        sql: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'",
+      },
+      {
+        say: "둘째 단서, 딱 두 글자 이름은 _ 두 개예요. 이름이 두 글자인 손님은 14명! 두 단서를 다 만족하는 손님은 두 결과에 모두 나오는 사람이에요. AND로 이으면 행이 줄고, OR로 이으면 오히려 늘어요.",
+        sql: "SELECT name, village\nFROM customers\nWHERE name LIKE '__'",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "카드의 두 결과에 모두 나오는 손님, 곧 의뢰의 답은?",
+        options: ["해랑", "신아람", "단비"],
+        answer: 0,
+        explain: "해랑은 여우고개에 살고 이름도 두 글자예요. 신아람은 세 글자, 단비는 달빛마을이라 한 단서만 맞아요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "여우고개라는 단서 하나로만 찾으면 어떻게 될까요?",
+        options: ["3명이 나와 누구인지 정할 수 없다", "해랑 한 명만 나온다", "단서가 모자라 오류가 난다"],
+        answer: 0,
+        explain: "신아람·해랑·방실이가 모두 여우고개 손님이에요. 단서를 하나 더해야 한 명으로 좁혀져요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_4",
+        q: "두 단서를 모두 만족하는 손님만 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  ___ name LIKE '__'",
+        chips: ["AND", "OR", ","],
+        answer: 0,
+        explain: "두 단서가 함께 맞아야 하니 AND예요. 해랑 한 명이 나와요. OR는 한 단서만 맞아도 남기고, 쉼표는 오류가 나요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "단서를 OR로 이은 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  OR name LIKE '__'",
+        options: ["16행", "17행", "1행"],
+        answer: 0,
+        explain: "여우고개 3명과 두 글자 이름 14명을 합치면 17이지만, 둘 다 맞는 해랑은 한 번만 나와 16행이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "AND로 단서를 하나 더할 때마다 결과 행 수는 어떻게 될까요?",
+        options: ["같거나 줄어든다", "늘 늘어난다", "늘 1행이 된다"],
+        answer: 0,
+        explain: "AND는 이미 남은 행 가운데서 또 골라요. 그래서 늘어날 수 없어요. 행 수가 줄어드는 것을 보며 단서가 잘 걸렸는지 확인해요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "할멈이 이름을 세 글자로 잘못 말했다면, 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  AND name LIKE '___'",
+        options: ["2행", "1행", "3행"],
+        answer: 0,
+        explain: "여우고개 손님 중 세 글자 이름은 신아람·방실이 2명이에요. 단서 하나가 틀리면 엉뚱한 손님이 나오니 할멈께 다시 여쭤봐요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "이름을 한 글자로 기억해 찾으면 결과는 어떨까요?",
+        code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  AND name LIKE '_'",
+        options: ["행이 하나도 없는 표", "해랑 한 행", "LIKE '_' 때문에 오류가 난다"],
+        answer: 0,
+        explain: "여우고개 손님 셋은 이름이 두세 글자라 한 글자인 사람이 없어요. 0행이 나오면 단서 중 하나가 틀렸다는 신호예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "여우고개 손님 중 이름이 「이」로 끝나는 손님은?",
+        code: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  AND name LIKE '%이'",
+        options: ["방실이", "신아람", "해랑"],
+        answer: 0,
+        explain: "'%이'는 몇 글자든 뒤에 「이」로 끝나는 이름이에요. 여우고개 손님 셋 중 방실이 하나예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_4",
+        q: "여우고개나 달빛마을에 살고 이름이 두 글자인 손님을 보여 준 결과는?",
+        options: [
+          { sql: "SELECT name, village\nFROM customers\nWHERE name LIKE '__'\n  AND (village = '여우고개'\n  OR village = '달빛마을')" },
+          { sql: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'\n  OR village = '달빛마을'\n  AND name LIKE '__'" },
+          { sql: "SELECT name, village\nFROM customers\nWHERE name LIKE '___'\n  AND (village = '여우고개'\n  OR village = '달빛마을')" },
+        ],
+        answer: 0, tables: ["customers"],
+        explain: "해랑·단비 2명이 정답이에요. 괄호가 없으면 AND가 먼저 묶여 신아람·방실이까지 4명, 세 글자 무늬는 7명이 나와요.",
+      },
+      {
+        type: "order", concept: "adv_apply_4",
+        q: "두 글자 이름이고 여우고개나 달빛마을에 사는 손님을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, village", "FROM customers", "WHERE name LIKE '__'", "AND (village = '여우고개'", "OR village = '달빛마을')"],
+        expect: "name | village\n해랑 | 여우고개\n단비 | 달빛마을",
+        explain: "마을 단서 둘을 괄호로 묶어 OR로 잇고, 그 덩어리를 이름 단서와 AND로 이었어요. 할멈의 기억이 흐려도 2명으로 좁혀져요.",
+      },
+      {
+        id: "4-A3-b1", type: "build", concept: "adv_apply_4",
+        q: "달래 할멈 의뢰: 여우고개에 살고 이름이 두 글자인 손님을 찾아 줘",
+        cards: ["SELECT", "*", "FROM", "customers", "WHERE", "village = '여우고개'", "AND", "name LIKE '__'"],
+        extra: ["OR", "name LIKE '___'"],
+        tables: ["customers"],
+        hints: [
+          "단서 둘이 모두 맞아야 해요. 이름 글자 수는 _ 개수로 정해요.",
+          "WHERE 다음에 마을 조건, AND, _ 두 개인 이름 조건을 놓아요.",
+        ],
+        explain: "의뢰 해결! 여우고개의 해랑 님이에요. 3명에서 1명으로, AND로 단서를 더할 때마다 행이 줄었죠. 국밥값은 돌려드릴 수 있겠어요!",
+      },
+      {
+        type: "check", concept: "adv_apply_4",
+        q: "손님 찾기 의뢰를 풀며 알게 된 것으로 맞는 말은?",
+        options: [
+          "AND로 단서를 더하면 행이 같거나 줄어, 행 수로 단서를 확인할 수 있다",
+          "OR로 단서를 더하면 행이 줄어든다",
+          "LIKE '__'는 두 글자 이상인 이름을 찾는다",
+        ],
+        answer: 0,
+        explain: "AND는 좁히고 OR는 넓혀요. 행 수가 0이 되거나 너무 많으면 단서를 다시 봐요. 딱 두 글자는 '__', 두 글자 이상은 '__%'예요.",
+      },
+    ],
+  },
+];
