@@ -12,6 +12,13 @@ export function el(html) {
   return t.content.firstElementChild;
 }
 
+/** SQL·무늬가 든 글자용 esc: 이어진 밑줄(2개 이상, LIKE '__%')은 고정폭 글꼴에서 한 줄로 붙어 몇 개인지 셀 수 없다(휴대폰).
+ *  밑줄마다 span.us로 감싸 CSS가 조금 좁혀 그린다(transform이라 칸 너비·SQL_COLS는 그대로). 한 덩어리는 span.us-run(줄바꿈 안 함).
+ *  글자(textContent)는 그대로라 복사·읽기 프로그램·aria-label에는 영향이 없다. 밑줄 하나(item_id)는 감싸지 않는다 */
+export function escCode(v) {
+  return esc(v).replace(/_{2,}/g, (m) => `<span class="us-run">${'<span class="us">_</span>'.repeat(m.length)}</span>`);
+}
+
 export const $ = (root, sel) => root.querySelector(sel);
 export const $$ = (root, sel) => Array.from(root.querySelectorAll(sel));
 
@@ -19,7 +26,7 @@ export const $$ = (root, sel) => Array.from(root.querySelectorAll(sel));
 export function dueogiSays({ outfit, face, text, size = 96, sfx = "", cls = "" }) {
   return `<div class="dueogi-row ${cls}">
     <div class="dueogi-wrap">${dueogiSVG({ outfit, face, size })}${sfx ? `<span class="sfx" aria-hidden="true">${esc(sfx)}</span>` : ""}</div>
-    <p class="bubble">${esc(text)}</p>
+    <p class="bubble">${escCode(text)}</p>
   </div>`;
 }
 
@@ -101,7 +108,7 @@ export function bar(value, max, cls = "", label = "") {
 
 /** 코드 보기 블록 */
 export function codeBlock(code, cls = "") {
-  return `<pre class="code ${cls}"><code>${esc(code)}</code></pre>`;
+  return `<pre class="code ${cls}"><code>${escCode(code)}</code></pre>`;
 }
 
 /** 보기 전용 카드(판정 R30, 16장)의 안내. show의 SQL은 다른 데이터베이스 문법이라 실행하지 않는다 */
@@ -111,7 +118,7 @@ export const SHOW_NOTE = "보기 전용이에요. 이 장터에서는 돌지 않
 function showExample(c) {
   return `<div class="example show-only">
     <p class="ex-label"><span class="dialect">${esc(c.dialect || "")}</span><span class="show-note">${esc(SHOW_NOTE)}</span></p>
-    <pre class="code sql show" aria-label="${esc(`${c.dialect || ""} SQL, 보기 전용`)}"><code>${esc(c.show)}</code></pre></div>`;
+    <pre class="code sql show" aria-label="${esc(`${c.dialect || ""} SQL, 보기 전용`)}"><code>${escCode(c.show)}</code></pre></div>`;
 }
 
 /** 개념 카드의 SQL 칸: SQL(코드 글꼴) + 그 아래 실행 결과 표 자리. 표는 화면을 그린 뒤 ui/sqlview.js의 fillResults가 채운다

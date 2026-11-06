@@ -16,7 +16,7 @@ import { newBuild, tap, sqlOf, usedTexts, hint as hintStep } from "../build.js";
 import { cardsToSql, judgeBuild, explain, needLine, extraLine } from "../grade.js";
 import { SCHEMA } from "../../data/schema.js";
 import { FACES } from "../say.js";
-import { esc, icon, codeBlock, dueogiSays } from "./dom.js";
+import { esc, escCode, icon, codeBlock, dueogiSays } from "./dom.js";
 import { tableHTML } from "./table.js";
 import { openTables } from "./tables.js";
 import { runExpected, settleTimeout } from "../slowdevice.js";
@@ -115,7 +115,7 @@ export function mountBuild(host, {
   const runBtn = $("#run"), subBtn = $("#submit"), hintBtn = $("#hint"), solBtn = $("#sol");
 
   // ---- 카드 ----
-  const cardInner = (c) => `<span class="bc-text">${esc(c.text)}</span>${c.ko ? `<span class="bc-ko">${esc(c.ko)}</span>` : ""}`;
+  const cardInner = (c) => `<span class="bc-text">${escCode(c.text)}</span>${c.ko ? `<span class="bc-ko">${esc(c.ko)}</span>` : ""}`;
   function paint() {
     const placed = new Set(B.line);
     lineEl.innerHTML = B.line.length
@@ -334,7 +334,7 @@ export function mountBuild(host, {
     solEl.hidden = false;
     solEl.innerHTML = `<h2>${auto ? `${AUTO_SOLUTION_AFTER}번 제출했으니 정답을 같이 볼까요?` : "정답"}</h2>
       ${codeBlock(cardsToSql(item.cards), "sql")}
-      ${item.explain ? `<p>${esc(item.explain)}</p>` : ""}
+      ${item.explain ? `<p>${escCode(item.explain)}</p>` : ""}
       <button class="btn ghost small" id="usesol">정답 카드로 놓기</button>`;
     solEl.querySelector("#usesol").addEventListener("click", () => {
       if (st.busy || st.passed) return;

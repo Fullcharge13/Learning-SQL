@@ -4,7 +4,7 @@ import { QUESTS } from "../../data/quests.js";
 import { BADGES } from "../../data/badges.js";
 import { dueogiSVG } from "../dueogi.js";
 import { doneFace } from "../say.js";
-import { esc, icon, celebrate, dueogiSays, MILESTONE_REWARD } from "./dom.js";
+import { esc, escCode, icon, celebrate, dueogiSays, MILESTONE_REWARD } from "./dom.js";
 import { badgeArt } from "./badges.js";
 import { courseJustFinished } from "../curriculum.js";
 import { isAdvancedLesson } from "../advanced.js";
@@ -49,7 +49,7 @@ export function render(root, ctx, params = {}) {
       ${r.firstTime && r.perfect ? `<p class="perk">${icon("star")}실수 없이 끝냈어요 (+5 XP, +5엽전)</p>` : ""}
       ${r.firstTime && r.hintFreeBuild ? `<p class="perk">${icon("bulb")}힌트 없이 카드 조립을 통과했어요 (+5 XP)</p>` : ""}
       ${streakLine ? dueogiSays({ outfit: ctx.save.outfit, face: streakLine.face, text: streakLine.text, size: 56, cls: "small" }) : ""}
-      ${lesson && lesson.summary ? `<section class="panel summary"><h2>오늘 배운 것</h2><ol>${lesson.summary.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></section>` : ""}
+      ${lesson && lesson.summary ? `<section class="panel summary"><h2>오늘 배운 것</h2><ol>${lesson.summary.map((s) => `<li>${escCode(s)}</li>`).join("")}</ol></section>` : ""}
       ${quests.length || r.chest ? `<section class="panel"><h2>끝낸 퀘스트</h2><ul class="plain">${quests.map((q) => `<li>${icon("check")}${esc(q.name)} <b class="sun-text">+${q.reward}</b></li>`).join("")}
         ${r.chest ? `<li>${icon("chestOpen")}보물상자를 열었어요 <b class="sun-text">+10</b></li>` : ""}</ul></section>` : ""}
       ${badges.length ? `<section class="panel"><h2>새 배지</h2><ul class="new-badges">${badges.map((b) => `<li>${badgeArt(b.id, true, 56)}<span>${esc(b.name)}</span></li>`).join("")}</ul></section>` : ""}

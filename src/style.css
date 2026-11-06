@@ -124,6 +124,10 @@ button { cursor: pointer; }
   white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
 }
 /* SQL 한 줄 38칸(tests/content.js SQL_COLS)이 가장 좁은 폰(iPhone 17e, 390px)에서도 한 줄에 들도록 14px (버그 B1: 15px은 36칸) */
+/* 이어진 밑줄('__%'): 밑줄마다 span.us(src/ui/dom.js escCode). 고정폭 글꼴의 밑줄은 칸 너비를 꽉 채워 붙어 보이므로
+   가로로 78%만 그려 이웃 사이에 틈을 낸다. transform은 자리 너비를 바꾸지 않아 SQL_COLS 38칸 맞춤(test_sql_cols_fit)이 그대로 */
+.us-run { white-space: nowrap; }
+.us { display: inline-block; transform: scaleX(.78); }
 .code { background: var(--navy); color: #F4EEDD; font-size: 14px; }
 .out { background: var(--card); border: 2px dashed var(--line); color: var(--ink); }
 .out.empty { color: var(--ink-2); }

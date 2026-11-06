@@ -7,7 +7,7 @@
 // - 실행 오류: 짧은 안내 한 줄(내용 점검기가 막아야 하는 경우).
 import { SCHEMA } from "../../data/schema.js";
 import { tableHTML } from "./table.js";
-import { esc, codeBlock } from "./dom.js";
+import { esc, escCode, codeBlock } from "./dom.js";
 import { OPT_ROWS } from "../template.js";
 import { isCodey } from "../textkind.js";
 
@@ -68,7 +68,7 @@ export function choiceOptionHTML(o, i) {
   const q = optSql(o);
   const n = i + 1;
   if (q == null) {
-    return `<button class="opt${isCodey(o) ? " mono" : ""}" role="radio" aria-checked="false" data-i="${i}"><span class="opt-key" aria-hidden="true">${n}</span><span class="opt-text">${esc(o)}</span></button>`;
+    return `<button class="opt${isCodey(o) ? " mono" : ""}" role="radio" aria-checked="false" data-i="${i}"><span class="opt-key" aria-hidden="true">${n}</span><span class="opt-text">${escCode(o)}</span></button>`;
   }
   const has = o.result && Array.isArray(o.result.columns) && Array.isArray(o.result.rows);
   // 표를 들고 있으면 바로 그린다(data-sql 자리가 없어 fillResults가 다시 돌리지 않음). 아니면 fillResults가 채울 자리

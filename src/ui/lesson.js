@@ -4,7 +4,7 @@ import { current, nextCard, answer, skip, summary } from "../lessonflow.js";
 import { newSession, mark as markConcept, touchResult, buildPass, buildWrong, buildHint, logSubmit, finishInfo } from "../session.js";
 import { packResume, restoreSession, hasProgress } from "../resume.js";
 import { FACES } from "../say.js";
-import { esc, icon, bar, codeBlock, dialog, dueogiSays, cardExample } from "./dom.js";
+import { esc, escCode, icon, bar, codeBlock, dialog, dueogiSays, cardExample } from "./dom.js";
 import { shuffleChoices, shuffleOrder, newSeed } from "../shuffle.js";
 import { reviewPool } from "../lessondata.js";
 import { buildDailyLesson } from "../daily.js";
@@ -231,7 +231,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
         <h2>${esc(title)}</h2>
       </div>
       ${answerHTML}
-      ${text ? `<p class="result-explain">${esc(text)}</p>` : ""}
+      ${text ? `<p class="result-explain">${escCode(text)}</p>` : ""}
       <div class="dueogi-row small">
         <div class="dueogi-wrap${ok ? " jump" : ""}">${dueogiSVG({ outfit: ctx.save.outfit, face: face || line.face, size: 64 })}<span class="sfx" aria-hidden="true">${esc(sfx)}</span></div>
         <p class="bubble">${esc(line.text)}</p>
@@ -306,7 +306,7 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       : it.type === "check" ? `<span class="tag check">이해도 확인</span>`
       : review && it.from ? `<span class="tag">${esc(it.from)} 복습</span>`
       : daily && it.tag ? `<span class="tag daily">${icon("flame")}${esc(it.tag)}</span>` : "";
-    return `${tag}<h1 class="q">${esc(it.q || (it.type === "order" ? "줄을 차례대로 눌러 SQL을 완성해 보세요." : "답을 골라 보세요."))}</h1>
+    return `${tag}<h1 class="q">${escCode(it.q || (it.type === "order" ? "줄을 차례대로 눌러 SQL을 완성해 보세요." : "답을 골라 보세요."))}</h1>
       ${it.code && it.type !== "blank" ? codeBlock(it.code) : ""}`;
   }
 
@@ -353,12 +353,12 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     const it = { ...orig, chips: sh.options, answer: sh.answer };
     let pick = -1;
     const parts = String(it.code || "___").split("___");
-    const codeHTML = () => `<pre class="code blank-code"><code>${parts.map((p, i) => esc(p) + (i < parts.length - 1
-      ? `<span class="slot${pick >= 0 ? " filled" : ""}">${pick >= 0 ? esc(it.chips[pick]) : "    "}</span>` : "")).join("")}</code></pre>`;
+    const codeHTML = () => `<pre class="code blank-code"><code>${parts.map((p, i) => escCode(p) + (i < parts.length - 1
+      ? `<span class="slot${pick >= 0 ? " filled" : ""}">${pick >= 0 ? escCode(it.chips[pick]) : "    "}</span>` : "")).join("")}</code></pre>`;
     body.innerHTML = `<article class="item">${itemHead(cur)}
       <div id="bc">${codeHTML()}</div>
       <div class="chips" role="radiogroup" aria-label="빈자리에 넣을 조각">${it.chips.map((c, i) =>
-        `<button class="chip mono" role="radio" aria-checked="false" data-i="${i}">${esc(c)}</button>`).join("")}</div>
+        `<button class="chip mono" role="radio" aria-checked="false" data-i="${i}">${escCode(c)}</button>`).join("")}</div>
     </article>`;
     const act = footButton("확인", { disabled: true });
     body.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
@@ -383,13 +383,13 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
       <ol class="order-answer" id="oa" aria-label="고른 순서"></ol>
       <p class="ex-label">줄 조각 <small>(누른 순서대로 들어가요)</small></p>
       <div class="order-pool" id="op">${order.map((li) =>
-        `<button class="line mono" data-li="${li}">${esc(it.lines[li])}</button>`).join("")}</div>
+        `<button class="line mono" data-li="${li}">${escCode(it.lines[li])}</button>`).join("")}</div>
     </article>`;
     const act = footButton("확인", { disabled: true });
     const oa = body.querySelector("#oa");
     const paint = () => {
       oa.innerHTML = chosen.length ? chosen.map((li, k) =>
-        `<li><button class="line mono placed" data-k="${k}" aria-label="${esc(`${k + 1}번째 줄 빼기: ${it.lines[li]}`)}">${esc(it.lines[li])}</button></li>`).join("")
+        `<li><button class="line mono placed" data-k="${k}" aria-label="${esc(`${k + 1}번째 줄 빼기: ${it.lines[li]}`)}">${escCode(it.lines[li])}</button></li>`).join("")
         : `<li class="empty">아래 조각을 눌러 보세요</li>`;
       body.querySelectorAll("#op .line").forEach((b) => {
         const used = chosen.includes(+b.dataset.li);

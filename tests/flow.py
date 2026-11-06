@@ -39,6 +39,7 @@
   마지막 카드·보기·빈칸·줄·「쓸 표 보기」가 고정 단추 줄 위에 다 보임 + 전체 캡처 맨 아래가 내린 화면의 단추 줄과 같음(App.shot이 고정 줄을 페이지 끝으로 옮겨 찍음)
 - test_sql_cols_fit(B1·작업 16): iPhone 17e에서 SQL_COLS(38)칸이 코드 상자·순서 조각, ORDER_COLS(33)칸이 놓은 줄, OPT_COLS(31)칸이
   코드 모양 글자 보기에서 한 줄, 글씨 13px 이상
+- test_underscore_gap(4~6장 심화 고침): iPhone 17e로 4-A2를 풀며 이어진 밑줄 '__'이 모두 span.us로 감싸이고 이웃 사이 틈 1px 이상
 - test_import_ria_save(작업 16): 다른 앱(리아) 저장 가져오기는 안내만, 두억이 저장은 확인 창
 - test_shot_pin_allowlist(작업 16): 전체 캡처는 .lesson-foot·.tabbar만 옮기고, 결과 창이 열리면 안 옮기며, 실패해도 되돌림
 - test_foot_clear_safe_area(작업 16): --sab 34px + 힌트 모두 펼침 → 조립 화면 내용이 단추 줄 위에 다 보임
@@ -2260,9 +2261,14 @@ SQL_COLS_JS = r"""() => {
     while (k < 80) { t.textContent = 'S'.repeat(k + 1); if (box.getBoundingClientRect().height > one + 0.5) break; k++; }
     t.textContent = ''; return k; };
   const g = (id) => document.querySelector(id), px = (id) => parseFloat(getComputedStyle(g(id)).fontSize);
+  // 밑줄 span.us(escCode)는 자리 너비를 바꾸지 않는다: 'S' 38칸과 밑줄 38칸(감싼 것)의 높이·너비가 같아야 함
+  const usFit = (box, t) => { const n = 38; t.textContent = 'S'.repeat(n); const h = box.getBoundingClientRect().height, w = t.getBoundingClientRect().width;
+    t.innerHTML = '<span class="us-run">' + '<span class="us">_</span>'.repeat(n) + '</span>';
+    const ok = Math.abs(box.getBoundingClientRect().height - h) < 0.5 && Math.abs(t.getBoundingClientRect().width - w) < 0.5; t.textContent = ''; return ok; };
   return { code: fit(g('#c1'), g('#c1 code')), pool: fit(g('#c2'), g('#c2')), placed: fit(g('#c3'), g('#c3')),
            opt: fit(g('#c4').closest('.opt'), g('#c4')),
-           codePx: px('#c1'), linePx: px('#c2'), placedPx: px('#c3'), optPx: px('#c4'), vw: innerWidth };
+           codePx: px('#c1'), linePx: px('#c2'), placedPx: px('#c3'), optPx: px('#c4'), vw: innerWidth,
+           usFits: usFit(g('#c1'), g('#c1 code')) };
 }"""
 
 
@@ -2283,6 +2289,7 @@ def test_sql_cols_fit():
     assert r["placed"] >= lim["ORDER_COLS"], "placed order line wraps below ORDER_COLS: %s %s" % (lim, r)
     assert r["opt"] >= lim["OPT_COLS"], "code option wraps below OPT_COLS: %s %s" % (lim, r)
     assert min(r["codePx"], r["linePx"], r["placedPx"], r["optPx"]) >= 13, r
+    assert r["usFits"], "38 wrapped underscores (span.us) do not take the same room as 38 letters: %s" % r
 
 
 SHOW_CARD_JS = r"""() => {
@@ -2299,6 +2306,47 @@ SHOW_CARD_JS = r"""() => {
     lines, rendered: code ? Math.round(code.getBoundingClientRect().height / lh) : 0,
     left: r && r.left, right: r && r.right, vw: innerWidth, px: pre ? parseFloat(getComputedStyle(pre).fontSize) : 0 };
 }"""
+
+
+UNDERSCORE_JS = r"""() => {
+  // 밑줄 두 개 이상이 이어진 글자(LIKE '__%')는 고정폭 글꼴에서 한 줄로 붙어 보인다 → 글자마다 span.us로 감싸 조금 좁혀 그린다.
+  // 돌려줌: 감싸지 않은 「__」 글자 조각, 이웃한 .us 두 개 사이의 보이는 틈(px), .us의 transform
+  const root = document.querySelector('.screen.lesson') || document.body;
+  const raw = [];
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.includes('__')) raw.push(n.nodeValue.slice(0, 40));
+  const gaps = [];
+  for (const u of root.querySelectorAll('.us')) {
+    const nx = u.nextSibling;
+    if (!(nx && nx.nodeType === 1 && nx.classList.contains('us'))) continue;
+    const a = u.getBoundingClientRect(), b = nx.getBoundingClientRect();
+    if (!a.width || !b.width || Math.abs(a.top - b.top) > 1) continue;   // 숨은 것·줄바꿈 걸친 것 빼고
+    gaps.push(+(b.left - a.right).toFixed(2));
+  }
+  const one = root.querySelector('.us');
+  return { raw, gaps, transform: one ? getComputedStyle(one).transform : null };
+}"""
+
+
+def test_underscore_gap():
+    """fix round(4~6장 심화): 이어진 밑줄 '__'·'___'이 휴대폰(iPhone 17e) 고정폭 글꼴에서 한 줄로 붙어 보여 셀 수 없었다.
+    4-A2를 끝까지 풀며 화면마다: 「__」가 든 글자 조각이 남지 않음(모두 span.us), 이웃한 밑줄 사이 틈 1px 이상.
+    밑줄 너비는 그대로라(transform) SQL_COLS 한 줄 칸 수는 test_sql_cols_fit가 따로 본다. 캡처 walk-4-A2-*.png"""
+    seen = {"pairs": 0, "min": None}
+
+    def probe(a, kind):
+        r = a.js(UNDERSCORE_JS)
+        out = ["%s: underscore run not wrapped: %r" % (kind, x) for x in r["raw"]]
+        out += ["%s: adjacent underscores gap %.2fpx < 1px (transform %s)" % (kind, g, r["transform"]) for g in r["gaps"] if g < 1]
+        seen["pairs"] += len(r["gaps"])
+        if r["gaps"]:
+            seen["min"] = min(r["gaps"] + ([seen["min"]] if seen["min"] is not None else []))
+        return out
+
+    shots, fails = walk_lesson("4-A2", "iPhone 17e", probe=probe)
+    print("    4-A2 on iPhone 17e: %d screens, %d adjacent underscore pairs, smallest gap %s px" % (len(shots), seen["pairs"], seen["min"]))
+    assert seen["pairs"] >= 20, seen
+    assert not fails, "\n".join(fails[:40])
 
 
 def test_show_card():
