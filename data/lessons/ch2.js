@@ -680,3 +680,404 @@ export const TEMPLATES = [
     explain: "AS 뒤에 쓴 {A}, 이것이 결과 표의 새 열 이름이에요. 쉼표를 넣으면 그런 열을 찾다가 오류가 나요.",
   },
 ];
+
+// 심화 (v0.2, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-06-심화-1-6장-디딤돌.md §2 2장).
+// - 쓸 수 있는 것: 1~2장 낱말 + 2장 심화 전용 % (ADVANCED_GRAMMAR[2]). 글자 값 '…'(3장), 조건(3장)은 쓰지 않는다.
+//   괄호 ( )는 FORMS에 없어 어느 장에서나 된다. FROM 없는 SELECT(1장 심화 모양)는 1장 심화를 건너뛰었을 수 있어 쓰지 않는다.
+// - 2-A1 셈 차례(곱하기·나누기 먼저, 같은 무리는 왼쪽부터, 괄호 안이 먼저)는 모든 데이터베이스에서 같다.
+//   정수 나누기 버림만 「이 장터에서는」(R36, 2-4와 같음).
+// - 2-A2 %: 장터 값(price·stock)에는 음수가 없어 나머지는 늘 0 이상이다. 음수의 나머지 부호·MOD 이름은 말로만(R36).
+//   stock % 2 는 빈칸 재고 3가지(메밀전·한지·장승)에서 빈칸(2-4 카드 1과 같은 규칙).
+// - 2-A3 의뢰: 여우골 떡방(shops 2번) 주인 금순. price * 9 / 10 과 price / 10 * 9 가 이 장터의 정수 나누기 때문에 다름
+//   (인절미 6 → 5 와 0, 수육 25 → 22 와 18, 산삼 120 → 둘 다 108). A1을 안 했을 수 있어 셈 차례를 카드 2에서 다시 짚는다.
+// - 조립은 R51 1~3토큰 구절 카드(price + 2, * 3, AS bundle_price, price % 2, price * 9, / 10). 계산 열에는 영어 별칭(R32).
+export const ADVANCED = [
+  {
+    id: "2-A1", chapter: 2, isAdvanced: true, title: "셈 차례와 괄호",
+    goal: "셈이 섞인 식의 차례를 알고 괄호로 먼저 할 셈을 묶을 수 있다",
+    summary: [
+      "곱하기·나누기 먼저, 더하기·빼기 나중",
+      "같은 무리끼리는 왼쪽부터 차례로",
+      "괄호 ( ) 안의 셈이 언제나 먼저",
+    ],
+    cards: [
+      {
+        say: "2장에서 + - * / 로 셈했죠? 오늘은 한 걸음 더! 셈이 섞이면 곱하기와 나누기를 먼저, 더하기와 빼기는 나중에 해요. 국밥은 2와 3을 먼저 곱한 6에 값 12를 더해 18이에요.",
+        sql: "SELECT name, price,\n  price + 2 * 3 AS result\nFROM items",
+      },
+      {
+        say: "먼저 하고 싶은 셈은 괄호로 묶어요. 괄호 안이 언제나 먼저라, 국밥은 12와 2를 먼저 더한 14에 3을 곱해 42! 괄호가 없으면 곱하기와 나누기끼리, 더하기와 빼기끼리는 왼쪽부터 차례로 해요.",
+        sql: "SELECT name,\n  price + 2 * 3 AS no_paren,\n  (price + 2) * 3 AS paren\nFROM items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "price + 2 * 3 에서 가장 먼저 하는 셈은 무엇일까요?",
+        options: ["2 * 3", "price + 2", "둘을 한꺼번에"],
+        answer: 0,
+        explain: "곱하기가 더하기보다 먼저예요. 2 * 3 = 6 을 먼저 하고, 그다음 값에 6을 더해요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "국밥(12엽전) 행의 price + 2 * 3 은 얼마일까요?",
+        code: "SELECT name, price + 2 * 3\nFROM items",
+        options: ["18엽전", "42엽전", "14엽전"],
+        answer: 0,
+        explain: "2 * 3 = 6 을 먼저 해서 12 + 6 = 18엽전이에요. 42는 더하기를 먼저 한 값, 14는 2만 더한 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "국밥(12엽전) 행의 (price + 2) * 3 은 얼마일까요?",
+        code: "SELECT name, (price + 2) * 3\nFROM items",
+        options: ["42엽전", "18엽전", "36엽전"],
+        answer: 0,
+        explain: "괄호 안 12 + 2 = 14 를 먼저 하고 3을 곱해 42엽전이에요. 36은 값만 3배 한 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "괄호가 없을 때 셈의 차례로 맞는 것은?",
+        options: ["곱하기·나누기 먼저, 더하기·빼기 나중", "언제나 왼쪽부터 하나씩", "더하기·빼기 먼저, 곱하기·나누기 나중"],
+        answer: 0,
+        explain: "곱하기·나누기가 먼저예요. 왼쪽부터 차례로 하는 것은 같은 무리끼리 만났을 때예요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "국밥(12엽전) 행의 price - 5 - 3 은 얼마일까요?",
+        code: "SELECT name, price - 5 - 3\nFROM items",
+        options: ["4엽전", "10엽전", "20엽전"],
+        answer: 0,
+        explain: "빼기끼리는 왼쪽부터예요. 12 - 5 = 7, 7 - 3 = 4엽전. 10은 5 - 3 을 먼저 한 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "이 장터에서 수육(25엽전) 행의 price / 2 * 2 는 얼마일까요?",
+        code: "SELECT name, price / 2 * 2\nFROM items",
+        options: ["24엽전", "25엽전", "6엽전"],
+        answer: 0,
+        explain: "나누기·곱하기끼리는 왼쪽부터예요. 이 장터에서는 25 / 2 가 소수점을 버린 12, 거기에 2를 곱해 24엽전이에요.",
+      },
+      {
+        type: "blank", concept: "adv_paren_calc",
+        q: "값에서 5엽전을 먼저 깎고 2배 하게 빈자리를 채워 보세요.",
+        code: "SELECT name,\n  ___ price - 5) * 2 AS new_price\nFROM items",
+        chips: ["(", ")", "*"],
+        answer: 0,
+        explain: "먼저 할 price - 5 를 여는 괄호로 시작해요. 닫는 괄호나 * 를 넣으면 짝이 맞지 않아 오류가 나요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "괄호를 지우면 값이 달라지는 식은 어느 것일까요?",
+        options: ["(price + 2) * 3", "(price * 2) + 3", "price + (2 * 3)"],
+        answer: 0,
+        explain: "곱하기는 원래 먼저 하니 곱하기를 묶은 괄호는 지워도 같아요. 더하기를 묶은 괄호를 지우면 곱하기가 먼저 돼 값이 달라져요.",
+      },
+      {
+        type: "choice", concept: "adv_paren_calc",
+        q: "값에서 5엽전을 깎은 뒤 2배 한 new_price를 보여 준 결과는 어느 것일까요?",
+        options: [
+          { sql: "SELECT name,\n  (price - 5) * 2 AS new_price\nFROM items" },
+          { sql: "SELECT name,\n  price - 5 * 2 AS new_price\nFROM items" },
+          { sql: "SELECT name,\n  price * 2 - 5 AS new_price\nFROM items" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "국밥이 14((12 - 5) × 2)인 표가 정답이에요. 괄호가 없으면 5 * 2 를 먼저 해 2가 되고, 2배 한 뒤 빼면 19예요.",
+      },
+      {
+        type: "blank", concept: "adv_paren_calc",
+        q: "값에 2엽전을 더한 뒤 3배 하게, 괄호를 닫는 빈자리를 채워 보세요.",
+        code: "SELECT name,\n  (price + 2 ___ * 3 AS bundle_price\nFROM items",
+        chips: [")", "(", ","],
+        answer: 0,
+        explain: "여는 괄호가 있으면 닫는 괄호도 있어야 해요. ( 나 쉼표를 넣으면 괄호 짝이 맞지 않아 오류가 나요.",
+      },
+      {
+        type: "order", concept: "adv_paren_calc",
+        q: "값을 5엽전 깎고 2배 한 열에 이름을 붙이는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name,", "(price - 5) * 2", "AS new_price", "FROM items"],
+        explain: "SELECT name, → 괄호로 묶은 계산식 → AS 별칭 → FROM items 차례예요. 괄호는 식 안에서 셈 차례만 바꿔요.",
+      },
+      {
+        id: "2-A1-b1", type: "build", concept: "adv_paren_calc",
+        q: "값에 포장비 2엽전을 더해 3개 묶음 값을 보여 줘. 그 열은 bundle_price라고 붙여",
+        cards: ["SELECT", "name", ",", "(", "price + 2", ")", "* 3", "AS bundle_price", "FROM", "items"],
+        extra: ["price * 2", "* 2"],
+        tables: ["items"],
+        hints: [
+          "포장비를 더하는 셈을 곱하기보다 먼저 해야 해요. 무엇으로 묶을까요?",
+          "괄호 카드 사이에 price + 2 를 넣고, 그 뒤에 * 3 과 AS bundle_price를 놓아요.",
+        ],
+        explain: "국밥은 (12 + 2) × 3 = 42엽전! 괄호가 없으면 2 * 3 을 먼저 해 18엽전이 되니, 먼저 할 셈은 괄호로 묶어요.",
+      },
+      {
+        type: "check", concept: "adv_paren_calc",
+        q: "셈 차례에 대해 맞는 말은?",
+        options: [
+          "괄호 안의 셈을 가장 먼저 한다",
+          "더하기를 곱하기보다 먼저 한다",
+          "SELECT 뒤 식에는 괄호를 쓸 수 없다",
+        ],
+        answer: 0,
+        explain: "괄호 안 → 곱하기·나누기 → 더하기·빼기 차례이고, 같은 무리끼리는 왼쪽부터예요. 헷갈리면 괄호로 묶어 두면 읽는 사람도 편해요.",
+      },
+    ],
+  },
+  {
+    id: "2-A2", chapter: 2, isAdvanced: true, title: "나머지 % 로 짝홀",
+    goal: "% 로 나머지를 셈해 짝수·홀수와 끝자리를 알아볼 수 있다",
+    summary: [
+      "% 는 나누고 남은 나머지",
+      "% 2 가 0이면 짝수, 1이면 홀수",
+      "% 10 은 끝자리 숫자",
+    ],
+    cards: [
+      {
+        say: "2장에서 이 장터는 정수끼리 나누면 소수점 아래를 버린다고 했죠? 버린 만큼 남는 게 있어요! % 는 나누고 남은 나머지예요. 수육 25 / 2 는 12, 25 % 2 는 남은 1이에요.",
+        sql: "SELECT name, price,\n  price / 2 AS half,\n  price % 2 AS remainder\nFROM items",
+      },
+      {
+        say: "2로 나눈 나머지가 0이면 짝수, 1이면 홀수예요. 10으로 나눈 나머지는 끝자리 숫자! 이 장터에서는 % 로 쓰지만, MOD라는 이름을 쓰는 데이터베이스도 있고 음수의 나머지는 데이터베이스마다 달라요.",
+        sql: "SELECT name, price,\n  price % 2 AS remainder,\n  price % 10 AS last_digit\nFROM items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_mod",
+        q: "SELECT 뒤 식에 쓴 % 는 무엇을 셈할까요?",
+        options: ["나누고 남은 나머지", "나눈 몫", "백분율(퍼센트)"],
+        answer: 0,
+        explain: "% 는 나머지예요. 몫은 / 로 셈해요. 글에서 쓰는 퍼센트와 모양만 같아요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "수육(25엽전) 행의 price % 2 는 얼마일까요?",
+        code: "SELECT name, price % 2\nFROM items",
+        options: ["1", "12", "0"],
+        answer: 0,
+        explain: "25를 2로 나누면 몫 12에 1이 남아요. % 는 남은 1을 보여 줘요. 12는 / 로 셈한 몫이에요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "price % 2 가 0인 물건의 값은 어떤 수일까요?",
+        options: ["짝수", "홀수", "0엽전"],
+        answer: 0,
+        explain: "2로 나누어떨어져 남는 게 없으면 짝수예요. 1이 남으면 홀수예요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "쌍화탕(22엽전) 행의 last_digit은 얼마일까요?",
+        code: "SELECT name,\n  price % 10 AS last_digit\nFROM items",
+        options: ["2", "22", "0"],
+        answer: 0,
+        explain: "22를 10으로 나누면 몫 2에 2가 남아요. 10으로 나눈 나머지는 끝자리 숫자예요.",
+      },
+      {
+        type: "blank", concept: "adv_mod",
+        q: "값이 짝수면 0, 홀수면 1이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name,\n  price ___ 2 AS remainder\nFROM items",
+        chips: ["%", "/", "*"],
+        answer: 0,
+        explain: "나머지는 % 예요. / 를 넣으면 몫이, * 를 넣으면 두 배가 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "물건 이름과, 값을 2로 나눈 나머지를 보여 준 결과는 어느 것일까요?",
+        options: [
+          { sql: "SELECT name,\n  price % 2 AS remainder\nFROM items" },
+          { sql: "SELECT name,\n  price / 2 AS remainder\nFROM items" },
+          { sql: "SELECT name,\n  price % 10 AS remainder\nFROM items" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "열 이름은 셋 다 remainder예요. 칸이 모두 0 아니면 1인 표가 정답이에요. 국밥이 6이면 몫, 2면 끝자리예요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "이 장터에서 송편(7엽전)의 price / 2 와 price % 2 를 바르게 짝지은 것은?",
+        options: ["몫 3, 나머지 1", "몫 3.5, 나머지 0", "몫 1, 나머지 3"],
+        answer: 0,
+        explain: "7 = 2 × 3 + 1 이라 몫 3, 나머지 1이에요. 이 장터에서는 / 가 소수점 아래를 버리니 3.5가 아니라 3이에요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "값이 0 이상인 정수일 때 price % 2 로 나올 수 있는 값은?",
+        options: ["0 또는 1", "0부터 9까지", "1 또는 2"],
+        answer: 0,
+        explain: "2로 나눈 나머지는 2보다 작아서 0 아니면 1뿐이에요. 0부터 9까지는 10으로 나눈 나머지예요.",
+      },
+      {
+        type: "blank", concept: "adv_mod",
+        q: "값의 끝자리 숫자가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name,\n  price % ___ AS last_digit\nFROM items",
+        chips: ["10", "2", "100"],
+        answer: 0,
+        explain: "10으로 나눈 나머지가 끝자리예요. 2면 짝홀(0·1), 100이면 끝 두 자리가 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_mod",
+        q: "재고 칸이 빈 메밀전 행에서 remainder 칸은 어떻게 보일까요?",
+        code: "SELECT name,\n  stock % 2 AS remainder\nFROM items",
+        options: ["값이 없는 빈칸", "0", "1"],
+        answer: 0,
+        explain: "모르는 값과 셈하면 결과도 알 수 없어 빈칸이에요. % 도 + - * / 와 같아요.",
+      },
+      {
+        type: "order", concept: "adv_mod",
+        q: "값 옆에 짝홀 나머지를 remainder로 보여 주는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price,", "price % 2", "AS remainder", "FROM items"],
+        explain: "열 이름들 → 계산식 price % 2 → AS 별칭 → FROM items 차례예요. % 도 + - * / 와 같은 자리에 써요.",
+      },
+      {
+        id: "2-A2-b1", type: "build", concept: "adv_mod",
+        q: "물건마다 이름과, 값을 2로 나눈 나머지를 보여 줘. 그 열은 remainder라고 붙여",
+        cards: ["SELECT", "name", ",", "price % 2", "AS remainder", "FROM", "items"],
+        extra: ["price / 2", "price % 10"],
+        tables: ["items"],
+        hints: [
+          "몫이 아니라 남은 것을 보는 셈이에요. 2로 나눠요.",
+          "SELECT name, 다음에 price % 2 와 AS remainder를 놓아요.",
+        ],
+        explain: "짝수 값은 0, 홀수 값은 1! 국밥 12는 0, 수육 25는 1이에요. 몫을 보는 / 와 짝으로 기억해요.",
+      },
+      {
+        type: "check", concept: "adv_mod",
+        q: "% 에 대해 맞는 말은?",
+        options: [
+          "나누고 남은 나머지를 셈한다",
+          "나눈 몫을 셈한다",
+          "값을 백분율로 바꾼다",
+        ],
+        answer: 0,
+        explain: "% 는 나머지, / 는 몫이에요. 다른 데이터베이스에서는 MOD라는 이름을 쓰거나 음수의 나머지가 다를 수 있으니 「이 장터에서는」 % 라고 기억해요.",
+      },
+    ],
+  },
+  {
+    id: "2-A3", chapter: 2, isAdvanced: true, title: "할인 가격표",
+    goal: "셈 차례를 생각해 할인 값을 바르게 셈한 가격표를 만들 수 있다",
+    summary: [
+      "10% 할인 = 값의 10분의 9",
+      "곱하기 먼저, 나누기는 나중에",
+      "이 장터는 정수 나누기에서 소수점을 버려요",
+    ],
+    cards: [
+      {
+        say: "2장에서 셈한 열에 이름표를 붙였죠? 오늘은 의뢰예요! 여우골 떡방 금순 님이 「모든 물건을 10% 깎은 가격표」를 부탁했어요. 값의 10분의 9라 price * 9 / 10 이에요.",
+        sql: "SELECT name, price,\n  price * 9 / 10 AS sale_price\nFROM items",
+      },
+      {
+        say: "셈 차례가 중요해요! 곱하기와 나누기끼리는 왼쪽부터 해요. 이 장터에서는 정수 나누기에서 소수점을 버려서, 인절미 6엽전은 9를 먼저 곱하면 5지만 10으로 먼저 나누면 0이 돼요!",
+        sql: "SELECT name, price,\n  price * 9 / 10 AS mul_first,\n  price / 10 * 9 AS div_first\nFROM items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
+        code: "SELECT name,\n  price * 9 / 10 AS sale_price\nFROM items",
+        options: ["5엽전", "5.4엽전", "0엽전"],
+        answer: 0,
+        explain: "6 × 9 = 54를 먼저 하고 10으로 나눠요. 이 장터에서는 소수점 아래를 버려 5.4가 아니라 5엽전이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
+        code: "SELECT name,\n  price / 10 * 9 AS sale_price\nFROM items",
+        options: ["0엽전", "5엽전", "54엽전"],
+        answer: 0,
+        explain: "왼쪽의 6 / 10 을 먼저 해요. 소수점을 버려 0이 되고, 0에 9를 곱해도 0엽전이에요. 공짜가 돼 버렸어요!",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "price * 9 / 10 에서 먼저 하는 셈은 무엇일까요?",
+        options: ["price * 9", "9 / 10", "둘을 한꺼번에"],
+        answer: 0,
+        explain: "곱하기와 나누기는 같은 무리라 왼쪽부터 해요. price * 9 를 먼저 하고 그 값을 10으로 나눠요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "이 장터에서 수육(25엽전) 행의 두 값을 바르게 짝지은 것은?",
+        code: "SELECT name,\n  price * 9 / 10 AS mul_first,\n  price / 10 * 9 AS div_first\nFROM items",
+        options: ["mul_first 22, div_first 18", "둘 다 22", "mul_first 18, div_first 22"],
+        answer: 0,
+        explain: "225 / 10 은 소수점을 버려 22, 25 / 10 은 2라서 2 × 9 = 18이에요. 먼저 나누면 버리는 몫이 커져요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "price / 10 * 9 가 인절미에서 0이 되는 까닭은 무엇일까요?",
+        options: ["이 장터에서는 6 / 10 의 소수점 아래를 버려 0이 되어서", "9를 곱하면 언제나 0이 되어서", "인절미의 재고가 빈칸이라서"],
+        answer: 0,
+        explain: "6 / 10 = 0.6 인데 이 장터에서는 정수끼리 나누면 소수점 아래를 버려요. 0에 무엇을 곱해도 0이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "산삼(120엽전)은 두 식 모두 108엽전이에요. 왜 같을까요?",
+        options: ["120이 10으로 나누어떨어져 버릴 소수점이 없어서", "산삼은 값이 비싸서", "곱하기를 언제나 먼저 해서"],
+        answer: 0,
+        explain: "120 / 10 = 12 로 딱 떨어져 버리는 것이 없어요. 그래서 12 × 9 도 108이에요. 갓 110엽전도 둘 다 99예요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_2",
+        q: "9를 먼저 곱하고 10으로 나누게 빈자리를 채워 보세요.",
+        code: "SELECT name, price,\n  price * 9 ___ 10 AS sale_price\nFROM items",
+        chips: ["/", "*", "-"],
+        answer: 0,
+        explain: "10으로 나누는 기호는 / 예요. * 를 넣으면 90배, - 를 넣으면 9배에서 10을 뺀 값이 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "모든 물건을 10% 깎는 셈으로 알맞은 것은?",
+        options: ["price * 9 / 10", "price - 10", "price / 9 * 10"],
+        answer: 0,
+        explain: "10% 깎으면 값의 10분의 9가 남아요. price - 10 은 모든 물건에서 똑같이 10엽전을 빼서 송편 7엽전이 -3엽전이 돼요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "물건 이름, 값, 9를 먼저 곱해 10으로 나눈 값을 보여 준 결과는?",
+        options: [
+          { sql: "SELECT name, price,\n  price * 9 / 10 AS sale_price\nFROM items" },
+          { sql: "SELECT name, price,\n  price / 10 * 9 AS sale_price\nFROM items" },
+          { sql: "SELECT name, price,\n  price - 10 AS sale_price\nFROM items" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "국밥 12엽전이 10엽전인 표가 정답이에요. 먼저 나누면 9엽전, 10엽전을 빼면 2엽전이 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_2",
+        q: "할인 가격표 SQL의 결과에는 열이 몇 개 있을까요?",
+        code: "SELECT name, price,\n  price * 9 / 10 AS sale_price\nFROM items",
+        options: ["3개", "2개", "40개"],
+        answer: 0,
+        explain: "name, price, sale_price 세 열이에요. 원래 값과 할인 값을 나란히 보여 줘서 손님이 견줘 보기 좋아요. 40은 행 수예요.",
+      },
+      {
+        type: "order", concept: "adv_apply_2",
+        q: "금순 님의 할인 가격표 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price,", "price * 9 / 10", "AS sale_price", "FROM items"],
+        explain: "보여 줄 열 → 할인 값 식 → AS 별칭 → FROM items 차례예요. 식은 곱하기가 먼저 오게 썼어요.",
+      },
+      {
+        id: "2-A3-b1", type: "build", concept: "adv_apply_2",
+        q: "금순 님 의뢰: 물건 이름, 값, 10% 깎은 값을 보여 줘. 깎은 값은 sale_price로 붙여",
+        cards: ["SELECT", "name", ",", "price", ",", "price * 9", "/ 10", "AS sale_price", "FROM", "items"],
+        extra: ["price / 10", "* 9"],
+        tables: ["items"],
+        hints: [
+          "이 장터에서는 먼저 나누면 소수점을 버려요. 곱하기와 나누기 중 무엇을 먼저 할까요?",
+          "price * 9 카드 다음에 / 10, 그리고 AS sale_price를 놓아요.",
+        ],
+        explain: "의뢰 해결! 인절미 6엽전은 5엽전, 수육 25엽전은 22엽전이에요. 나누기를 나중에 해서 버리는 몫을 줄였어요.",
+      },
+      {
+        type: "check", concept: "adv_apply_2",
+        q: "할인 가격표를 만들며 알게 된 것으로 맞는 말은?",
+        options: [
+          "이 장터에서는 곱하기를 먼저 하고 나눠야 버리는 몫이 적다",
+          "셈 차례를 바꿔도 결과는 언제나 같다",
+          "나누기는 늘 곱하기보다 먼저 한다",
+        ],
+        answer: 0,
+        explain: "곱하기·나누기끼리는 왼쪽부터라 쓰는 차례가 곧 셈 차례예요. 이 장터처럼 정수 나누기가 소수점을 버리면 나누기를 뒤로 미뤄요.",
+      },
+    ],
+  },
+];
