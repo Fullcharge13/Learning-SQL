@@ -7,6 +7,7 @@
 //   node tests/content.js --chapter 5          5장만
 //   node tests/content.js --lessons-dir DIR    다른 레슨 폴더(DIR/concepts.js가 있으면 data/concepts.js 대신 씀)
 //   → 장마다 「chN: OK (레슨 5, 문제 n)」 또는 문제점 목록. 문제점이 하나라도 있으면 끝 상태 1.
+//     심화 레슨(장 파일의 ADVANCED, v0.2)이 있으면 「…, 심화 3레슨·m문제」가 붙고, 합계 줄에도 심화 레슨·문제 수가 나온다.
 //
 // 시험(tests/unit/content.test.js)은 checkChapter(mod, chapter, engine, { concepts, stats })를 바로 부른다.
 // Issue = { where, rule, msg }. rule은 RULES 중 하나(뜻은 RULES 아래 주석, 자세한 정의는 작업 8 보고서).
@@ -22,7 +23,7 @@ import { checkReadOnly } from "../src/sqlcore.js";
 import { cardsToSql, hasOrderBy, sameTable, judgeBuild } from "../src/grade.js";
 import { validateLesson } from "../src/lessondata.js";
 import { SCHEMA } from "../data/schema.js";
-import { GRAMMAR, UNTAUGHT, SQL_WORDS, WORD_CHAPTER, FORMS } from "../data/grammar.js";
+import { GRAMMAR, UNTAUGHT, SQL_WORDS, WORD_CHAPTER, FORMS, ADVANCED_GRAMMAR, ADVANCED_CHAPTER } from "../data/grammar.js";
 import { newBuild } from "../src/build.js";
 import { instantiate, runList, judgeInstance, placeholders, TEMPLATE_SEEDS, TEMPLATE_ATTEMPTS, BLANK, OPT_ROWS } from "../src/template.js";
 import { CONCEPTS as DATA_CONCEPTS } from "../data/concepts.js";
@@ -36,10 +37,12 @@ export const RULES = [
   "swap-extra",    // build 정답 카드 한 자리를 헷갈림 카드 하나로 바꾼 모든 경우가 오답(끼워 넣기는 앱이 R48로 막음)
   "bank-size",     // cards + extra ≤ 12, extra 2~4장, 헷갈림 카드가 정답 카드·서로와 글자가 겹치지 않음, 1~5장은 카드 하나에 낱말 하나
   "table-truth",   // 설명 카드·객관식 SQL이 돌고, 결과 표 보기끼리 화면에서 다르고, 문제 SQL의 실제 결과가 정답 보기와만 맞음
-  "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안. 가르치지 않는 낱말·함수, 큰따옴표 글자 값, == , 'now' 금지
+  "grammar",       // 레슨의 SQL에 나오는 낱말·함수가 GRAMMAR[1..장] 안(심화 레슨은 + ADVANCED_GRAMMAR[장]). 심화 전용 낱말(주석 --, %, NULLIF …)은
+                   // 본 과정·틀에서 금지. 가르치지 않는 낱말·함수, 블록 주석, 큰따옴표 글자 값, == , 'now' 금지
   "readonly",      // INSERT·UPDATE·DELETE·CREATE·DROP·ALTER 등 데이터를 바꾸는 낱말이 없음(설계 D11)
   "shape",         // 리아 형식 규칙 + validateLesson(작업 7): 레슨 5개, 칸 이름, summary 3줄, 글자 수·한 줄 폭, 한글, 개념, 문제 차례·수, order의 expect,
-                   // build 힌트 정확히 2개, 장마다 매일 도전 틀 2~5개
+                   // build 힌트 정확히 2개, 장마다 매일 도전 틀 2~5개. 심화(ADVANCED, 있으면): 정확히 3개, id N-A1~N-A3 차례, isAdvanced는 true이거나 없음,
+                   // isExam 없음, 문제·카드·조립 수는 본 과정 같은 장(장 평가 아님)과 같은 한도, 심화 개념은 심화 레슨에서만
   "stable-order",  // build 정답이 동점·저장 순서에 기대지 않음: 거꾸로 저장한 데이터베이스, 바깥 ORDER BY에 모든 열을 더 붙인 두 판(오름·내림)에서 같은 결과
   "engine-guard",  // 앱이 실행하는 SQL이 실행기의 조회 전용 검사(SELECT/WITH로 시작하는 문장 하나)를 통과
   "blank-unique",  // blank의 오답 칩은 모두 오류이거나 정답과 다른 결과
@@ -51,6 +54,7 @@ export const RULES = [
 
 // ── 한도 (아이폰 세로, 리아 content.py와 같은 값) ─────────────────────────
 export const LESSONS_PER_CHAPTER = 5;
+export const ADVANCED_PER_CHAPTER = 3;   // 심화 레슨 N-A1~N-A3 (v0.2 설계 「심화 1~6장」 §3)
 const SQL_COLS = 38;          // SQL 한 줄 표시 폭(한글 등 넓은 글자는 2칸)
 export const ORDER_COLS = 33; // 순서 문제(order)에서 놓은 줄(번호가 붙는 .line.placed)이 iPhone 17e에서 한 줄에 드는 폭(작업 16, flow.py가 잼)
 export const OPT_COLS = 31;   // 코드 모양 글자 보기(.opt.mono)가 iPhone 17e에서 한 줄에 드는 폭(작업 16, flow.py가 잼)
@@ -82,6 +86,7 @@ export function buildRange(chapter, exam = false) {
 }
 
 const LESSON_KEYS = new Set(["id", "chapter", "title", "goal", "summary", "isExam", "cards", "items", "updated"]);
+const ADV_LESSON_KEYS = new Set([...LESSON_KEYS, "isAdvanced"]);   // 심화 레슨: isExam이 있으면 따로 알림
 const CARD_KEYS = new Set(["say", "sql", "show", "dialect"]);   // show·dialect: 보기 전용 비교 카드(판정 R30, 16장)
 // 문제 형태별 [꼭 있어야 할 칸, 있어도 되는 칸]. 모르는 칸은 오타로 본다.
 const ITEM_KEYS = {
@@ -110,20 +115,31 @@ export function width(line) {
 }
 
 /**
- * SQL 글자를 조각으로 자른다. { tokens, words, strings, quoted, calls }
+ * SQL 글자를 조각으로 자른다. { tokens, words, strings, quoted, calls, comments }
  *  tokens: 모든 조각(낱말·수·글자 상수·따옴표 이름·기호), words: 글자 상수·주석 밖 낱말(대문자),
- *  strings: '…' 안 글자, quoted: "…"·`…`·[…] 안 이름, calls: 바로 뒤에 ( 가 오는 낱말(대문자)
+ *  strings: '…' 안 글자, quoted: "…"·`…`·[…] 안 이름, calls: 바로 뒤에 ( 가 오는 낱말(대문자),
+ *  comments: 주석 [{ kind: "--" | "/*", body }] (tokens에는 들어가지 않음)
  */
 export function sqlWords(sql) {
   const s = String(sql ?? "");
-  const tokens = [], words = [], strings = [], quoted = [], calls = [];
+  const tokens = [], words = [], strings = [], quoted = [], calls = [], comments = [];
   const n = s.length;
   let i = 0;
   let lastWord = null;   // 바로 앞 조각이 낱말이면 그 낱말
   while (i < n) {
     const c = s[i], d = s[i + 1];
-    if (c === "-" && d === "-") { while (i < n && s[i] !== "\n") i++; continue; }
-    if (c === "/" && d === "*") { const e = s.indexOf("*/", i + 2); i = e < 0 ? n : e + 2; continue; }
+    if (c === "-" && d === "-") {
+      const st = i;
+      while (i < n && s[i] !== "\n") i++;
+      comments.push({ kind: "--", body: s.slice(st + 2, i) });
+      continue;
+    }
+    if (c === "/" && d === "*") {
+      const e = s.indexOf("*/", i + 2);
+      comments.push({ kind: "/*", body: s.slice(i + 2, e < 0 ? n : e) });
+      i = e < 0 ? n : e + 2;
+      continue;
+    }
     if (/\s/.test(c)) { i++; continue; }
     if (c === "'" || c === '"' || c === "`" || c === "[") {
       const close = c === "[" ? "]" : c;
@@ -167,7 +183,7 @@ export function sqlWords(sql) {
     lastWord = null;
     i += op.length;
   }
-  return { tokens, words, strings, quoted, calls };
+  return { tokens, words, strings, quoted, calls, comments };
 }
 
 // ── 실행기 ────────────────────────────────────────────────────────────
@@ -257,39 +273,43 @@ const normText = (t) => String(t).replace(/\r\n?/g, "\n").split("\n").map((l) =>
  */
 export function withTieBreak(sql, suffix) {
   const s = String(sql ?? "");
-  const marks = [];   // 깊이 0의 낱말 { w, at }
+  const marks = [];   // 깊이 0의 낱말 { w, at, prev } — prev: 그 앞 마지막 코드 글자(주석·공백·; 아님)의 끝
   let depth = 0;
+  let codeEnd = 0;    // 지금까지 마지막 코드 글자의 끝. 주석(1장 심화 --) 뒤에 꼬리를 붙이면 주석에 삼켜지므로 여기에 끼운다
   for (let i = 0; i < s.length;) {
     const c = s[i];
     if (c === "-" && s[i + 1] === "-") { while (i < s.length && s[i] !== "\n") i++; continue; }
     if (c === "/" && s[i + 1] === "*") { const e = s.indexOf("*/", i + 2); i = e < 0 ? s.length : e + 2; continue; }
+    if (/[\s;]/.test(c)) { i++; continue; }
     if (c === "'" || c === '"' || c === "`" || c === "[") {
       const close = c === "[" ? "]" : c;
       for (i++; i < s.length; i++) { if (s[i] === close) { if (close !== "]" && s[i + 1] === close) { i++; continue; } break; } }
       i++;
+      codeEnd = Math.min(i, s.length);
       if (depth === 0) marks.push({ w: "#", at: i });
       continue;
     }
-    if (c === "(") { depth++; i++; continue; }
-    if (c === ")") { depth = Math.max(0, depth - 1); i++; if (depth === 0) marks.push({ w: "#", at: i }); continue; }
+    if (c === "(") { depth++; i++; codeEnd = i; continue; }
+    if (c === ")") { depth = Math.max(0, depth - 1); i++; codeEnd = i; if (depth === 0) marks.push({ w: "#", at: i }); continue; }
     if (/[A-Za-z_]/.test(c)) {
       let j = i + 1;
       while (j < s.length && /[A-Za-z0-9_$]/.test(s[j])) j++;
-      if (depth === 0) marks.push({ w: s.slice(i, j).toUpperCase(), at: i });
+      if (depth === 0) marks.push({ w: s.slice(i, j).toUpperCase(), at: i, prev: codeEnd });
       i = j;
+      codeEnd = j;
       continue;
     }
     i++;
+    codeEnd = i;
   }
   let ob = -1;
   for (let k = 0; k + 1 < marks.length; k++) if (marks[k].w === "ORDER" && marks[k + 1].w === "BY") ob = k;
   if (ob < 0) return null;
   const lim = marks.slice(ob + 2).find((m) => m.w === "LIMIT");
-  let at = lim ? lim.at : s.length;
-  if (!lim) { while (at > 0 && /[\s;]/.test(s[at - 1])) at--; }
+  const at = lim ? lim.prev : codeEnd;
   const head = s.slice(0, at).replace(/\s+$/, "");
-  const tail = s.slice(at);
-  return `${head} ${suffix.trim()}${tail ? ` ${tail.replace(/^\s+/, "")}` : ""}`;
+  const tail = s.slice(at).replace(/^\s+/, "");
+  return `${head} ${suffix.trim()}${tail ? ` ${tail}` : ""}`;
 }
 
 function* permutations(arr) {
@@ -302,7 +322,8 @@ function* permutations(arr) {
 
 // ── 장 하나 점검 ────────────────────────────────────────────────────────
 /**
- * @param mod      장 모듈 { CHAPTER, LESSONS, TEMPLATES? }
+ * @param mod      장 모듈 { CHAPTER, LESSONS, ADVANCED?, TEMPLATES? } — ADVANCED(심화 N-A1~N-A3)도 본 과정과 같은 규칙으로 본다
+ *                 (장 평가·exam-coverage·templates 규칙은 빼고). 심화 문제점의 where는 「N-Ak …」
  * @param chapter  장 번호(파일 이름의 N)
  * @param engine   openEngine()의 실행기
  * @param o.concepts  개념 목록 [{ id, name, chapter, advanced? }] (없으면 data/concepts.js)
@@ -316,18 +337,26 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   const allowed = new Set();
   for (let k = 1; k <= chapter; k++) for (const w of GRAMMAR[k] || []) allowed.add(w);
   const untaught = new Set(UNTAUGHT);
+  // 심화 레슨을 보는 동안만: 이 장 심화 전용 낱말·모양(ADVANCED_GRAMMAR[장]). 본 과정·틀을 볼 때는 비어 있다
+  let advAllowed = new Set();
+  let inAdvanced = false;
+  const advForms = Object.keys(ADVANCED_CHAPTER).filter((f) => !/^[A-Z_]+$/.test(f) && f !== "--");   // 기호 모양(%)
   const run = (sql, o) => engine.run(sql, o);
 
   // ---- 낱말 검사(grammar·readonly) : SQL이 들어가는 모든 칸에 쓴다 ----
   // prose: 글자 보기(SQL 조각일 수도, 한국어 설명일 수도 있음) → 낱말만 보고 따옴표·함수 검사는 하지 않음
   function words(where, text, { prose = false } = {}) {
-    const { words: ws, strings, quoted, calls, tokens } = sqlWords(text);
-    const late = [], never = [], fns = [];
+    const { words: ws, strings, quoted, calls, tokens, comments } = sqlWords(text);
+    const late = [], never = [], fns = [], adv = [];
+    // 심화 전용(ADVANCED_GRAMMAR): 이 장 심화 레슨에서만. 본 과정은 그 낱말이 GRAMMAR의 이 장 이하에도 있을 때만 됨
+    const advWord = (w) => { if (!advAllowed.has(w)) adv.push(`${w}(${ADVANCED_CHAPTER[w]}장 심화)`); };
     for (const w of new Set(ws)) {
       if (WRITE_WORDS.has(w)) add(where, "readonly", `데이터를 바꾸는 낱말 ${w}`);
       if (!SQL_WORDS.has(w)) continue;
+      if (allowed.has(w)) continue;
       if (untaught.has(w)) never.push(w);
-      else if (!allowed.has(w)) late.push(`${w}(${WORD_CHAPTER[w]}장)`);
+      else if (Object.hasOwn(ADVANCED_CHAPTER, w)) advWord(w);
+      else late.push(`${w}(${WORD_CHAPTER[w]}장)`);
     }
     for (let i = 0; i + 1 < ws.length; i++) if (ws[i] === "REPLACE" && (ws[i + 1] === "INTO" || ws[i + 1] === "OR")) add(where, "readonly", "REPLACE INTO는 데이터를 바꾸는 문장");
     for (const f of new Set(calls)) if (!SQL_WORDS.has(f) && !TABLE_NAMES.has(f.toLowerCase())) fns.push(f);
@@ -340,8 +369,13 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
         if (up[i] === "FROM" && up[i + 1] === "(" && up[i + 2] === "SELECT") forms.add("FROM (SELECT");
       }
       for (const f of forms) if (FORMS[f] > chapter) late.push(`${f}(${FORMS[f]}장)`);
+      for (const f of advForms) if (up.includes(f)) advWord(f);
+      // 주석: 줄 주석 --은 1장 심화 전용 모양, 블록 주석 /* */은 가르치지 않음
+      if (comments.some((c) => c.kind === "--")) advWord("--");
+      if (comments.some((c) => c.kind === "/*")) never.push("/* */(블록 주석)");
     }
     if (late.length) add(where, "grammar", `아직 배우지 않은 낱말: ${late.join(", ")} — ${chapter}장까지 배운 낱말만 씀`);
+    if (adv.length) add(where, "grammar", `심화 전용 낱말: ${adv.join(", ")} — ${inAdvanced ? `${chapter}장 심화에서는 1~${chapter}장 낱말과 ${chapter}장 심화 낱말만 씀` : "본 과정 레슨·매일 도전 틀에서는 쓰지 않음"}`);
     if (never.length) add(where, "grammar", `가르치지 않는 낱말: ${never.join(", ")}`);
     if (prose) return;
     if (fns.length) add(where, "grammar", `가르치지 않는 함수: ${fns.join(", ")} (data/grammar.js에 없음)`);
@@ -399,6 +433,30 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   if (lessons.length === LESSONS_PER_CHAPTER) {
     try { examCoverage(); } catch (e) { add(`ch${chapter}`, "shape", `장 평가 점검 실패(${e && e.message})`); }
   }
+  // 심화 레슨(v0.2): 없어도 됨(7~17장). 있으면 정확히 3개, 본 과정과 같은 규칙(장 평가가 아니라 exam-coverage는 없음)
+  if (mod && mod.ADVANCED !== undefined) {
+    if (!Array.isArray(mod.ADVANCED)) add(`ch${chapter} ADVANCED`, "shape", "export const ADVANCED = [...] 는 목록이어야 함");
+    else {
+      if (mod.ADVANCED.length !== ADVANCED_PER_CHAPTER) {
+        add(`ch${chapter} ADVANCED`, "shape", `심화 레슨은 ${ADVANCED_PER_CHAPTER}개여야 함(지금 ${mod.ADVANCED.length}개)`);
+      }
+      advAllowed = new Set(ADVANCED_GRAMMAR[chapter] || []);
+      inAdvanced = true;
+      try {
+        mod.ADVANCED.forEach((lesson, idx) => {
+          const lid = lesson && typeof lesson.id === "string" ? lesson.id : `${chapter}-A?${idx + 1}`;
+          try {
+            checkLesson(lesson, lid, idx + 1);
+          } catch (e) {
+            add(lid, "shape", `형식이 잘못되어 점검을 마치지 못함(${e && e.name}: ${e && e.message})`);
+          }
+        });
+      } finally {
+        advAllowed = new Set();
+        inAdvanced = false;
+      }
+    }
+  }
   // 매일 도전 틀 수(작업 12a 고침 1회차): 장마다 TEMPLATES_RANGE개. 끝낸 장의 틀에서 하루 터치 문제 2개를 고른다
   const nTpl = mod && Array.isArray(mod.TEMPLATES) ? mod.TEMPLATES.length : 0;
   if (nTpl < TEMPLATES_RANGE[0] || nTpl > TEMPLATES_RANGE[1]) {
@@ -424,12 +482,19 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
       else if (cm) add(`${lid} cards[${cm[1]}]`, "shape", cm[2]);
       else add(lid, "shape", m);
     }
-    for (const k of Object.keys(lesson)) if (!LESSON_KEYS.has(k)) add(`${lid} ${k}`, "shape", `모르는 칸 ${k}`);
-    const wantId = `${chapter}-${pos}`;
+    const keys = inAdvanced ? ADV_LESSON_KEYS : LESSON_KEYS;
+    for (const k of Object.keys(lesson)) if (!keys.has(k)) add(`${lid} ${k}`, "shape", `모르는 칸 ${k}`);
+    const wantId = inAdvanced ? `${chapter}-A${pos}` : `${chapter}-${pos}`;
     if (lesson.id !== wantId) add(`${lid} id`, "shape", `id는 ${wantId}이어야 함(파일 안 순서)`);
-    if (lesson.chapter !== chapter) add(`${lid} chapter`, "shape", `chapter는 ${chapter}이어야 함(지금 ${JSON.stringify(lesson.chapter)})`);
-    const exam = pos === LESSONS_PER_CHAPTER;
-    if (("isExam" in lesson && typeof lesson.isExam !== "boolean") || !!lesson.isExam !== exam) {
+    // 심화는 chapter를 빠뜨려도 됨(build.py가 장 파일 번호로 봄). 있으면 그 장
+    if (lesson.chapter !== chapter && !(inAdvanced && lesson.chapter === undefined)) {
+      add(`${lid} chapter`, "shape", `chapter는 ${chapter}이어야 함(지금 ${JSON.stringify(lesson.chapter)})`);
+    }
+    const exam = !inAdvanced && pos === LESSONS_PER_CHAPTER;
+    if (inAdvanced) {
+      if ("isExam" in lesson) add(`${lid} isExam`, "shape", "심화 레슨은 장 평가가 아님 — isExam 칸을 두지 않음");
+      if ("isAdvanced" in lesson && lesson.isAdvanced !== true) add(`${lid} isAdvanced`, "shape", "isAdvanced는 true이거나 없음(ADVANCED 안에 있으면 심화)");
+    } else if (("isExam" in lesson && typeof lesson.isExam !== "boolean") || !!lesson.isExam !== exam) {
       add(`${lid} isExam`, "shape", `장의 마지막 레슨(${chapter}-${LESSONS_PER_CHAPTER})만 isExam: true`);
     }
     if ("updated" in lesson && (typeof lesson.updated !== "string" || !UPDATED_RE.test(lesson.updated))) {
@@ -456,7 +521,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
       && kinds.slice(0, -1).every((k, i) => (firstBuild < 0 || i < firstBuild ? TOUCH.has(k) : k === "build"));
     if (!orderOk) add(`${lid} items`, "shape", `차례는 터치 문제(choice·blank·order) → build → check 1개(지금 ${kinds.join(",")})`);
     const [blo, bmax] = buildRange(chapter, exam);
-    if (nb < blo || nb > bmax) add(`${lid} items`, "shape", `${chapter}장 레슨의 build는 ${blo}~${bmax}개(지금 ${nb}개)`);
+    if (nb < blo || nb > bmax) add(`${lid} items`, "shape", `${chapter}장 ${inAdvanced ? "심화 " : ""}레슨의 build는 ${blo}~${bmax}개(지금 ${nb}개)`);
     const [ilo, ihi] = exam ? EXAM_ITEMS_RANGE : ITEMS_RANGE;
     if (items.length < ilo || items.length > ihi) add(`${lid} items`, "shape", `문제는 ${ilo}~${ihi}개(지금 ${items.length}개)`);
     items.forEach((it, i) => checkItem(it, itemWhere(lesson, lid, i)));
@@ -515,7 +580,7 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     }
     const c = conceptMap.get(it.concept);
     if (!c) add(w, "shape", `개념 ${JSON.stringify(it.concept)}이 개념 목록(concepts.js)에 없음`);
-    else if (c.advanced) add(w, "shape", `심화 개념 ${it.concept}은 본 과정 레슨에서 쓰지 않음`);
+    else if (c.advanced && !inAdvanced) add(w, "shape", `심화 개념 ${it.concept}은 본 과정 레슨에서 쓰지 않음`);
     else if (Number(c.chapter) > chapter) add(w, "shape", `개념 ${it.concept}은 ${c.chapter}장 개념이라 ${chapter}장에서 쓸 수 없음`);
     text(`${w}.q`, it.q, Q_MAX);
     text(`${w}.explain`, it.explain, EXPLAIN_MAX, { oneLine: false });
@@ -687,7 +752,9 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
     for (const c of [...cards, ...extra]) {
       if (width(c) > CARD_COLS) add(w, "shape", `카드 ${JSON.stringify(c)}가 너무 넓음(${width(c)}칸 > ${CARD_COLS}칸)`);
       if (c.includes("\n")) add(w, "shape", `카드 ${JSON.stringify(c)}에 줄바꿈`);
-      if (chapter <= SINGLE_TOKEN_UPTO && sqlWords(c).tokens.length !== 1) add(w, "bank-size", `${SINGLE_TOKEN_UPTO}장까지는 카드 하나에 낱말 하나: ${JSON.stringify(c)}`);
+      // 주석 카드(「-- 설명」, 1장 심화)는 조각 하나로 센다
+      const pieces = (({ tokens, comments }) => tokens.length + comments.length)(sqlWords(c));
+      if (chapter <= SINGLE_TOKEN_UPTO && pieces !== 1) add(w, "bank-size", `${SINGLE_TOKEN_UPTO}장까지는 카드 하나에 낱말 하나: ${JSON.stringify(c)}`);
     }
     // 화면의 카드 더미(문제 id가 씨앗)에서 정답 카드가 정답 순서 그대로 놓이면 보기만 해도 풀림
     if (typeof it.id === "string" && it.id && cards.length >= 3) {
@@ -909,9 +976,10 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
   }
 }
 
-/** 장 모듈의 문제 수(명령줄 출력용) */
+/** 레슨 목록의 문제 수(명령줄 출력용). 기본은 본 과정(LESSONS), 심화는 countItems(mod.ADVANCED) */
 function countItems(mod) {
-  return (mod && Array.isArray(mod.LESSONS) ? mod.LESSONS : []).reduce((n, l) => n + (l && Array.isArray(l.items) ? l.items.length : 0), 0);
+  const list = Array.isArray(mod) ? mod : mod && Array.isArray(mod.LESSONS) ? mod.LESSONS : [];
+  return list.reduce((n, l) => n + (l && Array.isArray(l.items) ? l.items.length : 0), 0);
 }
 
 // ── 명령줄 ────────────────────────────────────────────────────────────
@@ -943,7 +1011,7 @@ export async function main(argv) {
     conceptsFrom = localConcepts;
   }
   console.log(`레슨 폴더 ${o.dir} · 개념 ${conceptsFrom} (${Array.isArray(concepts) ? concepts.length : 0}개)`);
-  let failed = 0, nLessons = 0, nItems = 0;
+  let failed = 0, nLessons = 0, nItems = 0, nAdv = 0, nAdvItems = 0;
   const engine = want.some((n) => present.includes(n)) ? openEngine() : null;
   const ids = new Map();
   try {
@@ -958,7 +1026,8 @@ export async function main(argv) {
       const tst = {};
       const issues = checkChapter(mod, n, engine, { concepts, stats: tst });
       // 장을 넘어 문제 id가 겹치는지(장 안은 checkChapter가 봄)
-      for (const l of mod.LESSONS || []) {
+      const advList = Array.isArray(mod.ADVANCED) ? mod.ADVANCED : [];
+      for (const l of [...(mod.LESSONS || []), ...advList]) {
         for (const it of (l && l.items) || []) {
           if (!it || typeof it.id !== "string") continue;
           const prev = ids.get(it.id);
@@ -967,9 +1036,11 @@ export async function main(argv) {
         }
       }
       const lc = Array.isArray(mod.LESSONS) ? mod.LESSONS.length : 0, ic = countItems(mod);
-      nLessons += lc; nItems += ic;
-      // 틀이 있으면 「틀 3: 씨앗 300개 중 다시 만든 것 n」(다시 만든 것이 많으면 값 범위를 고친다)
-      const tl = tst.templates ? `, 틀 ${tst.templates}: 씨앗 ${tst.seeds}개 중 다시 만든 것 ${tst.retried}` : "";
+      const ac = advList.length, aic = countItems(advList);
+      nLessons += lc; nItems += ic; nAdv += ac; nAdvItems += aic;
+      // 틀이 있으면 「틀 3: 씨앗 300개 중 다시 만든 것 n」(다시 만든 것이 많으면 값 범위를 고친다), 심화가 있으면 「심화 3레슨·m문제」
+      const tl = (tst.templates ? `, 틀 ${tst.templates}: 씨앗 ${tst.seeds}개 중 다시 만든 것 ${tst.retried}` : "")
+        + (ac ? `, 심화 ${ac}레슨·${aic}문제` : "");
       if (!issues.length) { console.log(`ch${n}: OK (레슨 ${lc}, 문제 ${ic}${tl})`); continue; }
       failed += issues.length;
       console.log(`ch${n}: 문제점 ${issues.length}개 (레슨 ${lc}, 문제 ${ic}${tl})`);
@@ -979,7 +1050,7 @@ export async function main(argv) {
     if (engine) engine.close();
   }
   const s = engine ? engine.stats : { queries: 0, cached: 0, timeouts: 0 };
-  console.log(`\n합계: 장 ${want.length}개, 레슨 ${nLessons}, 문제 ${nItems}, 문제점 ${failed} · SQL ${s.queries}번 실행(캐시 ${s.cached}, 시간 초과 ${s.timeouts}) · ${((Date.now() - t0) / 1000).toFixed(1)}초`);
+  console.log(`\n합계: 장 ${want.length}개, 레슨 ${nLessons}, 문제 ${nItems}, 심화 ${nAdv}레슨·${nAdvItems}문제, 문제점 ${failed} · SQL ${s.queries}번 실행(캐시 ${s.cached}, 시간 초과 ${s.timeouts}) · ${((Date.now() - t0) / 1000).toFixed(1)}초`);
   return failed ? 1 : 0;
 }
 

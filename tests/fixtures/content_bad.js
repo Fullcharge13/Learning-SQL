@@ -1,12 +1,13 @@
 // 레슨 점검기 시험용 「나쁜 장」 (tests/unit/content.test.js). 실제 레슨이 아니다.
 // content_good.js(문제점 0개)를 복사한 뒤 규칙마다 일부러 어긴 곳을 하나 이상 심는다. 심은 곳은 BAD에 적어 두고,
 // 시험은 그 자리(where에 든 글자)에서 그 규칙이 나오는지 본다. 한 곳이 다른 규칙도 함께 어길 수 있다(시험은 「포함」만 봄).
-import { CONCEPTS as GOOD_CONCEPTS, CHAPTER as GOOD_CHAPTER, LESSONS as GOOD_LESSONS, TEMPLATES as GOOD_TEMPLATES } from "./content_good.js";
+import { CONCEPTS as GOOD_CONCEPTS, CHAPTER as GOOD_CHAPTER, LESSONS as GOOD_LESSONS, ADVANCED as GOOD_ADVANCED, TEMPLATES as GOOD_TEMPLATES } from "./content_good.js";
 
 export const CONCEPTS = structuredClone(GOOD_CONCEPTS);
 export const CHAPTER = structuredClone(GOOD_CHAPTER);
 export const LESSONS = structuredClone(GOOD_LESSONS);
 export const TEMPLATES = structuredClone(GOOD_TEMPLATES);
+export const ADVANCED = structuredClone(GOOD_ADVANCED);
 
 const L = (k) => LESSONS[k - 1];
 const hints = ["무엇을 볼지 먼저 생각해요.", "필요한 카드를 골라요."];
@@ -230,3 +231,51 @@ L(5).items.splice(0, 0, {
   answer: 0, tables: ["shops"], explain: "가게 표의 이름 열이에요.",
 });
 plant("shape", "bad-exam-tables 장 평가의 결과 표 객관식");
+
+// ---- v0.2 작업 1: 심화 레슨(ADVANCED) ----
+// 심은 곳: [규칙, 레슨 id(where의 앞), where·msg에 들어 있어야 할 글자]. 심화 문제점의 where는 「5-Ak …」.
+export const ADV_BAD = [];
+const A = (k) => ADVANCED[k - 1];
+const plantA = (rule, lid, where) => ADV_BAD.push([rule, lid, where]);
+
+// answer-runs: 정답이 오류(없는 표 shop) / drop-one: ASC를 빼도 같은 결과
+A(1).items.splice(8, 0,
+  build("bad-adv-error", ["SELECT", "name", "FROM", "shop"], ["owner", "DESC"], { concept: "adv_sort_mix", tables: ["shops"] }),
+  build("bad-adv-drop", ["SELECT", "name", "FROM", "items", "ORDER", "BY", "price", "DESC", ",", "item_id", "ASC"], ["owner"], { concept: "adv_sort_mix" }));
+plantA("answer-runs", "5-A1", "bad-adv-error");
+plantA("drop-one", "5-A1", "bad-adv-drop");
+// bank-size(남는 카드): 위 bad-adv-drop은 헷갈림 카드가 1장뿐
+plantA("bank-size", "5-A1", "bad-adv-drop");
+// shape: 5장 심화도 build는 1개(본 과정 같은 장과 같은 한도) — 위에서 둘을 더함
+plantA("shape", "5-A1", "5-A1 items");
+
+// swap-extra: 300엽전인 물건이 없어서 >= 를 > 로 바꿔도 같은 결과 / bank-size: 카드 더미 13장
+A(2).items.splice(8, 0,
+  build("bad-adv-swap", ["SELECT", "name", "FROM", "items", "WHERE", "price", ">=", "300"], [">", "<"], { concept: "adv_offset_page" }),
+  build("bad-adv-bank", ["SELECT", "name", "FROM", "items", "ORDER", "BY", "item_id", "LIMIT", "2", "OFFSET", "2"], ["DESC", "3"], { concept: "adv_offset_page" }));
+plantA("swap-extra", "5-A2", "bad-adv-swap");
+plantA("bank-size", "5-A2", "bad-adv-bank");
+// grammar: 5장 심화 설명 카드에 7장 낱말 COUNT, 2장 심화 전용 낱말 %(5장 심화에는 없음)
+A(2).cards[0].sql = "SELECT COUNT(*) AS n\nFROM shops";
+A(2).items.splice(0, 0, {
+  type: "choice", id: "bad-adv-mod", concept: "adv_offset_page", q: "이 SQL의 결과는 무엇일까요?",
+  code: "SELECT 7 % 2 AS r", options: ["1", "0", "7"], answer: 0, explain: "%는 2장 심화에서 배워요.",
+});
+plantA("grammar", "5-A2", "5-A2 cards[0]");
+plantA("grammar", "5-A2", "bad-adv-mod");
+
+// stable-order: 값 6엽전인 물건이 둘이라 동점 순서가 정해지지 않음 / shape: 심화는 장 평가가 아님(isExam 없음)
+A(3).items.splice(8, 0, build("bad-adv-tie", ["SELECT", "name", "FROM", "items", "ORDER", "BY", "price", "LIMIT", "3"], ["DESC", "2"], { concept: "adv_apply_5" }));
+A(3).isExam = true;
+plantA("stable-order", "5-A3", "bad-adv-tie");
+plantA("shape", "5-A3", "5-A3 isExam");
+
+// R48: ORDER BY name 뒤에 ASC를 더 놓아도 결과는 같지만 앱이 extra로 막음 → 점검기 문제가 아님(content.test.js가 봄)
+A(3).items.splice(8, 0, build("bad-adv-insert", ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "name"], ["ASC", "<"], { concept: "adv_apply_5", tables: ["shops"] }));
+
+// grammar(본 과정): 1장 심화 전용 낱말인 주석 --이 5장 본 과정 문제에
+L(2).items.splice(0, 0, {
+  type: "choice", id: "bad-main-comment", concept: "orderby", q: "이 SQL의 결과는 몇 행일까요?",
+  code: "SELECT DISTINCT kind -- 종류\nFROM customers", options: ["3행", "8행", "60행"], answer: 0, explain: "주석은 심화에서 배워요.",
+});
+plant("grammar", "bad-main-comment");

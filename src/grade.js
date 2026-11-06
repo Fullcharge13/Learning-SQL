@@ -3,8 +3,31 @@
 import { ERRORS, FALLBACK, DETECTIVE_ID } from "../data/errors.js";
 import { sqlEul, sqlEun, sqlI } from "./shuffle.js";
 
+// 카드를 공백으로 잇는다. 줄 주석(--, 1장 심화)이 든 카드 뒤는 줄바꿈으로 이어 다음 카드가 주석에 삼켜지지 않게 한다.
+// 주석이 없는 조립은 v0.1과 같은 글자(공백 잇기).
 export function cardsToSql(cards) {
-  return (cards || []).join(" ");
+  const list = cards || [];
+  let out = "";
+  list.forEach((c, i) => {
+    if (i) out += hasLineComment(list[i - 1]) ? "\n" : " ";
+    out += c;
+  });
+  return out;
+}
+
+// 글자 상수·따옴표 이름 바깥에 -- 가 있는가(카드 한 장은 한 줄이라 그 뒤는 끝까지 주석)
+function hasLineComment(text) {
+  const s = String(text ?? "");
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'" || c === '"' || c === "`" || c === "[") {
+      const close = c === "[" ? "]" : c;
+      for (i++; i < s.length; i++) {
+        if (s[i] === close) { if (close !== "]" && s[i + 1] === close) { i++; continue; } break; }
+      }
+    } else if (c === "-" && s[i + 1] === "-") return true;
+  }
+  return false;
 }
 
 // 맨 바깥(괄호 깊이 0) 문장에 ORDER BY가 있는지. 글자·주석·괄호 안은 무시.

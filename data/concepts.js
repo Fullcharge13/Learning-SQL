@@ -4,7 +4,8 @@
 // - chapter: 그 개념을 처음 배우는 장. 레슨·틀은 자기 장 이하의 개념만 쓸 수 있다(tests/content.js `shape`).
 // - id는 바꾸지 않는다(학습자 저장의 weak_concepts·review_queue에 남음). 새 개념은 더하기만 한다.
 // - 뒤 장 레슨이 앞 장 개념을 다시 써도 된다(예: 10장 조인 문제에 where). 같은 것을 가르치면 같은 id를 쓴다.
-// - 심화 개념(advanced: true)은 심화 레슨(N-A1…)에서만 쓴다. 심화 레슨 내용은 다음 판(설계 D7)이라 지금은 없다.
+// - 심화 개념(advanced: true)은 심화 레슨(N-A1~N-A3, 장 파일의 ADVANCED)에서만 쓴다. 본 과정 레슨·매일 도전 틀은 쓰지 못한다
+//   (tests/content.js `shape`). 심화 레슨은 자기 장 이하의 본 과정 개념도 함께 쓸 수 있다. 장마다 응용(A3) 개념 adv_apply_N.
 // - name은 화면 한 줄에 들어가게 짧게(16자 안팎). SQL 낱말은 대문자 그대로 쓴다.
 export const CONCEPTS = [
   // 1장 장터 장부 펼치기
@@ -76,4 +77,29 @@ export const CONCEPTS = [
   { id: "cohort", name: "코호트 재방문율", chapter: 17 },
   { id: "basket", name: "함께 산 물건", chapter: 17 },
   { id: "analysis", name: "종합 분석", chapter: 17 },
+  // ---- 심화 (v0.2, 설계 「심화 1~6장」 §2·§3) ----
+  // 1장 심화
+  { id: "adv_select_expr", name: "FROM 없는 SELECT 식", chapter: 1, advanced: true },
+  { id: "adv_comment", name: "주석 달기(--)", chapter: 1, advanced: true },
+  { id: "adv_apply_1", name: "다섯 장부 탐험", chapter: 1, advanced: true },
+  // 2장 심화
+  { id: "adv_paren_calc", name: "괄호로 계산 순서", chapter: 2, advanced: true },
+  { id: "adv_mod", name: "% 나머지", chapter: 2, advanced: true },
+  { id: "adv_apply_2", name: "할인 가격표", chapter: 2, advanced: true },
+  // 3장 심화
+  { id: "adv_col_compare", name: "열끼리 비교", chapter: 3, advanced: true },
+  { id: "adv_text_range", name: "글자·날짜 범위 비교", chapter: 3, advanced: true },
+  { id: "adv_apply_3", name: "재고 점검표", chapter: 3, advanced: true },
+  // 4장 심화
+  { id: "adv_not_paren", name: "NOT과 괄호 위치", chapter: 4, advanced: true },
+  { id: "adv_like_mix", name: "LIKE 무늬 섞기", chapter: 4, advanced: true },
+  { id: "adv_apply_4", name: "손님 찾기 의뢰", chapter: 4, advanced: true },
+  // 5장 심화
+  { id: "adv_sort_mix", name: "정렬 방향 섞기", chapter: 5, advanced: true },
+  { id: "adv_offset_page", name: "OFFSET 쪽 나누기", chapter: 5, advanced: true },
+  { id: "adv_apply_5", name: "N번째로 비싼 물건", chapter: 5, advanced: true },
+  // 6장 심화
+  { id: "adv_coalesce_multi", name: "COALESCE 여러 값", chapter: 6, advanced: true },
+  { id: "adv_nullif", name: "NULLIF", chapter: 6, advanced: true },
+  { id: "adv_apply_6", name: "빈칸 점검", chapter: 6, advanced: true },
 ];

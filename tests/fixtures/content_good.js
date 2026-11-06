@@ -166,3 +166,61 @@ export const TEMPLATES = [
     explain: "LIMIT 뒤의 수만큼 앞에서부터 행을 남겨요.",
   },
 ];
+
+// ---- 심화 레슨 (v0.2 작업 1): 장 파일의 ADVANCED, id 5-A1~5-A3, 장 평가 아님 ----
+// 본 과정 레슨과 같은 한도(문제 10~14, 설명 카드 1~2, 5장 build 1개). 쓰는 낱말은 1~5장 + ADVANCED_GRAMMAR[5](없음).
+// 5-A3은 isAdvanced를 일부러 빼 둔다(ADVANCED 안에 있으면 심화 — build.py가 채움).
+CONCEPTS.push(
+  { id: "adv_sort_mix", name: "정렬 방향 섞기", chapter: 5, advanced: true },
+  { id: "adv_offset_page", name: "OFFSET으로 쪽 나누기", chapter: 5, advanced: true },
+  { id: "adv_apply_5", name: "줄 세우기 응용", chapter: 5, advanced: true },
+);
+
+const AB = {
+  mix: {
+    type: "build", id: "g5a-mix", concept: "adv_sort_mix", q: "가게를 종류는 거꾸로, 같은 종류 안에서는 이름 가나다순으로 보여 줘",
+    cards: ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "category", "DESC", ",", "name"], extra: ["ASC", "owner"],
+    tables: ["shops"], hints: ["기준을 두 개 써요. 첫 기준은 거꾸로예요.", "쉼표 카드로 두 기준을 이어요."],
+    explain: "ORDER BY category DESC, name은 종류를 거꾸로 세우고, 같은 종류 안에서는 이름순으로 세워요.",
+  },
+  owner: {
+    type: "build", id: "g5a-owner", concept: "adv_offset_page", q: "가게 이름을 주인 이름의 거꾸로 가나다순으로 보여 줘",
+    cards: ["SELECT", "name", "FROM", "shops", "ORDER", "BY", "owner", "DESC"], extra: ["ASC", "category"],
+    tables: ["shops"], hints: ["보여 줄 열과 줄 세울 열이 달라요.", "ORDER BY 뒤에 owner와 DESC를 놓아요."],
+    explain: "보이지 않는 열(owner)로도 줄 세울 수 있어요.",
+  },
+  apply: {
+    type: "build", id: "g5a-apply", concept: "adv_apply_5", q: "의뢰: 가게 종류를 겹치지 않게 거꾸로 가나다순으로 보여 줘",
+    cards: ["SELECT", "DISTINCT", "category", "FROM", "shops", "ORDER", "BY", "category", "DESC"], extra: ["ASC", "LIMIT"],
+    tables: ["shops"], hints: ["겹침을 없앤 뒤 거꾸로 세워요.", "DISTINCT와 DESC 카드가 필요해요."],
+    explain: "DISTINCT로 종류를 한 번씩 보이고 DESC로 거꾸로 세워요.",
+  },
+};
+const AT = {
+  pageBlank: {
+    type: "blank", concept: "adv_offset_page", q: "앞의 두 가게를 건너뛰고 다음 두 가게를 보이게 채워 보세요",
+    code: "SELECT name FROM shops\nORDER BY shop_id\nLIMIT 2 ___ 2", chips: ["OFFSET", "DESC", "ASC"], answer: 0,
+    explain: "OFFSET 2는 앞의 두 행을 건너뛰어요.",
+  },
+};
+const checkMix = check("adv_sort_mix", "ORDER BY category DESC, name은 무엇을 할까요?", ["종류는 거꾸로, 같은 종류 안은 이름순", "이름은 거꾸로, 종류는 차례로", "종류만 거꾸로 세운다"], 0, "기준마다 방향을 따로 정해요.");
+const checkPage = check("adv_offset_page", "LIMIT 2 OFFSET 4는 무엇을 할까요?", ["앞의 4행을 건너뛰고 2행을 보여 준다", "앞의 2행을 건너뛰고 4행을 보여 준다", "2행부터 4행까지 지운다"], 0, "OFFSET은 건너뛸 행 수예요.");
+const checkApply = check("adv_apply_5", "종류를 겹치지 않게 거꾸로 세우려면?", ["DISTINCT와 ORDER BY … DESC", "LIMIT와 ASC", "DISTINCT만"], 0, "겹침을 없애고 거꾸로 세워요.");
+
+const adv = (k, title, goal, summary, cards, items, more = {}) => ({ id: `5-A${k}`, chapter: 5, isAdvanced: true, title, goal, summary, cards, items, ...more });
+
+export const ADVANCED = [
+  adv(1, "방향 섞기", "기준마다 정렬 방향을 따로 정하기",
+    ["기준 여러 개는 쉼표로 잇는다", "기준마다 ASC·DESC를 붙인다", "앞 기준이 같을 때 뒤 기준"],
+    [{ say: "5장에서 ORDER BY를 배웠죠? 오늘은 한 걸음 더, 기준마다 방향을 섞어요.", sql: "SELECT name, category FROM shops\nORDER BY category DESC, name" }],
+    [T.kwOrder, T.kwDesc, T.blankDesc, T.orderTop, T.table, T.broken, T.kwLimit, T.rows, AB.mix, checkMix]),
+  adv(2, "쪽 나누기", "OFFSET으로 앞의 행을 건너뛰기",
+    ["OFFSET은 건너뛸 행 수", "LIMIT 뒤에 OFFSET", "줄 세운 뒤 쪽을 나눈다"],
+    [{ say: "LIMIT 2 OFFSET 2는 앞의 두 행을 건너뛰고 두 행을 보여 줘요.", sql: "SELECT name FROM shops\nORDER BY shop_id\nLIMIT 2 OFFSET 2" }],
+    [AT.pageBlank, T.kwLimit, T.table, T.orderTop, T.kwOrder, T.kwDesc, T.blankDistinct, T.broken, AB.owner, checkPage]),
+  adv(3, "종류 의뢰", "장터 의뢰를 줄 세우기로 풀기",
+    ["의뢰를 읽고 기준을 정한다", "DISTINCT로 겹침을 없앤다", "DESC로 거꾸로 세운다"],
+    [{ say: "두억이가 의뢰를 받았어요. 가게 종류를 거꾸로 보고 싶대요." }],
+    [T.kwDistinct, T.blankDistinct, T.rows, T.orderKinds, T.kwOrder, T.kwLimit, T.broken, T.table, AB.apply, checkApply]),
+];
+delete ADVANCED[2].isAdvanced;

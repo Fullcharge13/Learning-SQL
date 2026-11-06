@@ -56,7 +56,7 @@ export const UNTAUGHT = [
   // 비교·정렬의 다른 모양
   "GLOB", "REGEXP", "MATCH", "ESCAPE", "COLLATE", "NOCASE", "NULLS", "ISNULL", "NOTNULL",
   // 함수
-  "GROUP_CONCAT", "IIF", "NULLIF", "INSTR", "PRINTF", "FORMAT", "TYPEOF", "HEX", "QUOTE", "CHAR", "UNICODE",
+  "GROUP_CONCAT", "IIF", "INSTR", "PRINTF", "FORMAT", "TYPEOF", "HEX", "QUOTE", "CHAR", "UNICODE",
   "DATETIME", "UNIXEPOCH", "TIMEDIFF", "NUMERIC",
   // 시각·난수(돌릴 때마다 결과가 바뀜)
   "RANDOM", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP",
@@ -67,14 +67,37 @@ export const UNTAUGHT = [
 // 낱말이 아닌 문법 모양 → 처음 배우는 장. 점검기가 기호·괄호 모양을 보고 GRAMMAR와 같은 방식으로 막는다.
 //   "*"는 1장 SELECT *와 곱하기가 같은 기호라 검사하지 않는다.
 export const FORMS = {
-  "+": 2, "-": 2, "/": 2, "%": 2,                              // 2장 계산 열
+  "+": 2, "-": 2, "/": 2,                                      // 2장 계산 열(나머지 %는 2장 심화 전용, ADVANCED_GRAMMAR)
   "=": 3, "<": 3, ">": 3, "<=": 3, ">=": 3, "<>": 3, "!=": 3,  // 3장 비교 연산
   "||": 9,                                                     // 9장 글자 잇기
   "(SELECT": 12,                                               // 12장 서브쿼리(괄호 안 SELECT)
   "FROM (SELECT": 13,                                          // 13장 FROM 안 서브쿼리
 };
 
-export const SQL_WORDS = new Set([...Object.values(GRAMMAR).flat(), ...UNTAUGHT]);
+// 심화 전용 낱말·모양 (v0.2, 설계 「심화 1~6장」 §3-1). ADVANCED_GRAMMAR[n]: n장 심화 레슨(N-A1~N-A3)에서만 새로 쓰는 것.
+// - 심화 레슨(n장)이 쓸 수 있는 것 = GRAMMAR[1..n] + ADVANCED_GRAMMAR[n]. 앞 장 심화 낱말은 쓰지 않는다(심화는 골라 듣는 것이라
+//   2장 심화를 건너뛴 학습자도 3장 심화를 연다).
+// - 본 과정 레슨·매일 도전 틀은 여기 낱말을 쓰지 못한다(그 낱말이 GRAMMAR의 그 장 이하에도 있을 때만 됨).
+// - 낱말(NULLIF)과 기호 모양(%, 주석 --)이 섞여 있다. 점검기(tests/content.js)는
+//   낱말은 SQL_WORDS처럼, %는 FORMS처럼(글자 상수 바깥의 기호), --는 주석이 있는지로 본다. 블록 주석 /* */은 어디서도 가르치지 않는다.
+// - 이미 본 과정에서 가르친 것은 넣지 않는다(예: OFFSET은 GRAMMAR[5]).
+// 3·4·5장 심화는 새 낱말 없이 모양만(열끼리 비교, NOT ( … ), LIKE 무늬 섞기, ASC·DESC 섞기). 작업 2의 조사로 확정.
+export const ADVANCED_GRAMMAR = {
+  1: ["--"],       // 1장 심화 A2 주석 달기
+  2: ["%"],        // 2장 심화 A2 나머지(짝수·홀수)
+  3: [],
+  4: [],
+  5: [],
+  6: ["NULLIF"],   // 6장 심화 A2
+};
+
+/** 심화 전용 낱말·모양 → 그 장 */
+export const ADVANCED_CHAPTER = Object.freeze(Object.fromEntries(
+  Object.entries(ADVANCED_GRAMMAR).flatMap(([ch, words]) => words.map((w) => [w, Number(ch)])),
+));
+
+export const SQL_WORDS = new Set([...Object.values(GRAMMAR).flat(), ...UNTAUGHT,
+  ...Object.values(ADVANCED_GRAMMAR).flat().filter((w) => /^[A-Z_]+$/.test(w))]);
 
 /** 낱말 → 처음 배우는 장(가르치지 않는 낱말은 없음) */
 export const WORD_CHAPTER = Object.freeze(Object.fromEntries(

@@ -5,6 +5,10 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { GRAMMAR, SQL_WORDS, UNTAUGHT } from "../../data/grammar.js";
+import * as grammar from "../../data/grammar.js";
+import { CONCEPTS as DATA_CONCEPTS } from "../../data/concepts.js";
+import { cardsToSql, hasOrderBy } from "../../src/grade.js";
+import { checkReadOnly } from "../../src/sqlcore.js";
 import { SCHEMA } from "../../data/schema.js";
 import { checkChapter, openEngine, sqlWords, RULES, buildRange, withTieBreak } from "../content.js";
 import * as good from "../fixtures/content_good.js";
@@ -93,7 +97,8 @@ function cli(...args) {
 test("cli: good lessons dir prints OK and exits 0", () => {
   const r = cli("--lessons-dir", "tests/fixtures/content_good");
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 52, 틀 3: 씨앗 300개 중 다시 만든 것 \d+\)/);
+  assert.match(r.stdout, /ch5: OK \(레슨 5, 문제 52, 틀 3: 씨앗 300개 중 다시 만든 것 \d+, 심화 3레슨·30문제\)/);
+  assert.match(r.stdout, /합계: 장 1개, 레슨 5, 문제 52, 심화 3레슨·30문제, 문제점 0/);
 });
 
 test("cli: bad lessons dir lists issues and exits 1", () => {
@@ -289,4 +294,186 @@ test("phone widths: placed order lines ≤ ORDER_COLS, code-like text options �
   assert.match(msgs, new RegExp(`코드 보기 34칸 > ${OPT_COLS}칸`));
   // 시험용 장은 같은 문제를 여러 레슨이 함께 쓰므로 같은 글이 여러 번 나올 수 있다. 다른 글은 둘뿐(한국어 문장 보기는 걸리지 않음)
   assert.equal(new Set(issues.map((i) => i.msg)).size, 2, show(issues));
+});
+
+// ---- v0.2 작업 1: 심화 레슨(ADVANCED, N-A1~N-A3) ----
+// 심화 레슨은 본 과정과 같은 규칙을 받되(장 평가가 아님), 쓰는 낱말은 GRAMMAR[1..N] + ADVANCED_GRAMMAR[N].
+// 문제점의 where는 「N-Ak …」.
+const advMod = (patch) => {
+  const m = structuredClone({ CHAPTER: good.CHAPTER, LESSONS: good.LESSONS, ADVANCED: good.ADVANCED, TEMPLATES: good.TEMPLATES });
+  patch(m);
+  return m;
+};
+const advConcepts = [...good.CONCEPTS,
+  { id: "adv_c1", name: "심화 시험 1장", chapter: 1, advanced: true },
+  { id: "adv_c6", name: "심화 시험 6장", chapter: 6, advanced: true }];
+const issuesAt = (mod, chapter, id) => checkChapter(mod, chapter, engine, { concepts: advConcepts }).filter((i) => i.where.includes(id));
+const touch = (id, code, more = {}) => ({ type: "choice", id, concept: "select", q: "이 SQL의 결과는 무엇일까요?", code,
+  options: ["1", "0", "7"], answer: 0, explain: "시험용 문제예요.", ...more });
+
+test("advanced lessons checked: the good fixture's 3 advanced lessons have no issues", () => {
+  assert.equal(good.ADVANCED.length, 3);
+  assert.deepEqual(good.ADVANCED.map((l) => l.id), ["5-A1", "5-A2", "5-A3"]);
+  assert.ok(good.ADVANCED.some((l) => !("isAdvanced" in l)), "isAdvanced가 없는 심화도 고정 파일에 있어야 함(빠져도 됨)");
+  const issues = checkChapter(good, 5, engine, { concepts: good.CONCEPTS });
+  assert.deepEqual(issues, [], show(issues));
+  // 심화 레슨도 실제로 점검한다: 심화 조립 문제 정답을 망가뜨리면 5-A1에서 잡힘
+  const broken = advMod((m) => { m.ADVANCED[0].items.find((it) => it.type === "build").cards[3] = "shop"; });
+  const hit = checkChapter(broken, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(hit.some((i) => i.rule === "answer-runs" && i.where.startsWith("5-A1")), show(hit));
+});
+
+test("advanced shape: count, id/chapter, isExam", () => {
+  const two = advMod((m) => { m.ADVANCED.pop(); });
+  const a = checkChapter(two, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(a.some((i) => i.rule === "shape" && i.where === "ch5 ADVANCED" && /3개/.test(i.msg)), show(a));
+  // 5-A1이 4장 파일에 있으면 id·chapter가 틀림
+  const ch4 = checkChapter(good, 4, engine, { concepts: good.CONCEPTS }).filter((i) => i.rule === "shape" && i.where.startsWith("5-A"));
+  assert.ok(ch4.some((i) => /4-A1/.test(i.msg)), show(ch4));
+  const exam = advMod((m) => { m.ADVANCED[1].isExam = true; });
+  const e = checkChapter(exam, 5, engine, { concepts: good.CONCEPTS });
+  assert.ok(e.some((i) => i.rule === "shape" && i.where.startsWith("5-A2") && /isExam/.test(`${i.where} ${i.msg}`)), show(e));
+  const notAdv = advMod((m) => { m.ADVANCED[0].isAdvanced = false; });
+  assert.ok(checkChapter(notAdv, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && i.where.startsWith("5-A1") && /isAdvanced/.test(`${i.where} ${i.msg}`)));
+  const swapped = advMod((m) => { [m.ADVANCED[0], m.ADVANCED[1]] = [m.ADVANCED[1], m.ADVANCED[0]]; });
+  assert.ok(checkChapter(swapped, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && /5-A1이어야/.test(i.msg)));
+  // 문제 수·조립 수는 본 과정 같은 장(장 평가 아님)과 같은 한도
+  const short = advMod((m) => { m.ADVANCED[2].items.splice(0, 2); });
+  assert.ok(checkChapter(short, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && i.where === "5-A3 items" && /10~14/.test(i.msg)));
+  const twoBuilds = advMod((m) => { const l = m.ADVANCED[2]; const b = l.items.find((it) => it.type === "build"); l.items.splice(l.items.indexOf(b), 0, { ...b, id: "g5a-extra-build" }); });
+  assert.ok(checkChapter(twoBuilds, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && i.where === "5-A3 items" && /build는 1~1개/.test(i.msg)));
+  // 없으면 괜찮고(7~17장), 목록이 아니면 문제
+  const none = advMod((m) => { delete m.ADVANCED; });
+  assert.ok(!checkChapter(none, 5, engine, { concepts: good.CONCEPTS }).some((i) => /ADVANCED/.test(i.where)));
+  const notList = advMod((m) => { m.ADVANCED = {}; });
+  assert.ok(checkChapter(notList, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && i.where === "ch5 ADVANCED"));
+  // 문제 id는 본 과정과 심화를 통틀어 겹치지 않음
+  const dupId = advMod((m) => { m.ADVANCED[0].items.find((it) => it.type === "build").id = "g5-top5"; });
+  assert.ok(checkChapter(dupId, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.rule === "shape" && i.where.startsWith("5-A1") && /겹침/.test(i.msg)));
+});
+
+test("advanced rules: planted faults in the bad fixture's advanced lessons are caught at N-Ak", () => {
+  assert.ok(bad.ADV_BAD.length >= 7, "심화에 심은 곳이 있어야 함");
+  const issues = checkChapter(bad, 5, engine, { concepts: bad.CONCEPTS });
+  const missing = bad.ADV_BAD.filter(([rule, lid, where]) =>
+    !issues.some((i) => i.rule === rule && i.where.startsWith(lid) && `${i.where} ${i.msg}`.includes(where)));
+  assert.deepEqual(missing, [], `빠진 곳:\n${missing.map((m) => m.join(" @ ")).join("\n")}\n\n나온 것:\n${show(issues)}`);
+  const rules = new Set(bad.ADV_BAD.map(([r]) => r));
+  for (const r of ["answer-runs", "drop-one", "swap-extra", "bank-size", "stable-order", "grammar", "shape"]) assert.ok(rules.has(r), r);
+  // R48: 심화에서도 정답 카드에 카드를 더 놓은 조립은 앱이 extra로 막으므로 점검기 문제가 아님
+  assert.ok(!issues.some((i) => i.where.includes("bad-adv-insert")), show(issues.filter((i) => i.where.includes("bad-adv-insert"))));
+});
+
+test("advanced words: ADVANCED_GRAMMAR shape (uppercase, not in GRAMMAR or UNTAUGHT, OFFSET is main)", () => {
+  const AG = grammar.ADVANCED_GRAMMAR;
+  assert.ok(AG && typeof AG === "object", "data/grammar.js가 ADVANCED_GRAMMAR를 내보냄");
+  assert.deepEqual(AG[1], ["--"]);
+  assert.deepEqual(AG[2], ["%"]);
+  assert.deepEqual(AG[4], []);
+  assert.deepEqual(AG[5], []);
+  assert.deepEqual(AG[6], ["NULLIF"]);
+  const main = new Set(Object.values(GRAMMAR).flat());
+  for (const [ch, ws] of Object.entries(AG)) {
+    for (const w of ws) {
+      assert.equal(w, w.toUpperCase());
+      assert.ok(!main.has(w), `${w}(${ch}장 심화)는 본 과정 낱말이 아님`);
+      assert.ok(!UNTAUGHT.includes(w), `${w}는 심화에서 가르치므로 UNTAUGHT에서 뺌`);
+    }
+  }
+  assert.ok(main.has("OFFSET") && !Object.values(AG).flat().includes("OFFSET"), "OFFSET은 5장 본 과정 낱말");
+  assert.ok(SQL_WORDS.has("NULLIF"), "NULLIF도 검사하는 낱말");
+});
+
+test("advanced words allowed only in advanced: % in chapter 2", () => {
+  const pct = (i) => i.rule === "grammar" && /%/.test(i.msg);
+  const inAdv = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-mod-q", "SELECT 7 % 2 AS r")); });
+  assert.deepEqual(issuesAt(inAdv, 2, "adv-mod-q").filter(pct), []);
+  const inMain = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-mod-q", "SELECT 7 % 2 AS r")); });
+  const hit = issuesAt(inMain, 2, "adv-mod-q").filter(pct);
+  assert.ok(hit.length && /심화/.test(hit[0].msg), show(hit));
+  const tpl = advMod((m) => { m.TEMPLATES = [{ id: "2-T1", concept: "select", type: "choice", q: "나머지를 구하는 SQL이에요. 알맞은 표는?",
+    sql: "SELECT {N} % 2 AS r", wrong: ["SELECT {N} AS r", "SELECT 2 AS r"], vars: { N: { min: 3, max: 9 } }, explain: "나머지를 구해요." }, m.TEMPLATES[1]]; });
+  const th = checkChapter(tpl, 2, engine, { concepts: advConcepts }).filter((i) => i.where.startsWith("틀 2-T1") && pct(i));
+  assert.ok(th.length, "2장 틀의 %는 grammar");
+  // 3장 심화에서는 2장 심화 낱말 %를 쓰지 않음(심화는 고를 수 있어 2장 심화를 건너뛴 학습자가 있음)
+  assert.ok(issuesAt(inAdv, 3, "adv-mod-q").some(pct));
+  // 글자 보기(prose)의 「50%」와 LIKE 무늬 '%방'은 그대로 괜찮음
+  const prose = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-prose-q", "SELECT name FROM shops WHERE name LIKE '%방'", { options: ["50% 할인", "2곳", "3곳"], answer: 1, q: "이 SQL의 결과는 몇 행일까요?" })); });
+  assert.deepEqual(issuesAt(prose, 4, "adv-prose-q").filter(pct), []);
+});
+
+test("advanced words do not leak: -- (1장 심화) and NULLIF (6장 심화)", () => {
+  const cmt = (i) => i.rule === "grammar" && /--/.test(i.msg);
+  const sql = "SELECT 1 AS r -- 하나";
+  const main3 = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-cmt-q", sql)); });
+  const hit = issuesAt(main3, 3, "adv-cmt-q").filter(cmt);
+  assert.ok(hit.length && /1장 심화/.test(hit[0].msg), show(hit));
+  const adv1 = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-cmt-q", sql)); });
+  assert.deepEqual(issuesAt(adv1, 1, "adv-cmt-q").filter(cmt), []);
+  assert.ok(issuesAt(adv1, 2, "adv-cmt-q").some(cmt), "2장 심화는 1장 심화 낱말을 쓰지 않음");
+  // 주석이 설명 카드에 있어도(본 과정) 잡힘, 블록 주석 /* */은 어디서나 가르치지 않음
+  const card = advMod((m) => { m.LESSONS[0].cards[0].sql = "SELECT name FROM items -- 물건\nORDER BY price DESC\nLIMIT 5"; });
+  assert.ok(checkChapter(card, 5, engine, { concepts: good.CONCEPTS }).some((i) => i.where === "5-1 cards[0]" && cmt(i)));
+  const block = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-block-q", "SELECT 1 AS r /* 하나 */")); });
+  assert.ok(issuesAt(block, 1, "adv-block-q").some((i) => i.rule === "grammar" && /\/\*/.test(i.msg)));
+  // NULLIF: 6장 심화만
+  const nsql = "SELECT NULLIF(1, 0) AS r";
+  const nf = (i) => i.rule === "grammar" && /NULLIF/.test(i.msg);
+  const adv6 = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-nullif-q", nsql)); });
+  assert.deepEqual(issuesAt(adv6, 6, "adv-nullif-q").filter(nf), []);
+  const main6 = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-nullif-q", nsql)); });
+  assert.ok(issuesAt(main6, 6, "adv-nullif-q").some(nf));
+  assert.ok(issuesAt(main6, 17, "adv-nullif-q").some(nf), "본 과정은 뒷장에서도 심화 전용 낱말을 쓰지 않음");
+  assert.ok(issuesAt(adv6, 5, "adv-nullif-q").some(nf), "5장 심화는 6장 심화 낱말을 쓰지 않음");
+});
+
+test("advanced concept in main: advanced concepts only in advanced lessons (and not from a later chapter)", () => {
+  const sh = (i) => i.rule === "shape" && /adv_c1/.test(i.msg);
+  const main = advMod((m) => { m.LESSONS[0].items.unshift(touch("adv-concept-q", "SELECT 1 AS r", { concept: "adv_c1" })); });
+  assert.ok(issuesAt(main, 5, "adv-concept-q").some((i) => sh(i) && /심화 개념/.test(i.msg)));
+  const adv = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-concept-q", "SELECT 1 AS r", { concept: "adv_c1" })); });
+  assert.deepEqual(issuesAt(adv, 5, "adv-concept-q").filter((i) => i.rule === "shape"), []);
+  const later = advMod((m) => { m.ADVANCED[0].items.unshift(touch("adv-concept-q", "SELECT 1 AS r", { concept: "adv_c6" })); });
+  assert.ok(issuesAt(later, 5, "adv-concept-q").some((i) => i.rule === "shape" && /6장/.test(i.msg)));
+  // data/concepts.js: 1~6장 심화 개념(advanced: true)이 장마다 있고 응용 개념 adv_apply_N이 있음
+  for (let n = 1; n <= 6; n++) {
+    const mine = DATA_CONCEPTS.filter((c) => c.advanced === true && c.chapter === n);
+    assert.ok(mine.length >= 2, `${n}장 심화 개념`);
+    assert.ok(mine.some((c) => c.id === `adv_apply_${n}`), `adv_apply_${n}`);
+    for (const c of mine) assert.ok(c.id.startsWith("adv_") && c.name && [...c.name].length <= 16, JSON.stringify(c));
+  }
+  assert.equal(new Set(DATA_CONCEPTS.map((c) => c.id)).size, DATA_CONCEPTS.length, "개념 id가 겹치지 않음");
+});
+
+test("comment card does not swallow next card (cardsToSql, hasOrderBy, read-only guard, tie-break)", () => {
+  const tail = cardsToSql(["SELECT", "1 + 1 AS n", "-- 계산"]);
+  assert.equal(tail, "SELECT 1 + 1 AS n -- 계산");
+  assert.deepEqual(engine.run(tail).rows, [[2]]);
+  const mid = cardsToSql(["SELECT", "-- 계산", "1 + 1 AS n"]);
+  assert.equal(mid, "SELECT -- 계산\n1 + 1 AS n", "주석 카드 뒤는 줄바꿈으로 이음");
+  const r = engine.run(mid);
+  assert.equal(r.error, null);
+  assert.deepEqual(r.rows, [[2]]);
+  assert.ok(checkReadOnly(mid));
+  assert.ok(checkReadOnly(cardsToSql(["-- 먼저 설명", "SELECT", "1 AS n"])), "주석으로 시작해도 SELECT 문장 하나");
+  assert.equal(hasOrderBy(cardsToSql(["SELECT", "name", "FROM", "shops", "-- 정렬", "ORDER", "BY", "name"])), true);
+  assert.equal(hasOrderBy("SELECT name FROM shops -- ORDER BY name"), false);
+  // 글자 상수 안의 --는 주석이 아님 → 줄바꿈 없음
+  assert.equal(cardsToSql(["SELECT", "'a--b'", "AS", "s"]), "SELECT 'a--b' AS s");
+  assert.equal(cardsToSql(["SELECT", "name", "FROM", "shops"]), "SELECT name FROM shops", "주석 없는 조립은 그대로");
+  // 동점 검사(stable-order)용 꼬리는 끝 주석 안으로 들어가지 않는다
+  assert.equal(withTieBreak("SELECT a FROM t ORDER BY a -- 정렬", ", 1"), "SELECT a FROM t ORDER BY a , 1 -- 정렬");
+  assert.equal(withTieBreak("SELECT a FROM t ORDER BY a -- 정렬\nLIMIT 3", ", 1"), "SELECT a FROM t ORDER BY a , 1 -- 정렬\nLIMIT 3");
+  assert.equal(withTieBreak("SELECT a FROM t ORDER BY a;", ", 1"), "SELECT a FROM t ORDER BY a , 1 ;");
+});
+
+test("comment card in a chapter-1 advanced build: one card, needs `need`, and the whole build passes", () => {
+  const b = { type: "build", id: "adv-cmt-build", concept: "select", q: "가게 장부 전체에 설명을 달아 보여 줘",
+    cards: ["SELECT", "*", "FROM", "shops", "-- 가게 장부"], extra: ["items", "name"], need: ["-- 가게 장부"], tables: ["shops"],
+    hints: ["가게 장부 전체를 펼쳐요.", "끝에 주석 카드를 붙여요."], explain: "주석은 결과를 바꾸지 않고 설명만 달아요." };
+  const ok = advMod((m) => { const l = m.ADVANCED[0]; const k = l.items.findIndex((it) => it.type === "build"); l.items[k] = b; });
+  assert.deepEqual(issuesAt(ok, 1, "adv-cmt-build"), [], show(issuesAt(ok, 1, "adv-cmt-build")));
+  // need가 없으면 주석 카드를 빼도 같은 결과 → drop-one
+  const noNeed = advMod((m) => { const l = m.ADVANCED[0]; const k = l.items.findIndex((it) => it.type === "build"); const { need, ...rest } = b; l.items[k] = rest; });
+  assert.ok(issuesAt(noNeed, 1, "adv-cmt-build").some((i) => i.rule === "drop-one"));
 });
