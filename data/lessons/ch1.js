@@ -665,9 +665,13 @@ export const TEMPLATES = [
 //       SELECT * 는 「no tables specified」, SELECT items는 「no such column」(모두 장터에서 돌려 확인).
 // 1-A2: 주석. 주석이 든 SQL은 카드 sql·문제 code·빈자리·줄 놓기·조립에만 두고 글자 보기에는 두지 않는다(13-4).
 //       조립의 주석 카드는 need. 주석 줄은 어느 줄에 놓아도 결과가 같아 줄 놓기는 「끝에 붙은 주석」 한 줄로 만든다.
-// 1-A3: 의뢰 「다섯 장부 탐험」. 의뢰인 바람 보따리 주인 오영감(shops 6번). 행 수 shops 8·items 40·customers 60·
-//       orders 591(50 + 외 541)·order_items 1241(50 + 외 1191), 열 이름은 pragma_table_info로 확인.
-//       문제의 code는 화면에서 실행되지 않으므로 「… 외 N행」은 문제 글로 알려 준다(1-4와 같음).
+// 1-A3: 의뢰 「다섯 장부 탐험」. 의뢰인 바람 보따리 주인 오영감(shops 6번). 1-4가 표마다 열 하나를 묻는 데서 한 걸음 더:
+//       같은 열 이름이 여러 장부에 있어(shop_id = shops·items, item_id = items·order_items, order_id = orders·order_items,
+//       customer_id = customers·orders, name = shops·items·customers) 단서 둘(열 + 행 수·다른 열·열 수)로 좁힌다.
+//       행 수 shops 8·items 40·customers 60·orders 591·order_items 1241(50 + 외 1191), 열 수 shops 5·items 5·customers 6·
+//       orders 4·order_items 3, 열 이름은 pragma_table_info로 확인. 1-4 문제(status·qty 자리, orders 591, 손님 60, 행 하나의 뜻)는
+//       되풀이하지 않는다. 문제의 code는 화면에서 실행되지 않으므로 「… 외 N행」은 문제 글로 알려 준다(1-4와 같음).
+//       1장 조립은 SELECT * FROM 표뿐이라 정답 SQL은 본 과정(1-4-b1)과 같은 모양이 되지만, 단서 둘로 표를 좁히는 것이 과제다.
 export const ADVANCED = [
   {
     id: "1-A1", chapter: 1, isAdvanced: true, title: "표 없이 값 보기",
@@ -675,7 +679,7 @@ export const ADVANCED = [
     summary: [
       "SELECT 40 = 표 없이 값 하나, 1행",
       "SELECT * 는 가리킬 표가 있어야 해요",
-      "값 + FROM 표 = 그 표의 행마다 한 번",
+      "값에 FROM 표를 달면 행마다 한 번",
     ],
     cards: [
       {
@@ -878,7 +882,7 @@ export const ADVANCED = [
         type: "order", concept: "adv_comment",
         q: "가게 표를 펼치고 끝에 메모가 붙은 SQL이 되게 줄을 놓아 보세요.",
         lines: ["SELECT", "*", "FROM shops -- 가게"],
-        explain: "SELECT → * → FROM shops 차례이고, 메모는 마지막 줄 끝에 붙었어요. 주석은 그 줄 끝까지만이라 다음 줄에는 번지지 않아요.",
+        explain: "SELECT → * → FROM shops 차례이고, 메모는 마지막 줄 끝에 붙었어요. 주석은 -- 뒤부터라 그 앞의 FROM shops는 그대로 읽혀요.",
       },
       {
         type: "choice", concept: "adv_comment",
@@ -926,127 +930,119 @@ export const ADVANCED = [
   },
   {
     id: "1-A3", chapter: 1, isAdvanced: true, title: "다섯 장부 탐험",
-    goal: "열 이름과 행 수로 어느 장부인지 알아맞힐 수 있다",
+    goal: "단서 둘로 같은 열 이름이 든 장부들 가운데 하나를 알아맞힐 수 있다",
     summary: [
-      "열 이름을 보면 어느 장부인지 보여요",
-      "같은 열 이름이 두 장부에 있기도 해요",
-      "큰 장부는 50행 + 「… 외 N행」으로 세요",
+      "같은 열 이름이 여러 장부에 있기도 해요",
+      "shop_id·item_id는 장부 두 권에 있어요",
+      "단서가 모자라면 행 수·다른 열을 더 봐요",
     ],
     cards: [
       {
-        say: "1장에서 장부 다섯 권을 만났죠? 오늘은 의뢰가 왔어요! 바람 보따리 오영감 님이 열 이름만 적힌 쪽지 여러 장을 주며 「어느 장부 것인지 찾아 펼쳐 주게」래요. 열 이름이 단서예요.",
+        say: "1장에서 장부 다섯 권을 만났죠? 오늘은 한 걸음 더, 의뢰가 왔어요! 바람 보따리 오영감 님이 단서가 두 개씩 적힌 쪽지를 주며 「이 장부를 찾아 펼쳐 주게」래요. 단서 하나로는 장부가 하나로 안 좁혀질 때가 있거든요.",
       },
       {
-        say: "단서는 행 수에도 있어요. 큰 장부는 앞 50행만 그리고 「… 외 N행」으로 남은 행 수를 알려 줘요. 아래 주문 장부는 50행에 외 541행을 더해 591행이에요. 행 하나가 무엇인지도 떠올려 봐요.",
-        sql: "SELECT * FROM orders",
+        say: "같은 열 이름이 두 장부에 있기도 해요. shop_id는 가게 장부에도, 아래 물건 장부에도 있어요(물건마다 어느 가게 것인지). 그럴 땐 둘째 단서로 좁혀요. 가게 장부는 8행, 물건 장부는 40행이에요.",
+        sql: "SELECT * FROM items",
       },
     ],
     items: [
       {
         type: "choice", concept: "adv_apply_1",
-        q: "쪽지 ①: 주인 이름(owner) 열이 있는 장부는 어느 것일까요?",
-        options: ["shops (가게)", "customers (손님)", "orders (주문)"],
-        answer: 0, tables: ["shops", "customers", "orders"],
-        explain: "가게마다 주인이 있으니 owner는 shops 장부에 있어요. 손님 장부에는 이름(name)은 있어도 주인 열은 없어요.",
+        q: "쪽지 ①: 「shop_id 열이 있고 8행」인 장부는 어느 것일까요?",
+        options: ["shops (가게)", "items (물건)", "customers (손님)"],
+        answer: 0, tables: ["shops", "items"],
+        explain: "shop_id는 shops와 items 둘 다에 있어요. 그중 8행인 것은 가게 8곳이 적힌 shops예요. items는 40행이에요.",
       },
       {
         type: "choice", concept: "adv_apply_1",
-        q: "쪽지 ②: ordered_on과 status 열이 함께 있는 장부는?",
-        options: ["orders (주문)", "order_items (주문 내역)", "customers (손님)"],
-        answer: 0, tables: ["orders", "order_items", "customers"],
-        explain: "주문한 날짜와 완료·취소 상태는 주문 한 건에 하나씩이라 orders 장부에 있어요.",
+        q: "name 열이 있는 장부는 다섯 권 중 몇 권일까요?",
+        options: ["3권", "1권", "5권"],
+        answer: 0, tables: ["shops", "items", "customers", "orders", "order_items"],
+        explain: "가게 이름(shops), 물건 이름(items), 손님 이름(customers)이 모두 name 열이에요. 그래서 name 하나로는 장부를 못 정해요.",
       },
       {
         type: "choice", concept: "adv_apply_1",
-        q: "쪽지 ③: 장터에 처음 온 날(first_visit) 열은 어느 장부에 있을까요?",
-        options: ["customers (손님)", "orders (주문)", "shops (가게)"],
-        answer: 0, tables: ["customers", "orders", "shops"],
-        explain: "처음 온 날은 손님마다 하나라 customers 장부에 있어요. 가게를 연 날은 shops의 opened_on이에요.",
+        q: "쪽지 ②: 「name 열이 있고 60행」인 장부는 어느 것일까요?",
+        options: ["customers (손님)", "items (물건)", "shops (가게)"],
+        answer: 0, tables: ["shops", "items", "customers"],
+        explain: "name 열은 세 장부에 있지만 60행은 손님 장부뿐이에요. 가게는 8행, 물건은 40행이에요.",
       },
       {
         type: "choice", concept: "adv_apply_1",
-        q: "쪽지 ④: 열이 order_id, item_id, qty 셋뿐인 장부는?",
+        q: "쪽지 「order_id 열이 있는 장부」 하나만으로는 왜 장부를 정할 수 없을까요?",
+        options: ["orders와 order_items에 모두 order_id가 있어서", "order_id 열은 어느 장부에도 없어서", "order_id는 행 수를 뜻해서"],
+        answer: 0, tables: ["orders", "order_items"],
+        explain: "주문 장부 orders에도, 주문 내역 order_items에도 주문 번호 order_id가 있어요. 그래서 단서가 하나 더 필요해요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_1",
+        q: "쪽지 ③: 「order_id 열이 있고, 열이 셋뿐」인 장부는 어느 것일까요?",
         options: ["order_items (주문 내역)", "orders (주문)", "items (물건)"],
-        answer: 0,
-        explain: "어느 주문에 어느 물건을 몇 개 담았는지만 적은 장부, order_items예요. 열이 셋뿐이에요.",
+        answer: 0, tables: ["orders", "order_items"],
+        explain: "order_items는 order_id, item_id, qty 세 열이에요. orders는 order_id, customer_id, ordered_on, status 네 열이에요.",
       },
       {
         type: "choice", concept: "adv_apply_1",
-        q: "item_id 열은 장부 두 권에 나와요. 어느 두 권일까요?",
-        options: ["items와 order_items", "items와 orders", "shops와 order_items"],
-        answer: 0, tables: ["items", "orders", "order_items"],
-        explain: "물건 장부 items에도, 주문 내역 order_items에도 물건 번호가 있어요. 같은 열 이름이 두 장부에 있기도 해서 다른 열까지 함께 봐요.",
+        q: "쪽지 ④: 「customer_id 열이 있고 591행」인 장부는 어느 것일까요?",
+        options: ["orders (주문)", "customers (손님)", "order_items (주문 내역)"],
+        answer: 0, tables: ["customers", "orders"],
+        explain: "customer_id는 customers와 orders 둘 다에 있어요. 손님은 60명이라 60행이니, 591행은 주문 장부 orders예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_1",
+        q: "쪽지 ⑤: 「item_id 열이 있고, 펼치면 앞 50행 아래 「… 외 1191행」이 붙는」 장부는?",
+        options: ["order_items (주문 내역)", "items (물건)", "orders (주문)"],
+        answer: 0, tables: ["items", "order_items"],
+        explain: "item_id는 items와 order_items에 있어요. items는 40행이라 「… 외」가 붙지 않아요. 50행에 1191행을 더한 1241행은 order_items예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_1",
+        q: "shops와 items 둘 다에 있는 열은 무엇일까요?",
+        options: ["shop_id", "owner", "price"],
+        answer: 0, tables: ["shops", "items"],
+        explain: "가게 번호 shop_id는 두 장부 모두에 있어요. 주인 owner는 shops에만, 값 price는 items에만 있어요.",
       },
       {
         type: "blank", concept: "adv_apply_1",
-        q: "쪽지 ⑤: 가게 종류(category) 열이 든 장부를 펼치게 빈자리를 채워 보세요.",
+        q: "쪽지 ⑥: 「shop_id 열은 있는데 price 열은 없는」 장부를 펼치게 빈자리를 채워 보세요.",
         code: "SELECT * FROM ___",
         chips: ["shops", "items", "orders"],
         answer: 0,
-        explain: "먹거리·약재·잡화·공방 같은 가게 종류는 shops 장부의 category 열에 있어요.",
+        explain: "shop_id가 있는 장부는 shops와 items예요. 그중 값 price가 없는 쪽은 가게 장부 shops예요. orders에는 shop_id가 없어요.",
       },
       {
         type: "choice", concept: "adv_apply_1",
-        q: "쪽지 ⑥: 재고(stock) 열이 든 장부를 통째로 펼친 결과는 어느 것일까요?",
+        q: "쪽지 ⑦: 「name 열이 있고 stock 열도 있는」 장부를 펼친 결과는 어느 것일까요?",
         options: [
           { sql: "SELECT * FROM items" },
-          { sql: "SELECT * FROM order_items" },
           { sql: "SELECT * FROM shops" },
+          { sql: "SELECT * FROM customers" },
         ],
         answer: 0,
-        explain: "재고는 물건마다 하나라 items 장부에 있어요. 열 이름에 stock이 보이는 표를 고르면 돼요.",
-      },
-      {
-        type: "choice", concept: "adv_apply_1",
-        q: "이 SQL을 돌리면 앞 50행 아래에 「… 외 1191행」이 붙어요. 모두 몇 행일까요?",
-        code: "SELECT * FROM order_items",
-        options: ["1241행", "1191행", "50행"],
-        answer: 0,
-        explain: "화면에 그린 50행에 외 1191행을 더해 1241행이에요. 1191은 그리지 않은 행만 센 수예요.",
-      },
-      {
-        type: "choice", concept: "adv_apply_1",
-        q: "orders 장부의 행 하나는 무엇을 뜻할까요?",
-        options: ["주문 한 건", "주문에 담긴 물건 한 가지", "손님 한 명"],
-        answer: 0,
-        explain: "orders는 주문 한 건이 행 하나예요. 그 주문에 담긴 물건 한 가지가 행 하나인 장부는 order_items예요.",
-      },
-      {
-        type: "choice", concept: "adv_apply_1",
-        q: "customers 장부는 60행이에요. 무엇이 60이라는 뜻일까요?",
-        options: ["장터 손님이 60명", "한 손님의 주문이 60건", "마을이 60곳"],
-        answer: 0,
-        explain: "손님 장부는 손님 한 명이 행 하나라 60행 = 손님 60명이에요.",
-      },
-      {
-        type: "choice", concept: "adv_apply_1",
-        q: "다섯 장부 중 행이 가장 많은 장부는 어느 것일까요?",
-        options: ["order_items (주문 내역)", "orders (주문)", "customers (손님)"],
-        answer: 0,
-        explain: "order_items 1241행, orders 591행, customers 60행이에요. 한 주문에 물건이 여러 가지면 주문 내역 행이 더 생겨요.",
+        explain: "name 열은 세 장부에 다 있지만 재고 stock까지 있는 것은 물건 장부 items뿐이에요. 열 이름 줄에서 stock을 찾아봐요.",
       },
       {
         id: "1-A3-b1", type: "build", concept: "adv_apply_1",
-        q: "오영감 님 쪽지: 주인 이름(owner)이 적힌 장부를 통째로 펼쳐 줘",
-        cards: ["SELECT", "*", "FROM", "shops"],
-        extra: ["customers", "items", "orders"],
-        tables: ["shops"],
+        q: "오영감 님 마지막 쪽지: shop_id 열이 있고 40행인 장부를 펼쳐 줘",
+        cards: ["SELECT", "*", "FROM", "items"],
+        extra: ["shops", "customers", "orders"],
+        tables: ["shops", "items"],
         hints: [
-          "주인은 가게마다 있어요. 가게가 적힌 장부는 어느 것일까요?",
-          "SELECT, *, FROM 다음에 shops를 놓아요.",
+          "shop_id가 있는 장부는 두 권이에요. 그중 40행인 것은 어느 것일까요?",
+          "SELECT, *, FROM 다음에 items를 놓아요.",
         ],
-        explain: "owner 열이 든 장부는 shops, 가게 8곳이 나왔어요. 의뢰 해결! 오영감 님도 바람 보따리 행에 있네요.",
+        explain: "shop_id는 shops에도 있지만 가게는 8행이라, 40행인 물건 장부 items가 답이에요. 의뢰 해결!",
       },
       {
         type: "check", concept: "adv_apply_1",
         q: "열 이름으로 장부를 찾을 때 맞는 말은?",
         options: [
-          "같은 열 이름이 두 장부에 있을 수도 있다",
+          "같은 열 이름이 여러 장부에 있으면 단서를 하나 더 본다",
           "열 이름은 장부마다 모두 다르다",
-          "열 이름만 봐서는 장부를 알 수 없다",
+          "행 수는 장부를 찾는 데 쓸모가 없다",
         ],
         answer: 0,
-        explain: "item_id처럼 두 장부에 있는 열도 있어요. 그럴 땐 다른 열 이름과 행 하나의 뜻을 함께 보면 장부가 보여요.",
+        explain: "shop_id·item_id·name처럼 여러 장부에 있는 열도 있어요. 그럴 땐 행 수나 다른 열 이름을 함께 보면 장부가 하나로 좁혀져요.",
       },
     ],
   },

@@ -686,7 +686,8 @@ export const TEMPLATES = [
 //   괄호 ( )는 FORMS에 없어 어느 장에서나 된다. FROM 없는 SELECT(1장 심화 모양)는 1장 심화를 건너뛰었을 수 있어 쓰지 않는다.
 // - 2-A1 셈 차례(곱하기·나누기 먼저, 같은 무리는 왼쪽부터, 괄호 안이 먼저)는 모든 데이터베이스에서 같다.
 //   정수 나누기 버림만 「이 장터에서는」(R36, 2-4와 같음).
-// - 2-A2 %: 장터 값(price·stock)에는 음수가 없어 나머지는 늘 0 이상이다. 음수의 나머지 부호·MOD 이름은 말로만(R36).
+// - 2-A2 %: 장터 값(price·stock)에는 음수가 없어 나머지는 늘 0 이상이다. MOD 이름만 말로(R36). 음수의 나머지 부호는
+//   SQLite·PostgreSQL·MySQL·SQL Server·Oracle 모두 나뉘는 수의 부호를 따라 같으므로 「데이터베이스마다 다르다」고 쓰지 않는다.
 //   stock % 2 는 빈칸 재고 3가지(메밀전·한지·장승)에서 빈칸(2-4 카드 1과 같은 규칙).
 // - 2-A3 의뢰: 여우골 떡방(shops 2번) 주인 금순. price * 9 / 10 과 price / 10 * 9 가 이 장터의 정수 나누기 때문에 다름
 //   (인절미 6 → 5 와 0, 수육 25 → 22 와 18, 산삼 120 → 둘 다 108). A1을 안 했을 수 있어 셈 차례를 카드 2에서 다시 짚는다.
@@ -836,7 +837,7 @@ export const ADVANCED = [
         sql: "SELECT name, price,\n  price / 2 AS half,\n  price % 2 AS remainder\nFROM items",
       },
       {
-        say: "2로 나눈 나머지가 0이면 짝수, 1이면 홀수예요. 10으로 나눈 나머지는 끝자리 숫자! 이 장터에서는 % 로 쓰지만, MOD라는 이름을 쓰는 데이터베이스도 있고 음수의 나머지는 데이터베이스마다 달라요.",
+        say: "2로 나눈 나머지가 0이면 짝수, 1이면 홀수예요. 10으로 나눈 나머지는 끝자리 숫자! 이 장터에서는 % 로 쓰지만, MOD라는 이름을 쓰는 데이터베이스도 있어요. 장터 값에는 음수가 없어요.",
         sql: "SELECT name, price,\n  price % 2 AS remainder,\n  price % 10 AS last_digit\nFROM items",
       },
     ],
@@ -947,7 +948,7 @@ export const ADVANCED = [
           "값을 백분율로 바꾼다",
         ],
         answer: 0,
-        explain: "% 는 나머지, / 는 몫이에요. 다른 데이터베이스에서는 MOD라는 이름을 쓰거나 음수의 나머지가 다를 수 있으니 「이 장터에서는」 % 라고 기억해요.",
+        explain: "% 는 나머지, / 는 몫이에요. MOD라는 이름을 쓰는 데이터베이스도 있으니 「이 장터에서는」 % 라고 기억해요.",
       },
     ],
   },
@@ -956,7 +957,7 @@ export const ADVANCED = [
     goal: "셈 차례를 생각해 할인 값을 바르게 셈한 가격표를 만들 수 있다",
     summary: [
       "10% 할인 = 값의 10분의 9",
-      "곱하기 먼저, 나누기는 나중에",
+      "곱하기를 앞에 써야 덜 버려요",
       "이 장터는 정수 나누기에서 소수점을 버려요",
     ],
     cards: [
@@ -972,7 +973,7 @@ export const ADVANCED = [
     items: [
       {
         type: "choice", concept: "adv_apply_2",
-        q: "이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
+        q: "9를 먼저 곱하면 이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
         code: "SELECT name,\n  price * 9 / 10 AS sale_price\nFROM items",
         options: ["5엽전", "5.4엽전", "0엽전"],
         answer: 0,
@@ -980,7 +981,7 @@ export const ADVANCED = [
       },
       {
         type: "choice", concept: "adv_apply_2",
-        q: "이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
+        q: "10으로 먼저 나누면 이 장터에서 인절미(6엽전) 행의 sale_price는 얼마일까요?",
         code: "SELECT name,\n  price / 10 * 9 AS sale_price\nFROM items",
         options: ["0엽전", "5엽전", "54엽전"],
         answer: 0,
@@ -999,7 +1000,7 @@ export const ADVANCED = [
         code: "SELECT name,\n  price * 9 / 10 AS mul_first,\n  price / 10 * 9 AS div_first\nFROM items",
         options: ["mul_first 22, div_first 18", "둘 다 22", "mul_first 18, div_first 22"],
         answer: 0,
-        explain: "225 / 10 은 소수점을 버려 22, 25 / 10 은 2라서 2 × 9 = 18이에요. 먼저 나누면 버리는 몫이 커져요.",
+        explain: "225 / 10 은 소수점을 버려 22, 25 / 10 은 2라서 2 × 9 = 18이에요. 먼저 나누면 버리는 소수점 아래가 커져요.",
       },
       {
         type: "choice", concept: "adv_apply_2",
@@ -1065,13 +1066,13 @@ export const ADVANCED = [
           "이 장터에서는 먼저 나누면 소수점을 버려요. 곱하기와 나누기 중 무엇을 먼저 할까요?",
           "price * 9 카드 다음에 / 10, 그리고 AS sale_price를 놓아요.",
         ],
-        explain: "의뢰 해결! 인절미 6엽전은 5엽전, 수육 25엽전은 22엽전이에요. 나누기를 나중에 해서 버리는 몫을 줄였어요.",
+        explain: "의뢰 해결! 인절미 6엽전은 5엽전, 수육 25엽전은 22엽전이에요. 나누기를 나중에 해서 버리는 소수점 아래를 줄였어요.",
       },
       {
         type: "check", concept: "adv_apply_2",
         q: "할인 가격표를 만들며 알게 된 것으로 맞는 말은?",
         options: [
-          "이 장터에서는 곱하기를 먼저 하고 나눠야 버리는 몫이 적다",
+          "이 장터에서는 곱하기를 먼저 하고 나눠야 버리는 소수점 아래가 적다",
           "셈 차례를 바꿔도 결과는 언제나 같다",
           "나누기는 늘 곱하기보다 먼저 한다",
         ],

@@ -858,7 +858,8 @@ def test_split_advanced():
     # 3장부터는 실제 장 파일 그대로다(심화가 이미 들어간 장도 있음). 심화가 없는 장은 ADVANCED·advanced 칸이 없어야 한다.
     idx = {c["id"]: c for c in _lesson_index(html)}
     plain = [n for n in table if n > 2 and "ADVANCED" not in src["ch%d.js" % n]]
-    assert plain, "시험에 쓸 심화 없는 장이 하나는 있어야 함"
+    # 심화 없는 장이 남아 있으면 그 장에 ADVANCED·advanced 칸이 없는지 본다(아래 for n in plain).
+    # 모든 장에 심화가 들어가면 plain이 비어 그 검사는 건너뛴다 — 실패로 치지 않는다.
     for n in table:
         if n > 2:
             got = json.loads(_read(os.path.join(ADV_OUT, table[n])))
@@ -866,6 +867,9 @@ def test_split_advanced():
     for n in plain:
         assert "ADVANCED" not in json.loads(_read(os.path.join(ADV_OUT, table[n]))), n
         assert "advanced" not in idx[n], n
+    # 1~3장 목록 stub id = N-A1..N-A3(1·2장은 위 시험용 심화, 3장은 실제 ch3.js 심화)
+    for n in (1, 2, 3):
+        assert [x["id"] for x in idx[n].get("advanced", [])] == ["%d-A%d" % (n, k) for k in (1, 2, 3)], (n, idx[n].get("advanced"))
     stubs = idx[1]["advanced"]
     assert [x["id"] for x in stubs] == ["1-A1", "1-A2", "1-A3"], stubs
     assert set(stubs[0]) == {"id", "chapter", "title", "goal", "concepts", "isAdvanced"}, stubs[0]
