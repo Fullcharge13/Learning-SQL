@@ -783,10 +783,12 @@ export const TEMPLATES = [
 // - 4-A1 NOT과 괄호(shops category 먹거리·약재·잡화·공방 각 2):
 //   NOT category = '먹거리' OR category = '잡화' 6행(잡화는 이미 「먹거리 아님」이라 OR가 더하는 것 없음, 빼려던 잡화가 남음),
 //   NOT (category = '먹거리' OR category = '잡화') 4행(약재·공방). NOT 먹거리 OR NOT 약재 8행(모두).
-//   customers NOT (kind = '사람' OR kind = '여우') 24행(도깨비), NOT kind = '사람' OR kind = '여우' 36행(도깨비+여우).
+//   customers NOT (kind = '도깨비' OR kind = '사람') 12행(여우), NOT kind = '도깨비' OR kind = '사람' 36행(사람+여우).
+//   (4-5가 kind NOT IN ('여우', '사람')를 물어 심화는 다른 짝을 쓴다.)
 //   items NOT (shop_id = 1 OR shop_id = 2) 30행. NOT shop_id = 7 AND price > 200 2행(쇠솥 260·장승 350, NOT은 바로 뒤 조건에만),
 //   NOT (shop_id = 7 AND price > 200) 37행. customers NOT (village = '여우고개' OR village = '달빛마을') 51행.
-//   조립은 디딤돌 계획 그대로: NOT ( 약재 OR 공방 ) → 먹거리·잡화 4행. 카드는 먹거리·잡화로 보여 줘 조립이 베끼기가 되지 않게 했다.
+//   조립: NOT ( 먹거리 OR 공방 ) → 약재·잡화 4행(약재·공방은 4-4 빈자리와 같아 바꿈, fix round 1).
+//   카드는 먹거리·잡화, 결과 표 보기는 잡화·공방(→ 먹거리·약재 4행)으로 보여 줘 조립이 베끼기가 되지 않게 했다.
 // - 4-A2 LIKE 섞기(items 이름 글자 수: 1글자 갓 1, 2글자 15, 3글자 12, 4글자 이상 12, 띄어쓰기도 한 글자):
 //   '_' 1행(갓), '__' 15행, '__%' 39행, '___' 12행, '___%' 24행(= '%___'), '____%' 12행, '____' 5행,
 //   '__ %' 3행(약초 주머니·비단 주머니·작은 방망이), '% %' 4행(+ 방망이 손잡이), '_방%' 2행(금방망이·은방망이).
@@ -794,7 +796,8 @@ export const TEMPLATES = [
 //   LIKE 무늬 글자 값은 헷갈림 카드로 낱장으로 두지 않는다(R33). 조립은 무늬를 LIKE와 붙인 구절 카드(R51)로 두어
 //   표 이름 뒤에 끼워도 별칭이 될 수 없다. 이 장터 이름은 모두 한글이라 LIKE의 영어 대소문자 차이(데이터베이스마다 다름)는 다루지 않는다.
 // - 4-A3 의뢰: 도깨비 국밥집(shops 1번) 주인 달래 할멈(앞 심화 의뢰인 오영감·금순·최보부와 겹치지 않음). 의뢰 사연은 꾸민 이야기이고
-//   장부 사실(주문 등)을 주장하지 않는다. 여우고개 손님 3명(신아람·해랑·방실이), 두 글자 이름 손님 14명,
+//   장부 사실(주문 등)을 주장하지 않는다(사연 「두고 간 보따리」는 장부에 없는 일이라 데이터와 어긋날 수 없음, fix round 1).
+//   두 글자 이름 + (버드나무고개 OR 솔바위골) → 무쇠·초롱·솔아·뭉치 4행, 괄호 없으면 8행. 여우고개 손님 3명(신아람·해랑·방실이), 두 글자 이름 손님 14명,
 //   AND → 해랑 1행, OR → 16행(3 + 14 − 해랑 1), 여우고개 AND '___' → 신아람·방실이 2행, 여우고개 AND '_' → 0행,
 //   여우고개 AND '%이' → 방실이. 달빛마을(6명) 두 글자 이름은 단비. (여우고개 OR 달빛마을) AND '__' → 해랑·단비 2행,
 //   괄호 없이 쓰면 여우고개 3명 + 단비 = 4행, 괄호 + '___' → 7행.
@@ -831,28 +834,28 @@ export const ADVANCED = [
         q: "바람 보따리(잡화)가 이 결과에 남는 까닭은?",
         code: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '잡화'",
         options: [
-          "NOT이 먹거리 조건에만 붙어 잡화는 뒤집히지 않아서",
-          "NOT이 두 조건을 모두 뒤집어서",
-          "잡화 가게는 NOT과 상관없이 빠질 수 없어서",
+          "잡화도 먹거리가 아니라 NOT 조건이 참이고, OR는 한쪽만 참이면 남겨서",
+          "OR 뒤 조건이 먼저 계산돼서, NOT보다 앞서 잡화를 골라서",
+          "잡화 가게는 NOT이 붙은 조건으로는 결과에서 빠질 수 없어서",
         ],
         answer: 0,
-        explain: "잡화 가게는 먹거리가 아니니 앞 조건부터 참이에요. 잡화까지 빼려면 두 조건을 괄호로 묶고 그 앞에 NOT을 둬요.",
+        explain: "잡화 가게는 먹거리가 아니니 NOT 조건 하나만으로 참이에요. OR는 한쪽만 참이어도 남겨요. 잡화까지 빼려면 두 조건을 괄호로 묶고 그 앞에 NOT을 둬요.",
       },
       {
         type: "choice", concept: "adv_not_paren",
         q: "이 SQL의 결과는 몇 행일까요?",
-        code: "SELECT name, kind\nFROM customers\nWHERE NOT (kind = '사람'\n  OR kind = '여우')",
-        options: ["24행", "36행", "60행"],
+        code: "SELECT name, kind\nFROM customers\nWHERE NOT (kind = '도깨비'\n  OR kind = '사람')",
+        options: ["12행", "36행", "60행"],
         answer: 0,
-        explain: "괄호 안 「사람 또는 여우」 36명을 통째로 뒤집어, 사람도 여우도 아닌 도깨비 손님 24명이 남아요.",
+        explain: "괄호 안 「도깨비 또는 사람」 48명을 통째로 뒤집어, 도깨비도 사람도 아닌 여우 손님 12명이 남아요.",
       },
       {
         type: "choice", concept: "adv_not_paren",
         q: "괄호를 뺀 이 SQL의 결과는 몇 행일까요?",
-        code: "SELECT name, kind\nFROM customers\nWHERE NOT kind = '사람'\n  OR kind = '여우'",
-        options: ["36행", "24행", "48행"],
+        code: "SELECT name, kind\nFROM customers\nWHERE NOT kind = '도깨비'\n  OR kind = '사람'",
+        options: ["36행", "12행", "48행"],
         answer: 0,
-        explain: "NOT은 사람 조건만 뒤집어 도깨비 24명과 여우 12명이 남아요. 여우는 이미 「사람이 아님」에 들어 있어 OR가 더 늘리지 않아요.",
+        explain: "NOT은 도깨비 조건만 뒤집어 사람 24명과 여우 12명이 남아요. 사람은 이미 「도깨비가 아님」에 들어 있어 OR가 더 늘리지 않아요.",
       },
       {
         type: "blank", concept: "adv_not_paren",
@@ -903,14 +906,14 @@ export const ADVANCED = [
       },
       {
         type: "choice", concept: "adv_not_paren",
-        q: "먹거리 가게도 공방도 아닌 가게를 보여 준 결과는 어느 것일까요?",
+        q: "잡화 가게도 공방도 아닌 가게를 보여 준 결과는 어느 것일까요?",
         options: [
-          { sql: "SELECT name, category\nFROM shops\nWHERE NOT (category = '먹거리'\n  OR category = '공방')" },
-          { sql: "SELECT name, category\nFROM shops\nWHERE NOT category = '먹거리'\n  OR category = '공방'" },
-          { sql: "SELECT name, category\nFROM shops\nWHERE category = '먹거리'\n  OR category = '공방'" },
+          { sql: "SELECT name, category\nFROM shops\nWHERE NOT (category = '잡화'\n  OR category = '공방')" },
+          { sql: "SELECT name, category\nFROM shops\nWHERE NOT category = '잡화'\n  OR category = '공방'" },
+          { sql: "SELECT name, category\nFROM shops\nWHERE category = '잡화'\n  OR category = '공방'" },
         ],
         answer: 0, tables: ["shops"],
-        explain: "category가 약재와 잡화뿐인 4곳이 정답이에요. 공방이 섞인 6곳은 NOT이 먹거리에만 붙은 것, 먹거리와 공방 4곳은 NOT이 없는 것이에요.",
+        explain: "category가 먹거리와 약재뿐인 4곳이 정답이에요. 공방이 섞인 6곳은 NOT이 잡화에만 붙은 것, 잡화와 공방 4곳은 NOT이 없는 것이에요.",
       },
       {
         type: "order", concept: "adv_not_paren",
@@ -920,15 +923,15 @@ export const ADVANCED = [
       },
       {
         id: "4-A1-b1", type: "build", concept: "adv_not_paren",
-        q: "약재 가게도 공방도 아닌 가게를 보여 줘",
-        cards: ["SELECT", "*", "FROM", "shops", "WHERE", "NOT (", "category = '약재'", "OR", "category = '공방'", ")"],
-        extra: ["AND", "category = '먹거리'"],
+        q: "먹거리 가게도 공방도 아닌 가게를 보여 줘",
+        cards: ["SELECT", "*", "FROM", "shops", "WHERE", "NOT (", "category = '먹거리'", "OR", "category = '공방'", ")"],
+        extra: ["AND", "category = '약재'"],
         tables: ["shops"],
         hints: [
-          "「약재 또는 공방」을 먼저 한 덩어리로 묶고, 그 덩어리를 통째로 뒤집어요.",
-          "WHERE 다음에 NOT (, 약재 조건, OR, 공방 조건, 닫는 괄호를 놓아요.",
+          "「먹거리 또는 공방」을 먼저 한 덩어리로 묶고, 그 덩어리를 통째로 뒤집어요.",
+          "WHERE 다음에 NOT (, 먹거리 조건, OR, 공방 조건, 닫는 괄호를 놓아요.",
         ],
-        explain: "먹거리·잡화 가게 4곳이 나왔어요! 괄호 앞의 NOT 하나가 「약재 또는 공방」 전체를 뒤집었죠. AND로 묶으면 약재이면서 공방인 가게가 없어, 뒤집은 결과는 8곳 모두예요.",
+        explain: "약재·잡화 가게 4곳이 나왔어요! 괄호 앞의 NOT 하나가 「먹거리 또는 공방」 전체를 뒤집었죠. AND로 묶으면 먹거리이면서 공방인 가게가 없어, 뒤집은 결과는 8곳 모두예요.",
       },
       {
         type: "check", concept: "adv_not_paren",
@@ -947,7 +950,7 @@ export const ADVANCED = [
     id: "4-A2", chapter: 4, isAdvanced: true, title: "LIKE 무늬 섞기",
     goal: "_ 와 % 를 섞은 무늬로 글자 수와 자리를 정해 찾을 수 있다",
     summary: [
-      "'__%' = 두 글자 이상인 글자",
+      "'__%' = 두 글자 이상인 이름",
       "_ 개수 = 꼭 있어야 할 글자 수",
       "띄어쓰기도 한 글자로 쳐요",
     ],
@@ -1075,11 +1078,11 @@ export const ADVANCED = [
     ],
     cards: [
       {
-        say: "4장에서 AND로 조건을 이었죠? 오늘은 의뢰예요! 도깨비 국밥집 달래 할멈이 「국밥값을 두 번 내고 간 손님을 찾아 주게. 여우고개에 살고 이름이 두 글자였어」래요. 첫 단서만 걸면 3명이에요.",
+        say: "4장에서 AND로 조건을 이었죠? 오늘은 의뢰예요! 도깨비 국밥집 달래 할멈이 「국밥집에 보따리를 두고 간 손님을 찾아 주게. 여우고개에 살고 이름이 두 글자였어」래요. 첫 단서만 걸면 3명이에요.",
         sql: "SELECT name, village\nFROM customers\nWHERE village = '여우고개'",
       },
       {
-        say: "둘째 단서, 딱 두 글자 이름은 _ 두 개예요. 이름이 두 글자인 손님은 14명! 두 단서를 다 만족하는 손님은 두 결과에 모두 나오는 사람이에요. AND로 이으면 행이 줄고, OR로 이으면 오히려 늘어요.",
+        say: "둘째 단서, 딱 두 글자 이름은 _ 두 개라 14명이에요. 두 결과에 모두 나오는 손님은 AND로 이어 찾아요. OR는 오히려 늘려요. AND·OR가 섞이면 OR 쪽을 괄호로 묶어요. 안 그러면 AND가 먼저 묶여요.",
         sql: "SELECT name, village\nFROM customers\nWHERE name LIKE '__'",
       },
     ],
@@ -1158,10 +1161,10 @@ export const ADVANCED = [
       },
       {
         type: "order", concept: "adv_apply_4",
-        q: "두 글자 이름이고 여우고개나 달빛마을에 사는 손님을 보는 SQL이 되게 줄을 놓아 보세요.",
-        lines: ["SELECT name, village", "FROM customers", "WHERE name LIKE '__'", "AND (village = '여우고개'", "OR village = '달빛마을')"],
-        expect: "name | village\n해랑 | 여우고개\n단비 | 달빛마을",
-        explain: "마을 단서 둘을 괄호로 묶어 OR로 잇고, 그 덩어리를 이름 단서와 AND로 이었어요. 할멈의 기억이 흐려도 2명으로 좁혀져요.",
+        q: "버드나무고개나 솔바위골에 살고 이름이 두 글자인 손님을 보는 SQL이 되게 줄을 놓아 보세요.",
+        lines: ["SELECT name, village", "FROM customers", "WHERE (village = '버드나무고개'", "OR village = '솔바위골')", "AND name LIKE '__'"],
+        expect: "name | village\n무쇠 | 솔바위골\n초롱 | 버드나무고개\n솔아 | 솔바위골\n뭉치 | 버드나무고개",
+        explain: "괄호로 묶은 마을 단서가 앞에 와도 돼요. 그 덩어리를 이름 단서와 AND로 이어 4명이에요. 괄호가 없으면 AND가 먼저 묶여 8명이 나와요.",
       },
       {
         id: "4-A3-b1", type: "build", concept: "adv_apply_4",
@@ -1173,7 +1176,7 @@ export const ADVANCED = [
           "단서 둘이 모두 맞아야 해요. 이름 글자 수는 _ 개수로 정해요.",
           "WHERE 다음에 마을 조건, AND, _ 두 개인 이름 조건을 놓아요.",
         ],
-        explain: "의뢰 해결! 여우고개의 해랑 님이에요. 3명에서 1명으로, AND로 단서를 더할 때마다 행이 줄었죠. 국밥값은 돌려드릴 수 있겠어요!",
+        explain: "의뢰 해결! 여우고개의 해랑 님이에요. 3명에서 1명으로, AND로 단서를 더할 때마다 행이 줄었죠. 보따리를 돌려드릴 수 있겠어요!",
       },
       {
         type: "check", concept: "adv_apply_4",

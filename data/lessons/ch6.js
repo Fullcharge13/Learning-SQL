@@ -832,7 +832,9 @@ export const TEMPLATES = [
 //   재고 0은 짚신(21) 하나. 가장 많은 재고 58, 손님 나이 8~75. 손님 장부의 name·kind·village·first_visit, 가게 owner에는 빈칸 0.
 // - 6-A1 COALESCE로 거르고 세우기(주제 바꿈, 디딤돌 §4):
 //   COALESCE(stock, 0) < 3 → 6행(메밀전·산삼·짚신·한지·놋그릇·장승), < 5 → 8행 = stock < 5 OR stock IS NULL(6-3-b1과 같은 행).
-//   COALESCE(stock, 9) < 5 → 5행(= stock < 5). COALESCE(age, 100) < 20 → 9명, COALESCE(age, 0) < 20 → 14명.
+//   COALESCE(stock, 9) < 3 → 3행(산삼·짚신·놋그릇, 카드 1). COALESCE(stock, 9) < 5 → 5행(= stock < 5).
+//   COALESCE(age, 100) < 20 은 age < 20 과 같은 9명(빈칸은 비교에서 빠짐). 6-4가 WHERE(6-4-b2 해설)·줄 세우기(6-4 문제)에서
+//   COALESCE(…, 0)을 이미 한 번씩 보여 줘, 6-A1은 「채울 값(0·9·100·1000)에 따라 걸리고 빠지고 서는 자리가 바뀐다」를 중심에 둔다(fix round 1). COALESCE(age, 100) < 20 → 9명, COALESCE(age, 0) < 20 → 14명.
 //   COALESCE(age, 0) < 10 번호 차례 → 황소담·안여울·조은솔·표다솜·문새봄 9·돌쇠·산돌이 8 (7행).
 //   1·5번 가게 ORDER BY COALESCE(stock, 0), item_id → 메밀전·짚신·한지·부채 …(빈칸과 0이 번호 차례로 섞임).
 //   ORDER BY COALESCE(stock, 1000), item_id → 1·5번은 … 등불 47 · 메밀전 · 한지, 1번은 수육 … 도토리묵 · 메밀전, 8번은 놋그릇 … 다듬이방망이 · 장승.
@@ -854,15 +856,15 @@ export const TEMPLATES = [
 export const ADVANCED = [
   {
     id: "6-A1", chapter: 6, isAdvanced: true, title: "빈칸 채워 거르고 세우기",
-    goal: "WHERE·ORDER BY 안의 COALESCE로 빈칸을 다룰 수 있다",
+    goal: "채울 값을 골라 WHERE·ORDER BY에서 빈칸을 넣고 뺄 수 있다",
     summary: [
       "COALESCE는 WHERE·ORDER BY에도 와요",
-      "채운 값으로 견주면 빈칸도 걸려요",
+      "채울 값에 따라 빈칸이 걸리고 빠져요",
       "채울 값으로 빈칸이 설 자리를 정해요",
     ],
     cards: [
       {
-        say: "6장에서 COALESCE로 빈칸 대신 보여 줄 값을 정했죠? 오늘은 한 걸음 더, WHERE 안에서 써요. 모르는 재고를 0으로 쳐서 3과 견주면, 재고를 모르는 메밀전·한지·장승도 점검 목록에 들어와요.",
+        say: "6장에서 COALESCE로 빈칸 대신 보여 줄 값을 정했죠? 오늘은 그 값을 고르는 법이에요. 빈칸을 0으로 쳐서 3과 견주면 메밀전·한지·장승이 걸려 6행이에요. 9로 채우면 9가 3보다 커서 셋이 빠져요. 채울 값이 넣고 뺄 것을 정해요.",
         sql: "SELECT name, stock\nFROM items\nWHERE COALESCE(stock, 0) < 3",
       },
       {
@@ -898,7 +900,7 @@ export const ADVANCED = [
         q: "스무 살 밑 손님 목록에 나이 모르는 손님은 넣지 않으려 해요. 알맞은 조건은?",
         options: ["COALESCE(age, 100) < 20", "COALESCE(age, 0) < 20", "COALESCE(age, 19) < 20"],
         answer: 0,
-        explain: "100은 20보다 커서 나이 모르는 5명이 빠지고 9명이 남아요. 0이나 19로 채우면 20보다 작아 5명이 모두 들어와 14명이에요.",
+        explain: "100은 20보다 커서 나이 모르는 5명이 빠져 9명이에요. 사실 age < 20만 써도 빈칸은 빠져요. 100은 그 뜻을 드러내 적은 것이에요. 0이나 19면 5명이 들어와 14명이에요.",
       },
       {
         type: "blank", concept: "adv_coalesce_where",
@@ -914,7 +916,7 @@ export const ADVANCED = [
         code: "SELECT name, stock\nFROM items\nWHERE shop_id IN (1, 5)\nORDER BY COALESCE(stock, 1000),\n  item_id",
         options: ["한지", "메밀전", "등불"],
         answer: 0,
-        explain: "빈칸인 메밀전(5번)과 한지(24번)가 둘 다 1000이 되어 맨 아래로 가요. 동점이니 번호 차례로 메밀전 다음 한지가 맨 끝이에요. 등불(47)은 그 바로 위예요.",
+        explain: "빈칸인 메밀전(5번)과 한지(24번)가 둘 다 1000이 되어 맨 아래로 가요. 동점이니 번호 차례로 메밀전 다음 한지가 맨 끝이에요. 등불(47)은 빈칸 두 물건 바로 위예요.",
       },
       {
         type: "choice", concept: "adv_coalesce_where",

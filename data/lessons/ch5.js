@@ -1131,7 +1131,7 @@ export const ADVANCED = [
         q: "값으로 세어 일곱 번째로 싼 값을 보는 SQL이 되게 줄을 놓아 보세요.",
         lines: ["SELECT DISTINCT price", "FROM items", "ORDER BY price", "LIMIT 1 OFFSET 6"],
         expect: "price\n11",
-        explain: "값 5·6·7·8·9·10을 건너뛰어 11엽전(부채)이에요. 행으로 세면 6엽전과 8엽전이 두 번씩 세어져, 일곱째 행은 9엽전 메밀전이에요.",
+        explain: "값 5·6·7·8·9·10을 건너뛰어 11엽전(부채)이에요. 행으로 세면 6엽전과 8엽전이 두 번씩 세어져, 일곱째 행은 9엽전(메밀전·약과 동점)이에요.",
       },
       {
         id: "5-A3-b1", type: "build", concept: "adv_apply_5",
