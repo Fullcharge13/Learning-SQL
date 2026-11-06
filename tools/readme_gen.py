@@ -5,7 +5,7 @@
     python3 tools/readme_gen.py --check   # README.md가 데이터와 어긋나면 실패(종료 코드 1)
 
 읽는 것 (node로 ES 모듈을 불러 JSON으로 꺼냄)
-- data/lessons/chN.js    레슨 표(LESSONS) + 매일 도전 문제 틀(TEMPLATES) + 심화(ADVANCED, v0.1에는 없음)
+- data/lessons/chN.js    레슨 표(LESSONS) + 매일 도전 문제 틀(TEMPLATES) + 심화(ADVANCED, v0.2부터 1~6장)
 - data/concepts.js       개념 이름
 - data/quests.js         일일 퀘스트
 - data/badges.js         배지
@@ -268,7 +268,16 @@ def build(d):
       "카드 더미는 12장 이하이고 헷갈림 카드가 섞여 있어요. 문제마다 「쓸 표 보기」로 표의 열 이름과 한글 뜻, 앞 5행을 볼 수 있어요. "
       "결과 표가 50행을 넘으면 앞 50행만 그려요.")
     w("")
-    w("**심화**: 장 평가를 통과하면 그 장의 심화 레슨이 열리는 장치는 들어 있지만, 심화 레슨 내용은 다음 판에 넣어요.")
+    if n_adv:
+        adv_chs = [ch for ch in d["chapters"] if ch.get("advanced")]
+        adv_ids = "·".join(str(ch["chapter"]["id"]) for ch in adv_chs)
+        per = sorted({len(ch["advanced"]) for ch in adv_chs})
+        per_txt = f"{per[0]}개" if len(per) == 1 else "/".join(str(x) for x in per) + "개"
+        w(f"**심화**: 장 평가를 통과하면 그 장의 심화 레슨 {per_txt}가 함께 열려요(순서 없음, 하고 싶을 때만 하는 선택). "
+          f"지금은 {adv_ids}장에 있어요. 장터 데이터로 푸는 읽기 SQL만 나오고, 건너뛰어도 「지금 레슨」·하루 목표·과정 완주는 그대로예요. "
+          "나머지 장의 심화는 다음 판에 넣어요.")
+    else:
+        w("**심화**: 장 평가를 통과하면 그 장의 심화 레슨이 열리는 장치는 들어 있지만, 심화 레슨 내용은 다음 판에 넣어요.")
     if n_tmpl:
         w("")
         w(f"**매일 도전**: 1장을 마치면 홈 맨 위에 「오늘의 도전」 카드가 생겨요. 하루 3문제 — 문제 틀 {n_tmpl}개에서 값을 바꿔 만든 "

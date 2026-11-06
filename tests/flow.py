@@ -1101,7 +1101,8 @@ def test_advanced_branch():
         # 배지: 심화가 있으면 16개 모두(판정 R49)
         a.page.click('[data-go="badges"]')
         a.page.wait_for_selector(".screen.badges")
-        assert "/16" in a.page.inner_text(".page-title"), a.page.inner_text(".page-title")
+        got_badges = len(a.save()["badges"])
+        assert re.sub(r"\s+", " ", a.page.inner_text(".page-title")).strip() == "배지 %d/16" % got_badges, a.page.inner_text(".page-title")
         assert "끝낸 심화" in a.page.inner_text(".stat-grid")
         a.shot("adv-badges.png", full=True)
         m = measure(a, "badges-adv")
@@ -1254,8 +1255,11 @@ def test_old_save_sees_new_content_dot():
         got = _dots(a)
         print("    updated v0.2 lessons in data: %s, dots on home: %s" % (want, got))
         assert sorted(got) == sorted(want), (got, want)
-        assert "새 내용 있음" in a.page.get_attribute('.node[data-lesson="1-4"]', "aria-label")
-        assert "새 내용" not in (a.page.get_attribute('.node[data-lesson="1-3"]', "aria-label") or "")
+        ch1_flags = [("1-%d" % k) in want for k in range(1, 6)]
+        assert any(ch1_flags), "need at least one updated lesson in chapter 1 main course"
+        for k, flag in enumerate(ch1_flags, 1):
+            label = a.page.get_attribute('.node[data-lesson="1-%d"]' % k, "aria-label") or ""
+            assert ("새 내용 있음" in label) == flag, ("1-%d" % k, flag, label)
         assert a.js("() => document.querySelectorAll('.star-node .new-dot').length") == 0, "advanced stars must have no dot"
         assert all("open" in c for c in _adv_classes(a, 1)), _adv_classes(a, 1)
         assert "2-1" in a.page.inner_text("#continue")
@@ -1264,7 +1268,7 @@ def test_old_save_sees_new_content_dot():
         a.page.click('.ch-row[aria-controls="ch-1"]')
         a.page.wait_for_selector("#ch-1:not([hidden])")
         rows = a.page.eval_on_selector_all("#ch-1 .ls:not(.adv)", "es => es.map(e => !!e.querySelector('.new-dot'))")
-        assert rows[:5] == [False, False, False, True, False], rows
+        assert rows[:5] == ch1_flags, (rows, ch1_flags)
         assert a.page.eval_on_selector_all("#ch-1 .ls.adv .new-dot", "es => es.length") == 0
         assert "심화 0/3" in a.page.inner_text('.ch-row[aria-controls="ch-1"]')
         s = a.save()
