@@ -154,3 +154,20 @@ test("저장 이어받기: 옛 저장과 깨진 가게", () => {
   assert.equal(t.stall.money, 7); assert.equal(t.stall.day, 4);
   assert.ok(!("zzz" in t.stall.slots));
 });
+
+// 작업 1 검토 지적: 큰 수 씨앗·날짜는 기본으로, 칸·카드 장 번호는 설계 §3 표와 같다
+test("cleanStall: 안전하지 않은 큰 수 씨앗·날짜는 기본값", () => {
+  const s = cleanStall({ seed: 1e308, day: 2 ** 60 });
+  assert.equal(s.seed, 1);
+  assert.equal(s.day, 1);
+});
+
+test("SLOTS·CARDS 장 번호와 틀은 설계 §3-1·§3-2와 같다", () => {
+  const want = { pricing: [6, "where"], restock: [3, "where"], best: [8, "full"], discount: [4, "where"], display: [5, "order"], report: [7, "full"] };
+  assert.deepEqual(SLOTS.map((s) => s.id), ["pricing", "restock", "best", "discount", "display", "report"]);
+  for (const s of SLOTS) assert.deepEqual([s.chapter, s.frame], want[s.id], s.id);
+  const byText = Object.fromEntries(CARDS.map((c) => [c.text, c.chapter]));
+  for (const [t, ch] of [["stock", 3], ["<", 3], ["'먹거리'", 3], ["AND", 4], ["BETWEEN", 4], ["DESC", 5], ["IS NULL", 6], ["COALESCE(", 6], ["COUNT(*)", 7], ["SELECT", 7], ["order_items", 7], ["GROUP BY", 8], ["HAVING", 8]])
+    assert.equal(byText[t], ch, t);
+  assert.ok(CARDS.every((c) => c.chapter >= 3 && c.chapter <= 8));
+});

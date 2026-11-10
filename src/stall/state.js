@@ -96,9 +96,9 @@ const plainList = (v, cap) => (Array.isArray(v) ? v.filter(isPlain).slice(-cap).
 /** 저장에서 읽은 값을 가게 상태로 정리한다. 원본은 건드리지 않고, 못 쓸 값은 기본값으로. */
 export function cleanStall(raw) {
   if (!isPlain(raw)) return newStall(1);
-  const seed = isInt(raw.seed) ? raw.seed : 1;
+  const seed = Number.isSafeInteger(raw.seed) ? raw.seed : 1;   // 큰 수는 rngFor의 |0에서 0으로 뭉개짐(작업 1 검토)
   const base = newStall(seed);
-  const day = isInt(raw.day) && raw.day >= 1 ? raw.day : 1;
+  const day = isInt(raw.day) && raw.day >= 1 && raw.day <= 100000 ? raw.day : 1;
   const money = isInt(raw.money) ? clamp(raw.money, 0, MONEY_MAX) : START_MONEY;
   const upgrades = [];
   for (const id of Array.isArray(raw.upgrades) ? raw.upgrades : []) {
