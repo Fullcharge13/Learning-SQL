@@ -162,25 +162,25 @@ const full = (...cards) => ({ mode: "full", parts: { full: cards } });
 export const REQUESTS = [
   {
     id: "r01", need: 3, from: "두억이", xp: 5, withinDays: 1,
-    line: "재고 채우기 칸이 열렸어! 지금은 다 떨어져야(stock < 1) 채워. 재고가 몇 개 아래일 때 채우면 좋을까?",
+    line: "재고 채우기 칸이 열렸어! 지금은 다 떨어져야(stock < 1) 채워. 먼저 장을 한 번 열어 칸이 도는 걸 보고, 몇 개 아래일 때 채우면 좋을지 고쳐 봐.",
     goal: { type: "slot_ok", slot: "restock" },
     solution: { restock: where(k("col_stock"), k("op_lt"), n(4)) },
   },
   {
     id: "r02", need: 3, from: "주막 아주머니 달래", xp: 5, withinDays: 4,
-    line: "어제 식혜가 동나서 그냥 돌아왔지 뭐야. 이틀 내리 물건이 떨어지지 않게 해 줄래? 숫자를 조금 올려 봐.",
+    line: "어제 식혜가 동나서 그냥 돌아왔지 뭐야. 이틀 내리 다 팔려서 못 사는 손님이 없게 해 줄래? 숫자를 조금 올려 봐. (진열대에 못 올라 돌아가는 손님은 세지 않을게)",
     goal: { type: "no_miss", days: 2 },
     solution: { restock: where(k("col_stock"), k("op_lt"), n(5)) },
   },
   {
     id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 6,
-    line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 물건은 떨어지지 않게 이틀만 해 보게.",
+    line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 다 팔려서 못 사는 손님은 없게 이틀만 해 보게.",
     goal: { type: "cart_max", fee: 6, days: 2 },
     solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
   },
   {
     id: "r04", need: 3, from: "두억이", xp: 5, withinDays: 6,
-    line: "하루에 25냥 넘게 남겨 보자! 너무 많이 들여오면 들여온 값이 이익을 깎아.",
+    line: "하루에 25냥 이상 남겨 보자! 너무 많이 들여오면 들여온 값이 이익을 깎아.",
     goal: { type: "profit", n: 25 },
     solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
   },
@@ -216,7 +216,7 @@ export const REQUESTS = [
   },
   {
     id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 4,
-    line: "꿀떡에 값이 없어서 못 샀어요! 값이 빈칸인 물건은 IS NULL로 찾을 수 있대요. 이틀만 허탕 없이 해 줘요.",
+    line: "꿀떡에 값이 없어서 못 샀어요! 값이 빈칸인 물건은 IS NULL로 찾을 수 있대요. 값이 없거나 다 팔려서 못 사고 가는 일이 이틀 동안 없게 해 줘요. (진열대에 안 보여서 못 사는 건 괜찮아요)",
     goal: { type: "no_miss", days: 2 },
     solution: { pricing: where(k("col_price"), k("kw_isnull")) },
   },
@@ -249,7 +249,7 @@ export const REQUESTS = [
   },
   {
     id: "r15", need: 8, from: "두억이", xp: 5, withinDays: 8,
-    line: "마지막 부탁이야! 두 상자씩 너무 자주 들이면 들여온 값이 이익을 깎아. HAVING 기준을 올려서 하루에 45냥을 남겨 보자.",
+    line: "마지막 부탁이야! 잘 팔린 물건 칸까지 다 굴려서 하루에 45냥 이상 남겨 보자. 두 상자씩 들이는 물건이 너무 많으면 들여온 값이 이익을 깎으니, HAVING 기준도 살펴봐.",
     goal: { type: "profit", n: 45 },
     solution: {
       best: full(k("kw_select"), k("col_item_id"), k("kw_from"), k("tbl_order_items"), k("kw_groupby"), k("col_item_id"),
