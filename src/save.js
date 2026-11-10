@@ -4,6 +4,7 @@ import { OUTFITS } from "../data/outfits.js";
 import { BADGES } from "../data/badges.js";
 import { cleanSeenUpdates } from "./newcontent.js";
 import { newDaily, cleanDaily } from "./daily.js";
+import { cleanStall } from "./stall/state.js";
 
 export const SAVE_KEY = "dueogi-sql-save";
 export const SAVE_VER = 1;
@@ -31,6 +32,7 @@ export function newSave() {
     pending_refund: 0, // 없어진 의상 값으로 돌려준 엽전. 홈에서 한 번 알리고 0으로 (판정 C42). 지금은 돌려줄 일이 없어 늘 0
     seen_updates: {},  // v0.7.1 「새 내용」 점: { 레슨 id: 끝까지 다시 본 판 "v0.7.1" }. saveVer 그대로, 없으면 {}
     daily: newDaily(), // v0.9 매일 도전 { date, picks, done, streak, best, last_done_date }. saveVer 그대로, 없으면 기본값
+    stall: null,       // v0.3 두억이의 가게. 없으면 null(처음 열 때 만듦), 있으면 cleanStall로 정리. saveVer 그대로
   };
 }
 
@@ -97,6 +99,7 @@ function clampRanges(s) {
   s.weak_concepts = wc;
   s.seen_updates = cleanSeenUpdates(s.seen_updates);
   s.daily = cleanDaily(s.daily);
+  s.stall = isPlainObject(s.stall) ? cleanStall(s.stall) : null;
   return s;
 }
 

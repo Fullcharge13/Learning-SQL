@@ -12,7 +12,7 @@ export const isAdvancedId = (id) => typeof id === "string" && ADV_RE.test(id);
 export const isAdvancedLesson = (l) => !!l && (l.isAdvanced === true || isAdvancedId(l.id));
 
 /** 그 장의 평가 레슨 id: isExam인 레슨(없으면 마지막 본 과정 레슨) */
-function examId(chapter) {
+export function examId(chapter) {
   const ls = (chapter && chapter.lessons) || [];
   const exam = ls.find((l) => l.isExam) || ls[ls.length - 1];
   return exam ? exam.id : null;

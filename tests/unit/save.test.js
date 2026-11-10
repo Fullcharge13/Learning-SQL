@@ -30,6 +30,7 @@ const LEDGER_SHAPE = {
   pending_refund: 0,
   seen_updates: {}, // v0.7.1: 「새 내용」 점 — 다시 본 판 { 레슨 id: "v0.7.1" } (saveVer 그대로)
   daily: { date: null, picks: [], done: [], streak: 0, best: 0, last_done_date: null }, // v0.9 매일 도전(saveVer 그대로)
+  stall: null, // v0.3 두억이의 가게(없으면 null, 처음 열 때 만듦)
 };
 
 test("constants", () => {
