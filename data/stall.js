@@ -79,11 +79,11 @@ export const UPGRADES = [
 // --- 자동화 칸 (설계 §3-1). 배열 순서 = 하루의 실행 순서. frame: where = SELECT name FROM items WHERE {where},
 //     order = SELECT name FROM items ORDER BY {order} LIMIT {limit}, full = 처음부터 전체 조립. kind: item = 물건 목록, number = 첫 행 첫 칸 ---
 export const SLOTS = [
-  { id: "pricing", name: "값 매기기", chapter: 6, frame: "where", kind: "item", desc: "값이 빈칸인 물건을 찾으면 표준값을 매겨요" },
-  { id: "restock", name: "재고 채우기", chapter: 3, frame: "where", kind: "item", desc: "찾은 물건을 한 상자(10개)씩 들여와요" },
+  { id: "pricing", name: "값 매기기", chapter: 6, frame: "where", tpl: "SELECT name FROM items WHERE {where}", kind: "item", desc: "값이 빈칸인 물건을 찾으면 표준값을 매겨요" },
+  { id: "restock", name: "재고 채우기", chapter: 3, frame: "where", tpl: "SELECT name FROM items WHERE {where}", kind: "item", desc: "찾은 물건을 한 상자(10개)씩 들여와요" },
   { id: "best", name: "잘 팔린 물건 더 들이기", chapter: 8, frame: "full", kind: "item", desc: "찾은 물건을 두 상자(20개)씩 들여와요" },
-  { id: "discount", name: "할인 걸기", chapter: 4, frame: "where", kind: "item", desc: "찾은 물건을 오늘 하루 2할 깎아 팔아요" },
-  { id: "display", name: "진열하기", chapter: 5, frame: "order", kind: "item", desc: "결과 위에서부터 진열대 칸 수만큼 올려요" },
+  { id: "discount", name: "할인 걸기", chapter: 4, frame: "where", tpl: "SELECT name FROM items WHERE {where}", kind: "item", desc: "찾은 물건을 오늘 하루 2할 깎아 팔아요" },
+  { id: "display", name: "진열하기", chapter: 5, frame: "order", tpl: "SELECT name FROM items ORDER BY {order} LIMIT {limit}", kind: "item", desc: "결과 위에서부터 진열대 칸 수만큼 올려요" },
   { id: "report", name: "하루 보고", chapter: 7, frame: "full", kind: "number", desc: "결과의 첫 칸 값을 장부에 적어요" },
 ];
 
