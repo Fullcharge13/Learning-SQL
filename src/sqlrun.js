@@ -36,6 +36,11 @@ function cleanResult(r) {
   };
 }
 
+function cleanLedger(r) {
+  const list = Array.isArray(r?.results) ? r.results : [];
+  return { results: list.map(cleanResult), error: null, timeout: false };
+}
+
 export class SqlRun {
   constructor({ wasmURL, workerURL, marketSql = "", timeoutMs = DEFAULT_TIMEOUT_MS, loadTimeoutMs = DEFAULT_LOAD_TIMEOUT_MS } = {}) {
     // wasm은 페이지 주소 기준(깃허브 페이지 하위 경로 /Learning-SQL/에서도 index.html 옆). sql.js 코드는 worker.js 안에 묶여 있다
@@ -62,7 +67,23 @@ export class SqlRun {
 
   run(sql, { timeoutMs } = {}) {
     const limit = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : this.timeoutMs;
-    const job = this._queue.then(() => this._runOne(sql, limit));
+    const job = this._queue.then(() => this._exec(
+      { type: "run", sql: sql == null ? "" : String(sql) }, limit, cleanResult, failResult));
+    this._queue = job.then(() => {}, () => {});
+    return job;
+  }
+
+  /** 임시 장부(v0.3)에서 질의 여러 개를 한 번에 돌린다. 결과는 { results, error, timeout }.
+   *  error는 실행기 전체의 실패("timeout"·"worker"·"load")일 때만 글자, 질의별 오류는 results[i].error. */
+  runLedger(ledgerSql, queries, { timeoutMs = 6000 } = {}) {
+    const limit = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 6000;
+    const qs = Array.isArray(queries) ? queries.map((x) => (x == null ? "" : String(x))) : [];
+    const job = this._queue.then(() => this._exec(
+      { type: "ledger", ledgerSql: String(ledgerSql == null ? "" : ledgerSql), queries: qs },
+      limit,
+      cleanLedger,
+      (error, extra) => ({ results: [], error, timeout: !!extra?.timeout }),
+    ));
     this._queue = job.then(() => {}, () => {});
     return job;
   }
@@ -121,7 +142,7 @@ export class SqlRun {
       } else if (m.type === "started") {
         if (this._pending && this._pending.id === m.id) this._pending.started = true;
       } else if (m.type === "result") {
-        if (this._pending && this._pending.id === m.id) this._pending.finish(cleanResult(m.result));
+        if (this._pending && this._pending.id === m.id) this._pending.finish(this._pending.clean(m.result));
       }
     };
     const onCrash = (ev) => {
@@ -134,7 +155,7 @@ export class SqlRun {
       } else {
         const pend = this._pending;
         this._restart();
-        if (pend) pend.finish(failResult("worker"));
+        if (pend) pend.finish(pend.fail("worker"));
       }
     };
     w.onerror = onCrash;
@@ -167,14 +188,15 @@ export class SqlRun {
     this._spawn();
   }
 
-  async _runOne(sql, timeoutMs = this.timeoutMs) {
+  // 작업자에 말 하나를 보내고 결과를 기다린다. clean: 받은 result 정리, fail: 실패 결과 만들기
+  async _exec(msg, timeoutMs, clean, fail) {
     // 멈춘 작업자는 onCrash가 곧바로 _restart()로 새로 띄우므로, 여기서는 준비만 기다린다
     try {
       await this.preload();
     } catch (_) {
-      return failResult("load");
+      return fail("load");
     }
-    if (!this._worker) return failResult("load");
+    if (!this._worker) return fail("load");
     const w = this._worker;
     const id = ++this._nextId;
     const t0 = now();
@@ -186,16 +208,16 @@ export class SqlRun {
         clearTimeout(timer);
         resolve({ ...r, ms: now() - t0 });
       };
-      this._pending = { id, started: false, finish };
+      this._pending = { id, started: false, finish, clean, fail };
       timer = setTimeout(() => {
         const started = this._pending && this._pending.id === id && this._pending.started;
-        finish(started ? failResult("timeout", { timeout: true }) : failResult("worker"));
+        finish(started ? fail("timeout", { timeout: true }) : fail("worker"));
         this._restart();
       }, timeoutMs);
       try {
-        w.postMessage({ type: "run", id, sql: sql == null ? "" : String(sql) });
+        w.postMessage({ ...msg, id });
       } catch (_) {
-        finish(failResult("worker"));
+        finish(fail("worker"));
         this._restart();
       }
     });

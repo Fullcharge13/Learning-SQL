@@ -1,10 +1,10 @@
 """브라우저(Chromium) 안에서 SQL 작업자(SqlRun)를 시험한다 (계획 작업 3).
 
-실행: python3 tests/engine_browser.py   → 마지막 줄 "OK 4/4"
+실행: python3 tests/engine_browser.py   → 마지막 줄 "OK 5/5"
 
 tools/dev.py --build-only로 dev/worker.js(sql.js를 묶은 작업자)를 만든 뒤,
 저장소 뿌리를 로컬 서버(빈 포트)로 띄우고 tests/browser/engine_page.html을 연다.
-검사 4가지: 준비됨 / SELECT 실행 / 끝없는 재귀 CTE는 시간 초과 / 바로 다음 실행이 정상.
+검사 5가지: 준비됨 / SELECT 실행 / 끝없는 재귀 CTE는 시간 초과 / 바로 다음 실행이 정상 / 임시 장부 실행(v0.3).
 """
 
 import functools
@@ -95,10 +95,28 @@ def main():
             assert r["error"] is None and r["timeout"] is False and len(r["rows"]) == 1, r
             assert r["rows"][0][0] > 0, r
 
+        def t_ledger():
+            res = page.evaluate("""async () => {
+                const { newStall } = await import("/src/stall/state.js");
+                const { ledgerSql } = await import("/src/stall/ledger.js");
+                const out = await window.runner.runLedger(ledgerSql(newStall(1)),
+                    ["SELECT name FROM items", "DELETE FROM items"]);
+                const market = await window.runner.run("SELECT COUNT(*) FROM shops");
+                return { out, market };
+            }""")
+            out = res["out"]
+            assert out["error"] is None and out["timeout"] is False, out
+            assert len(out["results"]) == 2, out
+            assert out["results"][0]["error"] is None and len(out["results"][0]["rows"]) == 6, out
+            assert out["results"][1]["error"] == "read-only", out
+            m = res["market"]
+            assert m["error"] is None and m["rows"][0][0] > 0, m  # 장터 DB는 그대로
+
         check("ready", t_ready)
         check("SELECT ok", t_select)
         check("recursive CTE times out", t_timeout)
         check("next run after restart ok", t_after)
+        check("ledger run in worker", t_ledger)
         if errors:
             print("page errors:", errors)
         browser.close()
@@ -106,8 +124,8 @@ def main():
         pw.stop()
         httpd.shutdown()
     passed = sum(results)
-    print("OK %d/4" % passed if passed == 4 else "FAILED %d/4" % passed)
-    return 0 if passed == 4 else 1
+    print("OK %d/5" % passed if passed == 5 else "FAILED %d/5" % passed)
+    return 0 if passed == 5 else 1
 
 
 if __name__ == "__main__":

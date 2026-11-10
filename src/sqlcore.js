@@ -96,3 +96,16 @@ export function execOne(db, sql) {
   }
   return out;
 }
+
+// 임시 장부(v0.3): 장터와 따로 새 DB를 만들어 장부를 올리고, 질의마다 execOne을 돌린 뒤 닫는다.
+// 질의 하나가 쓰기 시도·오류여도 나머지는 계속 돈다. 장부는 질의 사이에 바뀌지 않는다(조회 전용).
+export function runLedger(SQL, ledgerSql, queries) {
+  const db = new SQL.Database();
+  try {
+    db.run(ledgerSql);
+    db.run("PRAGMA query_only = ON");
+    return (Array.isArray(queries) ? queries : []).map((q) => execOne(db, q));
+  } finally {
+    db.close();
+  }
+}
