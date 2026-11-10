@@ -40,7 +40,7 @@ const okStats = () => ({
   all: { profit: 30, miss: 0 },
   full: { firstUp: 5, allUp: 30 },
   slots: { restock: { dProfit: 20, dMiss: 3 }, pricing: { dProfit: 0, dMiss: 1 } },
-  having: [{ n: 4, profit: 30 }, { n: 12, profit: 40 }, { n: 20, profit: 33 }],
+  having: [{ n: 4, profit: 30, runs: 12 }, { n: 12, profit: 40, runs: 12 }, { n: 20, profit: 33, runs: 12 }],
   havingPick: 12,
 });
 
@@ -66,7 +66,7 @@ test("judge: 목표 밖 값에 NG", () => {
   const moved = judge({ ...okStats(), slots: { display: { dProfit: -0.6, dMiss: -0.3 } } });
   assert.ok(moved.every((l) => l.ok) && moved.some((l) => /결과가 달라짐/.test(l.text)));
   assert.ok(bad({ slots: { display: { dProfit: 0.1, dMiss: 0.05 } } }).length);
-  assert.ok(bad({ having: [{ n: 4, profit: 40 }, { n: 12, profit: 35 }, { n: 20, profit: 30 }] }).length); // 기준이 낮을수록 좋기만 함
+  assert.ok(bad({ having: [{ n: 4, profit: 40, runs: 12 }, { n: 12, profit: 35, runs: 12 }, { n: 20, profit: 30, runs: 12 }] }).length); // 기준이 낮을수록 좋기만 함
   const lines = judge({ ...okStats(), good: { profit: 50, miss: 1 } });
   assert.ok(lines.some((l) => !l.ok && /NG/.test(l.text)));
 });
@@ -77,4 +77,9 @@ test("TARGETS: 설계 §4-3 띠", () => {
   assert.deepEqual(TARGETS.good, [30, 45]);
   assert.deepEqual(TARGETS.firstUp, [4, 7]);
   assert.deepEqual(TARGETS.allUp, [25, 35]);
+});
+
+test("judge: HAVING 잰 판이 모자라면 NG(조용히 빠지지 않음)", () => {
+  const few = judge({ ...okStats(), having: [{ n: 4, profit: 50, runs: 3 }, { n: 15, profit: 70, runs: 3 }, { n: 20, profit: 71, runs: 3 }] });
+  assert.ok(few.some((l) => !l.ok && /HAVING 판정에 쓴 판/.test(l.text)));
 });

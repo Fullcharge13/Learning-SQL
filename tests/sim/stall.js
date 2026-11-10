@@ -27,6 +27,7 @@ import { playDay } from "../../src/stall/play.js";
 import { runLedger } from "../../src/sqlcore.js";
 
 export const TARGETS = {
+  havingRuns: 8,   // 12판 중 r15에 닿아 HAVING을 잰 판이 이만큼은 있어야(작업 6 검토)
   startGap: 5,         // 시작 질의만: 좋은 조건보다 하루 이익이 5냥 이상 적음(고침 2, 설계 §4-3)
   startMiss: 2,        // 시작 질의만: 허탕(모든 까닭)이 좋은 조건의 2배 이상
   good: [30, 45],      // 좋은 조건: 하루 이익
@@ -236,6 +237,11 @@ export function judge(st) {
     //   5장 카드로는 「잘 팔린 순」을 못 만들어 의뢰 정답(stock DESC)은 기본 진열보다 조금 못하다(보고서·LOG에 그대로 적음).
     if (slot !== "display") add(ok(e), base);
     else add(Math.abs(e.dProfit) >= EFFECT_EPS.profit || Math.abs(e.dMiss) >= EFFECT_EPS.miss, `${base} → 진열하기는 「켜면 결과가 달라짐」(차이 크기)으로 판정`);
+  }
+  // 작업 6 검토: r15에 닿은 판이 적으면 HAVING 판정이 조용히 빠지지 않게 NG
+  if (st.having) {
+    const runs = Math.min(...st.having.map((x) => x.runs || 0));
+    add(st.having.length >= 3 && runs >= TARGETS.havingRuns, `HAVING 판정에 쓴 판 ${runs}개 (r15에 제때 닿은 판, 최소 ${TARGETS.havingRuns})`);
   }
   if (st.having && st.having.length >= 3) {
     const h = st.having;

@@ -134,7 +134,8 @@ export function runDay(stall, actions) {
         missed++;
         missBy[why]++;
         lost += price * want;
-        events.push({ t: "miss", customer_id, item_id: wanted.item_id, qty: want, why, lost: price * want });
+        // soldOut: 진열대에 없던 까닭이 「다 팔려 내려감」이면 표시(화면 말풍선 「다 팔렸네」용, 셈은 그대로 shelf — 판정 S12)
+        events.push({ t: "miss", customer_id, item_id: wanted.item_id, qty: want, why, lost: price * want, ...(why === "shelf" && wanted.stock <= 0 ? { soldOut: true } : {}) });
         continue;
       }
       it = alt;

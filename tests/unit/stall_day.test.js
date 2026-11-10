@@ -62,13 +62,18 @@ test("진열 4칸·물건 6: 진열 안 된 물건을 원하면 shelf 허탕", (
   assert.ok(ev(r, "buy").every((e) => e.item_id <= 4));
 });
 
-test("기본 진열(display null): 재고>0인 물건을 item_id 순서로 칸 수만큼", () => {
-  const s = { ...newStall(2), items: newStall(2).items.map((it) => ({ ...it, stock: it.item_id === 1 ? 0 : 30 })) };
-  const r = runDay(s, act());
-  assert.ok(ev(r, "buy").every((e) => [2, 3, 4, 5].includes(e.item_id)));
-  // 진열 안 된 물건은 1(재고 0이라 기본 진열에서 빠짐)과 6(칸이 모자람)뿐
-  assert.ok(ev(r, "miss").filter((e) => e.why === "shelf").every((e) => e.item_id === 1 || e.item_id === 6));
-  assert.ok(ev(r, "buy").length > 0);
+test("기본 진열(display null): 재고>0인 물건을 item_id 순서로 칸 수만큼, 다 팔려 내려간 물건 허탕엔 soldOut", () => {
+  // 작업 6 검토: 칸 6개에 재고 있는 물건 2~6이 다 올라감. 재고 0이라 내려간 1을 찾던 손님만 진열 허탕이고, 그 사건에 soldOut:true
+  // (셈은 shelf 그대로 — 대신 사기도 받음, 판정 S12). 씨앗 여럿으로 우연에 기대지 않음
+  let missOne = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const s = { ...newStall(seed), items: newStall(seed).items.map((it) => ({ ...it, stock: it.item_id === 1 ? 0 : 30 })) };
+    const r = runDay(s, act());
+    assert.ok(ev(r, "buy").every((e) => [2, 3, 4, 5, 6].includes(e.item_id)));
+    assert.ok(ev(r, "miss").every((e) => e.item_id === 1 && e.why === "shelf" && e.soldOut === true));
+    missOne += ev(r, "miss").length;
+  }
+  assert.ok(missOne > 0);
 });
 
 test("채우기: 재고 25 + restock → 30, n:5, 5개분 값 + 수레 삯 2", () => {
@@ -172,7 +177,7 @@ test("손님 수: 단골 20·간판 없음, 간판 있음 → 공식의 띠 안 
     assert.ok(cs >= slo && cs <= shi, `sign ${cs}`);
     seenSign.add(cs);
   }
-  assert.ok(seen.size >= 3 && seenSign.size >= 2);
+  assert.ok(seen.size >= 3 && seenSign.size >= 3);
 });
 
 test("단골 30명이면 공식의 띠 안", () => {
