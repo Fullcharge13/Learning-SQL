@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newStall, cleanStall, buyUpgrade, passedChapters, stallOpen } from "../../src/stall/state.js";
 import { migrate, newSave } from "../../src/save.js";
-import { ITEMS, CUSTOMERS, UPGRADES, CARDS, SLOTS, REQUESTS, MONEY_MAX, STOCK_MAX } from "../../data/stall.js";
+import { ITEMS, CUSTOMERS, UPGRADES, CARDS, SLOTS, REQUESTS, MONEY_MAX, STOCK_MAX, SHELF, SHELF_BIG } from "../../data/stall.js";
 
 test("newStall: 시작 상태", () => {
   const s = newStall(42);
@@ -10,7 +10,7 @@ test("newStall: 시작 상태", () => {
   assert.equal(s.seed, 42);
   assert.equal(s.money, 100);
   assert.equal(s.day, 1);
-  assert.equal(s.shelf, 4);
+  assert.equal(s.shelf, SHELF);
   assert.equal(s.regulars, 20);
   assert.equal(s.items.length, 6);
   assert.deepEqual(s.items.map((i) => i.item_id), [1, 2, 3, 4, 5, 6]);
@@ -64,11 +64,11 @@ test("cleanStall: 돈 상한, 정수 아님은 기본, 카드 id 정리", () => 
 test("cleanStall: 새 물건은 성장을 샀을 때만 남고, 쓸 값은 성장에서 나옴", () => {
   const a = cleanStall({ items: [{ item_id: 7, price: null, stock: 10 }], shelf: 99, regulars: 1 });
   assert.ok(!a.items.some((i) => i.item_id === 7));
-  assert.equal(a.shelf, 4); assert.equal(a.regulars, 20);
+  assert.equal(a.shelf, SHELF); assert.equal(a.regulars, 20);
   const b = cleanStall({ items: [{ item_id: 7, price: null, stock: 10 }], upgrades: ["newitems", "shelf", "regulars", "shelf"] });
   const i7 = b.items.find((i) => i.item_id === 7);
   assert.equal(i7.price, null);
-  assert.equal(b.shelf, 6); assert.equal(b.regulars, 30);
+  assert.equal(b.shelf, SHELF_BIG); assert.equal(b.regulars, 30);
   assert.deepEqual(b.upgrades, ["newitems", "shelf", "regulars"]);
 });
 
@@ -122,10 +122,10 @@ test("buyUpgrade: 새 물건·진열대·단골", () => {
     assert.equal(it.price, null); assert.equal(it.stock, 10);
   }
   assert.equal(rich.items.length, 6);
-  assert.equal(buyUpgrade(rich, "shelf").stall.shelf, 6);
+  assert.equal(buyUpgrade(rich, "shelf").stall.shelf, SHELF_BIG);
   assert.equal(buyUpgrade(rich, "regulars").stall.regulars, 30);
   const c = buyUpgrade(rich, "cart").stall;
-  assert.deepEqual(c.upgrades, ["cart"]); assert.equal(c.shelf, 4);
+  assert.deepEqual(c.upgrades, ["cart"]); assert.equal(c.shelf, SHELF);
 });
 
 test("passedChapters / stallOpen", () => {

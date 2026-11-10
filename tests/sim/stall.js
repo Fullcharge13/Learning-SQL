@@ -43,7 +43,10 @@ const runner = async (l, q) => ({ results: runLedger(SQL, l, q), error: null, ti
 const UP_ORDER = [...UPGRADES].sort((a, b) => a.price - b.price);
 const restockOnly = ([op, n]) => ({ restock: { on: true, mode: "frame", parts: { where: [{ c: "col_stock" }, { c: op }, { c: "num", n }] } } });
 // 「다 채우기」 stock < 100은 숫자 카드(0~30)로 못 놓으므로 같은 뜻인 stock >= 0(모든 물건)으로 둔다.
-const PROFILE_Q = { start: ["op_lt", 1], good: ["op_lt", 4], all: ["op_ge", 0] };
+const PROFILE_Q = { start: ["op_lt", 1], good: ["op_lt", 4], all: ["op_ge", 0] }; // good: 예전 이름(시험·추적용)
+// 「좋은 조건」 = 단순한 stock < k 중 이익이 가장 큰 k(설계 §4-3 「stock < 4 근처」, 고침 1 지시). 이 k들을 다 돌려 고른다
+export const GOOD_K = [2, 3, 4, 5, 6, 7, 8, 10, 12];
+const profileQ = (p) => (p.startsWith("k") ? ["op_lt", Number(p.slice(1))] : PROFILE_Q[p]);
 
 const passedOn = (day) => new Set(Object.entries(CH_OPEN).filter(([, d]) => d <= day).map(([c]) => Number(c)));
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -97,10 +100,10 @@ export async function simulate({ profile, seed, days = 40, timeline = null, off 
   if (!SQL) SQL = await initSqlJs();
   let stall = newStall(seed);
   const full = profile === "full";
-  if (!full) stall.slots = restockOnly(PROFILE_Q[profile]);
+  if (!full) stall.slots = restockOnly(profileQ(profile));
   const applied = new Map();
   const upgrades = {};
-  const out = { profits: [], misses: [], shelf: [], fees: [], inv: [], upgrades, timeline: [], r15Day: null };
+  const out = { profits: [], misses: [], shelf: [], stockMiss: [], priceMiss: [], customers: [], fees: [], inv: [], upgrades, timeline: [], r15Day: null };
   out.inv0 = stall.items.reduce((v, it) => v + it.stock * COST.get(it.item_id), 0);
   for (let d = 0; d < days; d++) {
     const passed = full ? passedOn(stall.day) : new Set([3]);
@@ -118,6 +121,9 @@ export async function simulate({ profile, seed, days = 40, timeline = null, off 
     out.profits.push(s.profit);
     out.misses.push(s.missBy.stock + s.missBy.price);
     out.shelf.push(s.missBy.shelf);
+    out.stockMiss.push(s.missBy.stock);
+    out.priceMiss.push(s.missBy.price);
+    out.customers.push(s.customers);
     out.fees.push(s.fees);
     out.inv.push(stall.items.reduce((v, it) => v + it.stock * COST.get(it.item_id), 0)); // 저녁 재고를 들여온 값으로
     if (process.env.SIM_TRACE) console.log(`  ${s.day}일 돈${stall.money} 이익${s.profit} 손님${s.customers} 허탕 재고${s.missBy.stock}·값${s.missBy.price}·진열${s.missBy.shelf} 인기${s.trend} 채움${JSON.stringify(stall.last.slots.restock.ids)} 두상자${JSON.stringify(stall.last.slots.best.ids)} 할인${JSON.stringify((stall.last.slots.discount||{}).ids||[])} 진열${JSON.stringify((stall.last.slots.display||{}).ids||"기본")} 재고${stall.items.map((i) => i.stock).join(",")} 성장${stall.upgrades.length}`);
@@ -139,15 +145,20 @@ const allUp = (r) => (Object.keys(r.upgrades).length === UPGRADES.length ? Math.
 export async function collect({ seeds = 12, days = 40 } = {}) {
   const S = Array.from({ length: seeds }, (_, i) => i + 1);
   const runs = {};
-  for (const p of ["start", "good", "all", "full"]) runs[p] = [];
-  for (const seed of S) for (const p of ["start", "good", "all", "full"]) runs[p].push(await simulate({ profile: p, seed, days }));
+  const PROFILES = ["start", ...GOOD_K.map((k) => `k${k}`), "all", "full"];
+  for (const p of PROFILES) runs[p] = [];
+  for (const seed of S) for (const p of PROFILES) runs[p].push(await simulate({ profile: p, seed, days }));
   const stats = { seeds, days, raw: {} };
-  for (const p of ["start", "good", "all"]) {
-    stats[p] = { profit: median(runs[p].map((r) => mean(r.profits))), miss: median(runs[p].map((r) => mean(r.misses))),
-      fees: median(runs[p].map((r) => mean(r.fees))), lo: Math.min(...runs[p].map((r) => mean(r.profits))), hi: Math.max(...runs[p].map((r) => mean(r.profits))) };
-  }
+  const sum = (rs) => ({ profit: median(rs.map((r) => mean(r.profits))), miss: median(rs.map((r) => mean(r.misses))),
+    shelf: median(rs.map((r) => mean(r.shelf))), stock: median(rs.map((r) => mean(r.stockMiss))), price: median(rs.map((r) => mean(r.priceMiss))),
+    customers: median(rs.map((r) => mean(r.customers))),
+    fees: median(rs.map((r) => mean(r.fees))), lo: Math.min(...rs.map((r) => mean(r.profits))), hi: Math.max(...rs.map((r) => mean(r.profits))) });
+  for (const p of ["start", "all"]) stats[p] = sum(runs[p]);
+  stats.ks = GOOD_K.map((k) => ({ k, ...sum(runs[`k${k}`]) }));
+  const best = stats.ks.reduce((a, b) => (b.profit > a.profit ? b : a));
+  stats.good = { ...best };
   stats.full = {
-    profit: median(runs.full.map((r) => mean(r.profits))), miss: median(runs.full.map((r) => mean(r.misses))),
+    ...sum(runs.full),
     firstUp: median(runs.full.map(firstUp)), allUp: median(runs.full.map(allUp)),
     firstUps: runs.full.map(firstUp), allUps: runs.full.map(allUp),
     r15Day: median(runs.full.map((r) => r.r15Day ?? Infinity)),
@@ -199,7 +210,7 @@ export function judge(st) {
   const add = (ok, text) => L.push({ ok, text: `${ok ? "OK" : "NG"} ${text}` });
   add(inBand(st.start.profit, TARGETS.start), `시작 질의(stock<1) 하루 이익 ${f1(st.start.profit)}냥 (목표 ${TARGETS.start.join("~")})`);
   add(st.start.miss > st.good.miss, `시작 질의 허탕이 좋은 조건보다 많음: ${f1(st.start.miss)} > ${f1(st.good.miss)}`);
-  add(inBand(st.good.profit, TARGETS.good), `좋은 조건(stock<4) 하루 이익 ${f1(st.good.profit)}냥 (목표 ${TARGETS.good.join("~")})`);
+  add(inBand(st.good.profit, TARGETS.good), `좋은 조건(가장 좋은 stock<${st.good.k}) 하루 이익 ${f1(st.good.profit)}냥 (목표 ${TARGETS.good.join("~")})`);
   add(st.all.profit < st.good.profit, `다 채우기(stock<100) ${f1(st.all.profit)}냥 < 좋은 조건 ${f1(st.good.profit)}냥`);
   add(inBand(st.full.firstUp, TARGETS.firstUp), `첫 성장 ${f1(st.full.firstUp)}일째 (목표 ${TARGETS.firstUp.join("~")})`);
   add(inBand(st.full.allUp, TARGETS.allUp), `성장 5개 ${f1(st.full.allUp)}일째 (목표 ${TARGETS.allUp.join("~")})`);
@@ -224,11 +235,12 @@ export function judge(st) {
 
 function print(st) {
   console.log(`가게 시뮬레이션 — 씨앗 ${st.seeds}개 × ${st.days}일 (중앙값)`);
-  console.log("학습자   하루이익  (가장 낮음~높음)  재고·값 허탕/일  수레 삯/일");
-  for (const p of ["start", "good", "all"]) {
-    const s = st[p];
-    console.log(`${p.padEnd(7)} ${f1(s.profit).padStart(8)}  (${f1(s.lo)}~${f1(s.hi)})  ${f1(s.miss).padStart(10)}  ${f1(s.fees).padStart(10)}`);
-  }
+  console.log("학습자      하루이익  (가장 낮음~높음)  손님/일  허탕/일 진열·재고·값  수레 삯/일");
+  const row = (name, s) => console.log(`${name.padEnd(10)} ${f1(s.profit).padStart(7)}  (${f1(s.lo)}~${f1(s.hi)})  ${f1(s.customers).padStart(6)}  ${f1(s.shelf)}·${f1(s.stock)}·${f1(s.price)}  ${f1(s.fees).padStart(6)}`);
+  row("start", st.start);
+  for (const x of st.ks || []) row(`stock<${x.k}${x.k === st.good.k ? "★" : ""}`, x);
+  row("all", st.all);
+  row("full", st.full);
   const fu = st.full;
   console.log(`full    ${f1(fu.profit).padStart(8)}  허탕 ${f1(fu.miss)}/일 · 첫 성장 ${f1(fu.firstUp)}일 · 성장 5개 ${f1(fu.allUp)}일 · r15 ${f1(fu.r15Day)}일`);
   console.log(`  성장 산 날: ${Object.entries(fu.upDays).map(([k, v]) => `${k} ${f1(v)}`).join(" · ")}`);

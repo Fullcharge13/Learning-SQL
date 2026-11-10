@@ -36,7 +36,7 @@ test("simulate full: 칸 하나를 끄면 그 칸은 하루도 켜지지 않음"
 
 const okStats = () => ({
   start: { profit: 10, miss: 6 },
-  good: { profit: 38, miss: 1 },
+  good: { profit: 38, miss: 1, k: 4 },
   all: { profit: 30, miss: 0 },
   full: { firstUp: 5, allUp: 30 },
   slots: { restock: { dProfit: 20, dMiss: 3 }, pricing: { dProfit: 0, dMiss: 1 } },

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newStall, buyUpgrade, cleanStall } from "../../src/stall/state.js";
 import { runDay } from "../../src/stall/day.js";
-import { ITEMS, KEEP_DAYS, LOG_DAYS, CUSTOMER_RATE, SIGN_BONUS, REGULARS, REGULARS_BIG } from "../../data/stall.js";
+import { ITEMS, KEEP_DAYS, LOG_DAYS, CUSTOMER_RATE, SIGN_BONUS, REGULARS, REGULARS_BIG, SUBSTITUTE } from "../../data/stall.js";
 
 const none = { pricing: [], restock: [], best: [], discount: [], display: null, report: null, rest: {} };
 const act = (o = {}) => ({ ...none, ...o });
@@ -157,8 +157,8 @@ test("할인: discount:[3]이면 식혜 판매가 4, 할인 없으면 5; 식혜 
   assert.ok(withD > 0 && withD > without, `${withD} vs ${without}`);
 });
 
-// 손님 수 = min(단골, floor(단골 × CUSTOMER_RATE) + 간판 + 난수 0~3). 계수는 작업 6에서 data로 옮겨 조정함
-const band = (reg, bonus) => [Math.min(reg, Math.floor(reg * CUSTOMER_RATE) + bonus), Math.min(reg, Math.floor(reg * CUSTOMER_RATE) + bonus + 3)];
+// 손님 수 = floor(단골 × CUSTOMER_RATE) + 간판 + 난수 0~3, 단골 수로 자르지 않음(S11 ④). 계수는 작업 6에서 data로 옮겨 조정함
+const band = (reg, bonus) => [Math.floor(reg * CUSTOMER_RATE) + bonus, Math.floor(reg * CUSTOMER_RATE) + bonus + 3];
 
 test("손님 수: 단골 20·간판 없음, 간판 있음 → 공식의 띠 안 (여러 날)", () => {
   const seen = new Set(), seenSign = new Set();
@@ -372,4 +372,122 @@ test("summary.missBy: 허탕을 까닭(shelf·stock·price)별로 세고 합은 
     assert.equal(by.shelf + by.stock + by.price, r.summary.missed);
     assert.deepEqual(r.stall.last.summary.missBy, by);
   }
+});
+
+// ---- S11 (작업 6 고침 1): 저녁 도착, 할인이 붙잡기, 진열 허탕 대신 사기, 손님 수 자르지 않음 ----
+const PRICE = new Map(ITEMS.map((i) => [i.item_id, i.price]));
+
+test("S11 ① 저녁 도착: 재고 0 물건을 채워도 그날은 종일 못 팔고, 다음 날 아침 재고 10", () => {
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const s = only(newStall(seed), 3, 0);
+    const r = runDay(s, act({ restock: [3], display: [3] }));
+    assert.deepEqual(ev(r, "fill"), [{ t: "fill", item_id: 3, n: 10, cost: 20, fee: 2, slot: "restock" }]);
+    assert.equal(ev(r, "buy").length, 0);
+    assert.ok(ev(r, "miss").filter((e) => e.item_id === 3).every((e) => e.why === "stock"));
+    assert.equal(r.stall.items.find((i) => i.item_id === 3).stock, 10);
+    const r2 = runDay(r.stall, act({ display: [3] })); // 다음 날은 판다
+    assert.equal(r2.stall.items.find((i) => i.item_id === 3).stock, 10 - r2.summary.sold);
+  }
+});
+
+test("S11 ① 저녁 도착: 오늘 판매는 아침 재고까지만, 저녁에 상자가 더해짐", () => {
+  let some = 0;
+  for (let seed = 1; seed <= 30; seed++) {
+    const r = runDay(only(newStall(seed), 3, 2), act({ restock: [3], display: [3] }));
+    const sold = ev(r, "buy").reduce((x, e) => x + e.qty, 0);
+    assert.ok(sold <= 2, `sold ${sold}`);
+    assert.equal(r.stall.items.find((i) => i.item_id === 3).stock, 2 - sold + 10);
+    if (sold === 2) some++;
+  }
+  assert.ok(some > 0);
+});
+
+test("S11 ① 한도는 아침 재고 기준, restock+best 같은 물건이면 앞 주문을 셈", () => {
+  const r = runDay(only(newStall(1), 4, 5), act({ restock: [4], best: [4], display: [] }));
+  assert.deepEqual(ev(r, "fill").map((e) => e.n), [10, 15]);
+  assert.equal(r.stall.items.find((i) => i.item_id === 4).stock, 30);
+});
+
+test("S11 ② 할인이 붙잡기: 못 살 손님은 진열·재고·값 있는 할인 물건을 산다(want_item 기록)", () => {
+  let caught = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const s = setStock(newStall(seed), (it) => (it.item_id === 1 ? 0 : 30));
+    const r = runDay(s, act({ discount: [3], display: [1, 3] }));
+    assert.equal(r.summary.missed, 0, "할인 물건이 있으면 아무도 허탕 안 침");
+    for (const b of ev(r, "buy")) {
+      if (b.want_item !== undefined) {
+        assert.equal(b.item_id, 3);
+        assert.notEqual(b.want_item, 3);
+        assert.equal(b.price, Math.round(PRICE.get(3) * 0.8));
+        caught++;
+      } else assert.ok(b.item_id === 3);
+    }
+    const plain = runDay(s, act({ display: [1, 3] }));
+    assert.ok(plain.summary.missBy.stock + plain.summary.missBy.shelf > 0 || plain.summary.customers === 0);
+  }
+  assert.ok(caught > 0);
+});
+
+test("S11 ② 할인 물건이 여럿이면 인기 가중치로(둘 다 뽑힘), 재고 없는·진열 안 된 할인 물건은 못 붙잡음", () => {
+  const got = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const s = setStock(newStall(seed), (it) => (it.item_id === 4 ? 0 : 30));
+    const r = runDay(s, act({ discount: [1, 3, 4, 6], display: [1, 3, 4] })); // 4는 재고 0, 6은 진열 안 됨
+    for (const b of ev(r, "buy")) if (b.want_item !== undefined) { assert.ok([1, 3].includes(b.item_id)); got.add(b.item_id); }
+  }
+  assert.deepEqual([...got].sort(), [1, 3]);
+});
+
+test("S11 ③ 진열 허탕은 SUBSTITUTE 확률로 다른 진열 물건을 대신 삼; 재고·값 허탕은 대신 사지 않음", () => {
+  let shelfWant = 0, subs = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const s = setStock(newStall(seed), (it) => (it.item_id === 1 ? 0 : 30));
+    const r = runDay(s, act({ display: [1, 2, 3, 4] }));
+    for (const b of ev(r, "buy")) {
+      if (b.want_item !== undefined) {
+        assert.ok([5, 6].includes(b.want_item), `want ${b.want_item}`); // 1(재고 0)은 대신 사지 않음
+        assert.ok([2, 3, 4].includes(b.item_id));
+        subs++; shelfWant++;
+      }
+    }
+    for (const m of ev(r, "miss")) {
+      assert.ok(m.why === "shelf" ? [5, 6].includes(m.item_id) : m.item_id === 1 && m.why === "stock");
+      if (m.why === "shelf") shelfWant++;
+    }
+  }
+  const rate = subs / shelfWant;
+  assert.ok(rate > SUBSTITUTE - 0.2 && rate < SUBSTITUTE + 0.2, `대신 산 비율 ${rate.toFixed(2)}`);
+});
+
+test("S11 ③ 값 빈칸 허탕도 대신 사지 않음", () => {
+  for (let seed = 1; seed <= 15; seed++) {
+    let s = withUp(newStall(seed), "newitems");
+    s = setStock(s, () => 30);
+    const r = runDay(s, act({ display: [7, 1, 2, 3] }));
+    assert.ok(ev(r, "buy").every((b) => b.want_item !== 7));
+    assert.ok(ev(r, "miss").filter((m) => m.item_id === 7).every((m) => m.why === "price"));
+  }
+});
+
+test("S11 ④ 손님 수는 단골 수로 자르지 않음, 간판은 언제나 +2", () => {
+  let over = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const s = newStall(seed);
+    const a = runDay(s, act()).summary.customers;
+    const b = runDay(withUp(s, "sign"), act()).summary.customers;
+    assert.equal(b - a, SIGN_BONUS);
+    if (b > REGULARS) over++;
+  }
+  if (Math.floor(REGULARS * CUSTOMER_RATE) + SIGN_BONUS + 3 > REGULARS) assert.ok(over > 0);
+});
+
+test("S11 ⑤ 같은 입력 → 같은 하루(대신 사기·붙잡기 포함), missBy는 마지막 허탕만", () => {
+  const s = setStock(newStall(11), (it) => (it.item_id === 2 ? 0 : 30));
+  const a = act({ discount: [3], display: [2, 3, 4, 5], restock: [2] });
+  assert.equal(JSON.stringify(runDay(s, a)), JSON.stringify(runDay(s, a)));
+  const r = runDay(s, act({ display: [2, 3, 4, 5] }));
+  const by = { shelf: 0, stock: 0, price: 0 };
+  for (const e of ev(r, "miss")) by[e.why]++;
+  assert.deepEqual(r.summary.missBy, by);
+  assert.equal(r.summary.customers, ev(r, "buy").length + ev(r, "miss").length);
 });

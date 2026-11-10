@@ -7,11 +7,12 @@ export const CRATE = 10;            // 한 상자 = 10개
 export const STOCK_MAX = 30;        // 물건 하나의 재고 한도
 export const CART_FEE = 2;          // 수레 삯(냥)
 export const CART_FEE_BIG = 1;      // 큰 수레를 산 뒤
-export const SHELF = 4;             // 진열대 칸
-export const SHELF_BIG = 6;         // 넓은 진열대
+export const SHELF = 6;             // 진열대 칸(고침 1: 4 → 6, 시작 물건 6가지가 다 올라감)
+export const SHELF_BIG = 8;         // 넓은 진열대(고침 1: 6 → 8, 새 물건까지 다 올라감)
 export const REGULARS = 20;         // 단골 수
 export const REGULARS_BIG = 30;     // 단골 늘리기 뒤
-export const CUSTOMER_RATE = 0.8; // 오늘 손님 = floor(단골 × 이 값) + 간판 + 난수 0~3 (작업 6에서 data로 옮김)
+export const CUSTOMER_RATE = 0.6; // 오늘 손님 = floor(단골 × 이 값) + 간판 + 난수 0~3 (작업 6에서 data로 옮김)
+export const SUBSTITUTE = 0.5;    // 진열대에 없는 물건을 찾던 손님이 진열된 다른 물건을 대신 살 확률(S11 ③)
 export const SIGN_BONUS = 2;        // 간판: 손님 +2
 export const DISCOUNT = 0.8;        // 할인: 값 × 0.8
 export const DISCOUNT_POP = 1.6;    // 할인: 인기 × 1.6
@@ -73,7 +74,7 @@ export const UPGRADES = [
   { id: "sign", name: "간판", desc: "손님이 하루 2명 더 와요", price: 150 },
   { id: "newitems", name: "새 물건", desc: "꿀떡과 한지가 값이 빈칸인 채로 들어와요", price: 200 },
   { id: "cart", name: "큰 수레", desc: "수레 삯이 2냥에서 1냥으로 줄어요", price: 250 },
-  { id: "shelf", name: "넓은 진열대", desc: "진열 칸이 4칸에서 6칸으로 늘어요", price: 300 },
+  { id: "shelf", name: "넓은 진열대", desc: "진열 칸이 6칸에서 8칸으로 늘어요", price: 300 },
   { id: "regulars", name: "단골 늘리기", desc: "단골이 20명에서 30명으로 늘어요", price: 350 },
 ];
 
@@ -177,13 +178,13 @@ export const REQUESTS = [
     id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 8,
     line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 다 팔려서 못 사는 손님은 없게 이틀만 해 보게.",
     goal: { type: "cart_max", fee: 6, days: 2 },
-    solution: { restock: where(k("col_stock"), k("op_lt"), n(10)) },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(8)) },
   },
   {
     id: "r04", need: 3, from: "두억이", xp: 5, withinDays: 6,
     line: "하루에 25냥 이상 남겨 보자! 너무 많이 들여오면 들여온 값이 이익을 깎아.",
     goal: { type: "profit", n: 25 },
-    solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(8)) },
   },
   {
     id: "r05", need: 4, from: "옆 좌판 짚신 장수 덕보", xp: 5, withinDays: 1,
@@ -201,7 +202,7 @@ export const REQUESTS = [
     id: "r07", need: 5, from: "꼬마 손님 콩이", xp: 5, withinDays: 1,
     line: "진열대에 뭐가 먼저 올라가요? ORDER BY로 순서를 정하고 LIMIT으로 몇 칸 올릴지 정해 봐요.",
     goal: { type: "slot_ok", slot: "display" },
-    solution: { display: { mode: "frame", parts: { order: [k("col_stock"), k("kw_desc")], limit: [n(4)] } } },
+    solution: { display: { mode: "frame", parts: { order: [k("col_stock"), k("kw_desc")], limit: [n(6)] } } },
   },
   {
     id: "r08", need: 5, from: "주막 아주머니 달래", xp: 5, withinDays: 8,
