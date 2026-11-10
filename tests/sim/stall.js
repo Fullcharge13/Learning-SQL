@@ -3,6 +3,8 @@
 // 실제 엔진(playDay = 장부 SQL을 sql.js로 실행 → runDay → 의뢰 판정)을 그대로 부른다. sql.js는 한 번만 띄운다.
 //
 // 해석(보고서에 함께 적음):
+// - 시작 질의 판정(고침 2, 설계 §4-3): 좋은 조건보다 하루 이익 5냥 이상 적고, 허탕(모든 까닭)이 2배 이상.
+// - 진열하기 칸: 40일 전체로 0 이하면 넓은 진열대를 사기 전 날들로 판정한다(그 뒤엔 물건 8가지가 다 올라가 할 일이 없음, 고침 2).
 // - start·good·all: 3장만 통과, 재고 채우기 칸 하나(stock < 1 · < 4 · < 100), 성장을 사지 않음(가게 바탕 경제를 잼).
 // - all의 「stock < 100」은 숫자 카드(0~30)로 못 놓으므로 같은 뜻인 stock >= 0으로 잰다.
 // - full: 장이 CH_OPEN 날에 하나씩 열린다(3장 1일 … 8장 16일, 사흘에 한 장). 지금 의뢰가 열리면 그 의뢰의 정답 칸 구성을 넣고
@@ -25,7 +27,8 @@ import { playDay } from "../../src/stall/play.js";
 import { runLedger } from "../../src/sqlcore.js";
 
 export const TARGETS = {
-  start: [5, 15],      // 시작 질의만: 하루 이익
+  startGap: 5,         // 시작 질의만: 좋은 조건보다 하루 이익이 5냥 이상 적음(고침 2, 설계 §4-3)
+  startMiss: 2,        // 시작 질의만: 허탕(모든 까닭)이 좋은 조건의 2배 이상
   good: [30, 45],      // 좋은 조건: 하루 이익
   firstUp: [4, 7],     // 첫 성장 「5일째 안팎」
   allUp: [25, 35],     // 성장 5개 「30일째 안팎」
@@ -150,6 +153,7 @@ export async function collect({ seeds = 12, days = 40 } = {}) {
   for (const seed of S) for (const p of PROFILES) runs[p].push(await simulate({ profile: p, seed, days }));
   const stats = { seeds, days, raw: {} };
   const sum = (rs) => ({ profit: median(rs.map((r) => mean(r.profits))), miss: median(rs.map((r) => mean(r.misses))),
+    total: median(rs.map((r) => mean(r.shelf) + mean(r.stockMiss) + mean(r.priceMiss))),
     shelf: median(rs.map((r) => mean(r.shelf))), stock: median(rs.map((r) => mean(r.stockMiss))), price: median(rs.map((r) => mean(r.priceMiss))),
     customers: median(rs.map((r) => mean(r.customers))),
     fees: median(rs.map((r) => mean(r.fees))), lo: Math.min(...rs.map((r) => mean(r.profits))), hi: Math.max(...rs.map((r) => mean(r.profits))) });
@@ -167,7 +171,7 @@ export async function collect({ seeds = 12, days = 40 } = {}) {
   // 칸마다 효과
   stats.slots = {};
   for (const slot of [...EFFECT_SLOTS, "report"]) {
-    const dP = [], dC = [], dM = [], fromDays = [];
+    const dP = [], dC = [], dM = [], fromDays = [], dPpre = [], dMpre = [];
     for (let i = 0; i < S.length; i++) {
       const on = runs.full[i];
       const offR = await simulate({ profile: "full", seed: S[i], days, timeline: on.timeline, off: slot });
@@ -178,8 +182,15 @@ export async function collect({ seeds = 12, days = 40 } = {}) {
       dC.push(mean(on.profits.slice(from)) - mean(offR.profits.slice(from)));
       dM.push(mean(offR.misses.slice(from)) - mean(on.misses.slice(from)));
       fromDays.push(from + 1);
+      // 넓은 진열대를 사기 전 날들만(그 뒤엔 물건 8가지가 다 올라가 진열하기가 할 일이 없음) — 고침 2
+      const to = on.upgrades.shelf ? on.upgrades.shelf - 1 : days;
+      if (to > from) {
+        dPpre.push(withInv(on, from, to) - withInv(offR, from, to));
+        dMpre.push(mean(offR.misses.slice(from, to)) - mean(on.misses.slice(from, to)));
+      }
     }
-    stats.slots[slot] = { dProfit: median(dP), dCash: median(dC), dMiss: median(dM), from: median(fromDays) };
+    stats.slots[slot] = { dProfit: median(dP), dCash: median(dC), dMiss: median(dM), from: median(fromDays),
+      pre: dPpre.length ? { dProfit: median(dPpre), dMiss: median(dMpre), runs: dPpre.length } : null };
   }
   // HAVING 기준
   stats.having = [];
@@ -208,16 +219,21 @@ const f1 = (v) => (Number.isFinite(v) ? (Math.round(v * 10) / 10).toString() : "
 export function judge(st) {
   const L = [];
   const add = (ok, text) => L.push({ ok, text: `${ok ? "OK" : "NG"} ${text}` });
-  add(inBand(st.start.profit, TARGETS.start), `시작 질의(stock<1) 하루 이익 ${f1(st.start.profit)}냥 (목표 ${TARGETS.start.join("~")})`);
-  add(st.start.miss > st.good.miss, `시작 질의 허탕이 좋은 조건보다 많음: ${f1(st.start.miss)} > ${f1(st.good.miss)}`);
+  add(st.good.profit - st.start.profit >= TARGETS.startGap,
+    `시작 질의(stock<1) 하루 이익 ${f1(st.start.profit)}냥이 좋은 조건 ${f1(st.good.profit)}냥보다 ${TARGETS.startGap}냥 이상 적음(차이 ${f1(st.good.profit - st.start.profit)})`);
+  // 허탕은 모든 까닭(진열·재고·값)을 센다: 기본 진열은 재고 0 물건을 내려 다 팔린 손님이 「진열 허탕」으로 잡히므로
+  add(st.start.total >= TARGETS.startMiss * st.good.total,
+    `시작 질의 허탕(모든 까닭) ${f1(st.start.total)}개/일 ≥ 좋은 조건 ${f1(st.good.total)}의 ${TARGETS.startMiss}배 (재고 허탕만: ${f1(st.start.stock)} vs ${f1(st.good.stock)})`);
   add(inBand(st.good.profit, TARGETS.good), `좋은 조건(가장 좋은 stock<${st.good.k}) 하루 이익 ${f1(st.good.profit)}냥 (목표 ${TARGETS.good.join("~")})`);
   add(st.all.profit < st.good.profit, `다 채우기(stock<100) ${f1(st.all.profit)}냥 < 좋은 조건 ${f1(st.good.profit)}냥`);
   add(inBand(st.full.firstUp, TARGETS.firstUp), `첫 성장 ${f1(st.full.firstUp)}일째 (목표 ${TARGETS.firstUp.join("~")})`);
   add(inBand(st.full.allUp, TARGETS.allUp), `성장 5개 ${f1(st.full.allUp)}일째 (목표 ${TARGETS.allUp.join("~")})`);
   for (const [slot, e] of Object.entries(st.slots)) {
     if (slot === "report") continue;
-    add(e.dProfit >= EFFECT_EPS.profit || e.dMiss >= EFFECT_EPS.miss,
-      `칸 ${slot} 효과(켬 − 끔): 이익(재고 값 포함) ${f2(e.dProfit)}냥/일 · 재고·값 허탕 ${f2(-e.dMiss)}개/일 (기준: 이익 +${EFFECT_EPS.profit} 또는 허탕 −${EFFECT_EPS.miss} 이상)`);
+    const ok = (x) => !!x && (x.dProfit >= EFFECT_EPS.profit || x.dMiss >= EFFECT_EPS.miss);
+    const base = `칸 ${slot} 효과(켬 − 끔): 이익(재고 값 포함) ${f2(e.dProfit)}냥/일 · 재고·값 허탕 ${f2(-e.dMiss)}개/일 (기준: 이익 +${EFFECT_EPS.profit} 또는 허탕 −${EFFECT_EPS.miss} 이상)`;
+    if (ok(e) || slot !== "display") add(ok(e), base);
+    else add(ok(e.pre), `${base} → 진열하기는 넓은 진열대를 사기 전 날들로 판정(그 뒤엔 물건이 다 올라감): 이익 ${e.pre ? f2(e.pre.dProfit) : "없음"}냥/일 · 재고·값 허탕 ${e.pre ? f2(-e.pre.dMiss) : "없음"}개/일`);
   }
   if (st.having && st.having.length >= 3) {
     const h = st.having;
@@ -246,7 +262,7 @@ function print(st) {
   console.log(`  성장 산 날: ${Object.entries(fu.upDays).map(([k, v]) => `${k} ${f1(v)}`).join(" · ")}`);
   console.log(`  씨앗별 첫 성장: ${fu.firstUps.map(f1).join(",")} / 성장 5개: ${fu.allUps.map(f1).join(",")}`);
   console.log("칸 끔 비교(켬 − 끔, 그 칸이 켜진 날부터 끝까지 하루 평균): 칸  켜진 날  이익(재고 값 포함)  이익(돈)  재고·값 허탕 줄임");
-  for (const [slot, e] of Object.entries(st.slots)) console.log(`  ${slot.padEnd(9)} ${f1(e.from).padStart(4)}  ${f2(e.dProfit).padStart(8)}  ${f2(e.dCash).padStart(8)}  ${f2(e.dMiss).padStart(7)}${slot === "report" ? "  (판정 제외: 가게에 영향 없음)" : ""}`);
+  for (const [slot, e] of Object.entries(st.slots)) console.log(`  ${slot.padEnd(9)} ${f1(e.from).padStart(4)}  ${f2(e.dProfit).padStart(8)}  ${f2(e.dCash).padStart(8)}  ${f2(e.dMiss).padStart(7)}${e.pre ? `   넓은 진열대 전: ${f2(e.pre.dProfit)} · ${f2(e.pre.dMiss)} (${e.pre.runs}판)` : ""}${slot === "report" ? "  (판정 제외: 가게에 영향 없음)" : ""}`);
   console.log(`HAVING 기준(r15를 넣은 날부터 ${HAVING_WINDOW}일 하루 평균): 기준  이익(재고 값 포함)  이익(돈)  재고·값 허탕`);
   for (const h of st.having) console.log(`  >= ${String(h.n).padStart(2)}  ${f1(h.profit).padStart(6)}냥  ${f1(h.cash).padStart(6)}냥  ${f1(h.miss).padStart(5)}  (${h.runs}판)${h.n === st.havingPick ? "  ← r15 정답" : ""}`);
 }

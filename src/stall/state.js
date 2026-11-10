@@ -145,7 +145,7 @@ export function buyUpgrade(stall, id) {
   const next = structuredClone(stall);
   next.money -= up.price;
   next.upgrades.push(id);
-  if (id === "newitems") for (const it of NEW_ITEMS) if (!next.items.some((x) => x.item_id === it.item_id)) next.items.push({ item_id: it.item_id, price: null, stock: 10 });
+  if (id === "newitems") for (const it of NEW_ITEMS) if (!next.items.some((x) => x.item_id === it.item_id)) next.items.push({ item_id: it.item_id, price: null, stock: it.stock });
   if (id === "shelf") next.shelf = SHELF_BIG;
   if (id === "regulars") next.regulars = REGULARS_BIG;
   return { ok: true, stall: next };

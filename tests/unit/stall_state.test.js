@@ -171,3 +171,10 @@ test("SLOTS·CARDS 장 번호와 틀은 설계 §3-1·§3-2와 같다", () => {
     assert.equal(byText[t], ch, t);
   assert.ok(CARDS.every((c) => c.chapter >= 3 && c.chapter <= 8));
 });
+
+test("buyUpgrade newitems: 새 물건 재고는 data 표의 stock(고침 2: state.js에 10을 박지 않음)", async () => {
+  const src = (await import("node:fs")).readFileSync(new URL("../../src/stall/state.js", import.meta.url), "utf8");
+  assert.ok(!/price: null, stock: 10/.test(src), "state.js가 재고 10을 박아 둠");
+  const b = buyUpgrade({ ...newStall(1), money: 9999 }, "newitems").stall;
+  for (const def of ITEMS.filter((i) => i.upgrade === "newitems")) assert.equal(b.items.find((x) => x.item_id === def.item_id).stock, def.stock);
+});

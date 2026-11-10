@@ -459,14 +459,20 @@ test("S11 ③ 진열 허탕은 SUBSTITUTE 확률로 다른 진열 물건을 대�
   assert.ok(rate > SUBSTITUTE - 0.2 && rate < SUBSTITUTE + 0.2, `대신 산 비율 ${rate.toFixed(2)}`);
 });
 
-test("S11 ③ 값 빈칸 허탕도 대신 사지 않음", () => {
-  for (let seed = 1; seed <= 15; seed++) {
+test("S11 ③ 값 빈칸 허탕도 SUBSTITUTE 확률로 진열된 다른 물건을 대신 삼(고침 2), 재고 허탕은 대신 사지 않음", () => {
+  let priceWant = 0, subs = 0;
+  for (let seed = 1; seed <= 60; seed++) {
     let s = withUp(newStall(seed), "newitems");
-    s = setStock(s, () => 30);
+    s = setStock(s, (it) => (it.item_id === 1 ? 0 : 30));
     const r = runDay(s, act({ display: [7, 1, 2, 3] }));
-    assert.ok(ev(r, "buy").every((b) => b.want_item !== 7));
-    assert.ok(ev(r, "miss").filter((m) => m.item_id === 7).every((m) => m.why === "price"));
+    for (const b of ev(r, "buy")) {
+      if (b.want_item === 7) { assert.ok([2, 3].includes(b.item_id)); subs++; priceWant++; }
+      assert.notEqual(b.want_item, 1); // 재고 0(1)은 대신 사지 않음
+    }
+    for (const m of ev(r, "miss")) if (m.item_id === 7) { assert.equal(m.why, "price"); priceWant++; }
   }
+  const rate = subs / priceWant;
+  assert.ok(rate > SUBSTITUTE - 0.2 && rate < SUBSTITUTE + 0.2, `대신 산 비율 ${rate.toFixed(2)}`);
 });
 
 test("S11 ④ 손님 수는 단골 수로 자르지 않음, 간판은 언제나 +2", () => {

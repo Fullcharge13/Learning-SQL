@@ -126,9 +126,9 @@ export function runDay(stall, actions) {
     else if (wanted.price === null) why = "price";
     let it = wanted;
     if (why) {
-      // (1) 할인 물건이 붙잡음 (2) 진열대에 없던 물건이면 SUBSTITUTE 확률로 다른 진열 물건 (3) 허탕 — S11 ②③
+      // (1) 할인 물건이 붙잡음 (2) 진열대에 없던·값이 빈칸이던 물건이면 SUBSTITUTE 확률로 다른 진열 물건(고침 2) (3) 허탕 — S11 ②③
       let alt = pickBy(sorted.filter((x) => onSale.has(x.item_id) && x !== wanted && canBuy(x)));
-      if (!alt && why === "shelf" && rng() < SUBSTITUTE) alt = pickBy(sorted.filter((x) => x !== wanted && canBuy(x)));
+      if (!alt && (why === "shelf" || why === "price") && rng() < SUBSTITUTE) alt = pickBy(sorted.filter((x) => x !== wanted && canBuy(x)));
       if (!alt) {
         const price = unitPrice(wanted);
         missed++;

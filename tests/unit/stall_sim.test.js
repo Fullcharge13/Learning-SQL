@@ -35,8 +35,8 @@ test("simulate full: 칸 하나를 끄면 그 칸은 하루도 켜지지 않음"
 });
 
 const okStats = () => ({
-  start: { profit: 10, miss: 6 },
-  good: { profit: 38, miss: 1, k: 4 },
+  start: { profit: 30, miss: 6, total: 6, stock: 4 },
+  good: { profit: 38, miss: 1, total: 2, stock: 1, k: 4 },
   all: { profit: 30, miss: 0 },
   full: { firstUp: 5, allUp: 30 },
   slots: { restock: { dProfit: 20, dMiss: 3 }, pricing: { dProfit: 0, dMiss: 1 } },
@@ -52,7 +52,8 @@ test("judge: 목표 안의 값은 모두 OK", () => {
 
 test("judge: 목표 밖 값에 NG", () => {
   const bad = (patch) => judge({ ...okStats(), ...patch }).filter((l) => !l.ok).map((l) => l.text);
-  assert.ok(bad({ start: { profit: 20, miss: 6 } }).length);         // 시작 질의 이익 5~15 밖
+  assert.ok(bad({ start: { profit: 34, miss: 6, total: 6, stock: 4 } }).length); // 좋은 조건과 5냥 차이가 안 됨
+  assert.ok(bad({ start: { profit: 30, miss: 3, total: 3, stock: 2 } }).length); // 허탕이 2배가 안 됨
   assert.ok(bad({ good: { profit: 50, miss: 1 } }).length);          // 좋은 조건 30~45 밖
   assert.ok(bad({ all: { profit: 40, miss: 0 } }).length);           // 다 채우기가 좋은 조건보다 많이 남김
   assert.ok(bad({ full: { firstUp: 2, allUp: 30 } }).length);        // 첫 성장 4~7일 밖
@@ -60,13 +61,18 @@ test("judge: 목표 밖 값에 NG", () => {
   assert.ok(bad({ slots: { display: { dProfit: 0, dMiss: 0 } } }).length); // 효과 없는 칸
   assert.ok(bad({ slots: { display: { dProfit: 0.01, dMiss: 0.01 } } }).length); // 반올림 잡음 수준은 효과로 안 침
   assert.equal(bad({ slots: { report: { dProfit: 0, dMiss: 0 } } }).length, 0); // 하루 보고는 판정 제외
+  // 진열하기: 40일 전체가 0 이하여도 넓은 진열대 전 날들이 양수면 OK(그렇게 판정했다고 밝힘), 둘 다 아니면 NG
+  const pre = judge({ ...okStats(), slots: { display: { dProfit: -0.6, dMiss: -0.3, pre: { dProfit: 1.2, dMiss: 0, runs: 12 } } } });
+  assert.ok(pre.every((l) => l.ok) && pre.some((l) => /넓은 진열대를 사기 전/.test(l.text)));
+  assert.ok(bad({ slots: { display: { dProfit: -0.6, dMiss: -0.3, pre: { dProfit: -0.2, dMiss: 0, runs: 12 } } } }).length);
   assert.ok(bad({ having: [{ n: 4, profit: 40 }, { n: 12, profit: 35 }, { n: 20, profit: 30 }] }).length); // 기준이 낮을수록 좋기만 함
   const lines = judge({ ...okStats(), good: { profit: 50, miss: 1 } });
   assert.ok(lines.some((l) => !l.ok && /NG/.test(l.text)));
 });
 
 test("TARGETS: 설계 §4-3 띠", () => {
-  assert.deepEqual(TARGETS.start, [5, 15]);
+  assert.equal(TARGETS.startGap, 5);
+  assert.equal(TARGETS.startMiss, 2);
   assert.deepEqual(TARGETS.good, [30, 45]);
   assert.deepEqual(TARGETS.firstUp, [4, 7]);
   assert.deepEqual(TARGETS.allUp, [25, 35]);
