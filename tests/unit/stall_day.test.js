@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newStall, buyUpgrade } from "../../src/stall/state.js";
+import { newStall, buyUpgrade, cleanStall } from "../../src/stall/state.js";
 import { runDay } from "../../src/stall/day.js";
 import { ITEMS, KEEP_DAYS, LOG_DAYS } from "../../data/stall.js";
 
@@ -65,16 +65,15 @@ test("진열 4칸·물건 6: 진열 안 된 물건을 원하면 shelf 허탕", (
 test("기본 진열(display null): 재고>0인 물건을 item_id 순서로 칸 수만큼", () => {
   const s = { ...newStall(2), items: newStall(2).items.map((it) => ({ ...it, stock: it.item_id === 1 ? 0 : 30 })) };
   const r = runDay(s, act());
-  const ids = new Set([...ev(r, "buy"), ...ev(r, "miss")].filter((e) => e.why !== "shelf" && e.why !== "stock" || e.why === "stock").map((e) => e.item_id));
   assert.ok(ev(r, "buy").every((e) => [2, 3, 4, 5].includes(e.item_id)));
   assert.ok(ev(r, "miss").filter((e) => e.why === "shelf").every((e) => e.item_id === 6));
-  assert.ok(ids.size > 0);
+  assert.ok(ev(r, "buy").length > 0);
 });
 
 test("채우기: 재고 25 + restock → 30, n:5, 5개분 값 + 수레 삯 2", () => {
   const s = only(newStall(1), 3, 25);
   const r = runDay(s, act({ restock: [3], display: [] }));
-  assert.deepEqual(ev(r, "fill"), [{ t: "fill", item_id: 3, n: 5, cost: 10, fee: 2 }]);
+  assert.deepEqual(ev(r, "fill"), [{ t: "fill", item_id: 3, n: 5, cost: 10, fee: 2, slot: "restock" }]);
   assert.equal(r.stall.items.find((i) => i.item_id === 3).stock, 30);
   assert.equal(r.stall.money, 100 - 12);
   assert.equal(r.summary.bought, 10);
@@ -84,7 +83,7 @@ test("채우기: 재고 25 + restock → 30, n:5, 5개분 값 + 수레 삯 2", (
 test("채우기: 재고 30이면 full 사건, 수레 삯 2만", () => {
   const s = only(newStall(1), 3, 30);
   const r = runDay(s, act({ restock: [3], display: [] }));
-  assert.deepEqual(ev(r, "full"), [{ t: "full", item_id: 3, fee: 2 }]);
+  assert.deepEqual(ev(r, "full"), [{ t: "full", item_id: 3, fee: 2, slot: "restock" }]);
   assert.equal(ev(r, "fill").length, 0);
   assert.equal(r.stall.money, 98);
   assert.equal(r.summary.fees, 2);
@@ -94,7 +93,7 @@ test("채우기: 재고 30이면 full 사건, 수레 삯 2만", () => {
 test("best는 20개씩, 한도 30", () => {
   const s = only(newStall(1), 4, 5);
   const r = runDay(s, act({ best: [4], display: [] }));
-  assert.deepEqual(ev(r, "fill"), [{ t: "fill", item_id: 4, n: 20, cost: 40, fee: 2 }]);
+  assert.deepEqual(ev(r, "fill"), [{ t: "fill", item_id: 4, n: 20, cost: 40, fee: 2, slot: "best" }]);
   const s2 = only(newStall(1), 4, 20);
   const r2 = runDay(s2, act({ best: [4], display: [] }));
   assert.equal(ev(r2, "fill")[0].n, 10);
@@ -113,7 +112,7 @@ test("돈 5냥에 restock 3개 → 앞 물건부터 살 수 있는 만큼, 나�
   s = { ...s, money: 5 };
   const r = runDay(s, act({ restock: [1, 2, 3], display: [] }));
   assert.deepEqual(ev(r, "fill").map((e) => [e.item_id, e.n]), [[1, 1]]);
-  assert.deepEqual(ev(r, "broke"), [{ t: "broke", item_id: 2 }, { t: "broke", item_id: 3 }]);
+  assert.deepEqual(ev(r, "broke"), [{ t: "broke", item_id: 2, slot: "restock" }, { t: "broke", item_id: 3, slot: "restock" }]);
   assert.equal(r.stall.money, 0);
   assert.ok(r.stall.money >= 0);
 });
@@ -121,7 +120,7 @@ test("돈 5냥에 restock 3개 → 앞 물건부터 살 수 있는 만큼, 나�
 test("상자 단위로만: 한 상자를 못 사면 broke이고 수레 삯도 안 냄", () => {
   const s = { ...only(newStall(1), 1, 0), money: 31 }; // 10개 30냥 + 삯 2 = 32냥 필요
   const r = runDay(s, act({ restock: [1], display: [] }));
-  assert.deepEqual(ev(r, "broke"), [{ t: "broke", item_id: 1 }]);
+  assert.deepEqual(ev(r, "broke"), [{ t: "broke", item_id: 1, slot: "restock" }]);
   assert.equal(r.stall.money, 31);
   assert.equal(r.summary.fees, 0);
   assert.equal(r.stall.items.find((i) => i.item_id === 1).stock, 0);
@@ -143,14 +142,18 @@ test("큰 수레 → 수레 삯 1", () => {
   assert.equal(r.stall.money, 100 - 10 - 1);
 });
 
-test("할인: discount:[3]이면 식혜 판매가 4, 할인 없으면 5", () => {
-  const s = only(newStall(11), 3, 30);
-  const d = runDay(s, act({ discount: [3], display: [3] }));
-  const buys = ev(d, "buy");
-  assert.ok(buys.length > 0 && buys.every((e) => e.price === 4));
-  const n = runDay(s, act({ display: [3] }));
-  assert.ok(ev(n, "buy").every((e) => e.price === 5));
-  assert.ok(ev(d, "buy").length >= ev(n, "buy").length); // 인기 ×1.6이라 식혜를 원하는 손님이 늘어난다(같은 난수)
+test("할인: discount:[3]이면 식혜 판매가 4, 할인 없으면 5; 식혜 손님이 늘어난다(여러 씨앗)", () => {
+  let withD = 0, without = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const s = only(newStall(seed), 3, 30);
+    const d = runDay(s, act({ discount: [3], display: [3] }));
+    const n = runDay(s, act({ display: [3] }));
+    assert.ok(ev(d, "buy").every((e) => e.price === 4));
+    assert.ok(ev(n, "buy").every((e) => e.price === 5));
+    withD += ev(d, "buy").length;
+    without += ev(n, "buy").length;
+  }
+  assert.ok(withD > 0 && withD > without, `${withD} vs ${without}`);
 });
 
 test("손님 수: 단골 20·간판 없음 → 8~11, 간판 → 10~13 (여러 날)", () => {
@@ -247,9 +250,109 @@ test("report와 rest는 그대로 summary로, rest 칸은 slot 사건", () => {
   assert.deepEqual(r.stall.last.summary, r.summary);
 });
 
-test("오늘의 인기는 3일 구간마다 같고 구간이 바뀌면 다시 정해진다(결정적)", () => {
+test("오늘의 인기: 1~3일은 같고, 4일은 결정적이며, 새 물건을 사도 구간 안에서 안 바뀐다", () => {
   const s = setStock(newStall(21), () => 30);
-  const t = (d) => runDay({ ...s, day: d }, act({ display: [1, 2, 3, 4, 5, 6] }));
-  assert.equal(JSON.stringify(t(1).summary), JSON.stringify(t(1).summary));
-  assert.ok(t(1).summary.customers >= 8);
+  const tr = (st, d) => runDay({ ...st, day: d }, act()).summary.trend;
+  assert.equal(tr(s, 1), tr(s, 2));
+  assert.equal(tr(s, 2), tr(s, 3));
+  assert.equal(tr(s, 4), tr(s, 4));
+  const up = withUp(s, "newitems");
+  for (let seed = 1; seed <= 20; seed++) {
+    const a = setStock(newStall(seed), () => 30);
+    const b = withUp(a, "newitems");
+    assert.equal(tr(a, 2), tr(b, 2));
+    assert.ok([1, 2, 3, 4, 5, 6].includes(tr(b, 2)));
+  }
+  assert.ok(up.items.length === 8);
+  const seen = new Set();
+  for (let seed = 1; seed <= 40; seed++) seen.add(tr(newStall(seed), 1));
+  assert.ok(seen.size >= 3);
+});
+
+test("오늘의 인기 물건은 보통 인기 비중보다 더 많이 팔린다(50개 씨앗)", () => {
+  let trendBuys = 0, total = 0, plain = 0;
+  const pop = new Map(ITEMS.map((i) => [i.item_id, i.pop]));
+  const popSum = [1, 2, 3, 4, 5, 6].reduce((x, id) => x + pop.get(id), 0);
+  for (let seed = 1; seed <= 50; seed++) {
+    const s = setStock(withUp(newStall(seed), "shelf"), () => 30);
+    const r = runDay(s, act({ display: [1, 2, 3, 4, 5, 6] }));
+    const buys = ev(r, "buy");
+    total += buys.length;
+    trendBuys += buys.filter((e) => e.item_id === r.summary.trend).length;
+    plain += buys.length * (pop.get(r.summary.trend) / popSum);
+  }
+  assert.ok(trendBuys > plain * 1.25, `${trendBuys} vs ${plain.toFixed(1)} of ${total}`);
+});
+
+test("재고 1에 2개 주문: 1개 팔고 want:2, 모자란 1개 값은 lost에(miss 사건 없음), customers = buy + miss", () => {
+  let seen = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const r = runDay(only(newStall(seed), 3, 1), act({ display: [3] }));
+    const buys = ev(r, "buy"), misses = ev(r, "miss");
+    assert.equal(r.summary.customers, buys.length + misses.length);
+    for (const b of buys) {
+      if (b.want === 2) {
+        seen++;
+        assert.equal(b.qty, 1);
+        assert.equal(r.summary.lost, misses.reduce((x, m) => x + m.lost, 0) + 5);
+        assert.equal(r.summary.sold, 1);
+      }
+    }
+  }
+  assert.ok(seen > 0);
+});
+
+test("buy 사건에는 want가 있다", () => {
+  const r = runDay(setStock(newStall(1), () => 30), act());
+  assert.ok(ev(r, "buy").every((e) => e.want === e.qty));
+});
+
+test("fill·full·broke 사건에는 slot(restock|best)이 붙는다", () => {
+  const s = { ...setStock(newStall(1), (it) => (it.item_id === 1 ? 30 : it.item_id === 2 ? 29 : 0)), money: 20 };
+  const r = runDay(s, act({ restock: [2], best: [1, 3], display: [] }));
+  assert.deepEqual(ev(r, "fill").map((e) => e.slot), ["restock"]);
+  assert.deepEqual(ev(r, "full").map((e) => e.slot), ["best"]);
+  assert.deepEqual(ev(r, "broke").map((e) => [e.item_id, e.slot]), [[3, "best"]]);
+});
+
+test("last의 칸별 기록 모양", () => {
+  const s = only(newStall(1), 3, 25);
+  const rest = { report: "오류" };
+  const r = runDay(s, act({ pricing: [], restock: [3, 3], discount: [3, 4], display: [3, 9, 4], report: 7, rest }));
+  const last = r.stall.last;
+  assert.deepEqual(last.summary, r.summary);
+  assert.deepEqual(last.slots, {
+    pricing: { ids: [] },
+    restock: { ids: [3], n: 5, fee: 2 },
+    best: { ids: [], n: 0, fee: 0 },
+    discount: { ids: [3, 4] },
+    display: { ids: [3, 4] },
+    report: { value: 7 },
+  });
+  assert.deepEqual(last.rested, rest);
+});
+
+test("last의 칸 키는 행동이 있는 칸만(null인 display·report는 없음)", () => {
+  const r = runDay(newStall(1), act({ restock: [3], display: null, report: null }));
+  assert.deepEqual(Object.keys(r.stall.last.slots).sort(), ["best", "discount", "pricing", "restock"]);
+  assert.deepEqual(r.stall.last.rested, {});
+});
+
+test("방어: restock:[3,3]은 수레 삯 한 번", () => {
+  const r = runDay(only(newStall(1), 3, 5), act({ restock: [3, 3], display: [] }));
+  assert.equal(ev(r, "fill").length, 1);
+  assert.equal(r.summary.fees, 2);
+});
+
+test("방어: 재고 35(cleanStall 안 거침)여도 돈이 늘지 않고 재고도 그대로", () => {
+  const s = only(newStall(1), 3, 35);
+  const r = runDay(s, act({ restock: [3], display: [] }));
+  assert.equal(r.stall.money, 98);
+  assert.equal(ev(r, "full").length, 1);
+  assert.equal(r.stall.items.find((i) => i.item_id === 3).stock, 35);
+});
+
+test("cleanStall은 last를 평범한 객체로 유지한다", () => {
+  const r = runDay(newStall(1), act({ restock: [3] }));
+  assert.deepEqual(cleanStall(JSON.parse(JSON.stringify(r.stall))).last, r.stall.last);
 });

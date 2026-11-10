@@ -2,11 +2,12 @@
 // 난수는 rngFor(씨앗, 날짜)만 쓴다(Math.random 금지). 설계 docs/specs/2026-11-11-두억이의-가게-설계.md §2-2, §2-3.
 import {
   ITEMS, STOCK_MAX, CRATE, CART_FEE, CART_FEE_BIG, DISCOUNT, DISCOUNT_POP, TREND_POP, TREND_DAYS,
-  KEEP_DAYS, LOG_DAYS, MONEY_MAX,
+  KEEP_DAYS, LOG_DAYS, MONEY_MAX, SIGN_BONUS,
 } from "../../data/stall.js";
 import { rngFor } from "./rng.js";
 
 const DEF = new Map(ITEMS.map((it) => [it.item_id, it]));
+const BASE_IDS = ITEMS.filter((d) => !d.upgrade).map((d) => d.item_id); // 오늘의 인기는 기본 물건 중에서만(성장으로 구간 중간에 바뀌지 않게)
 
 /**
  * @param {object} stall 가게 상태(바꾸지 않음)
@@ -19,14 +20,17 @@ export function runDay(stall, actions) {
   const events = [];
   const day = next.day;
   const byId = new Map(next.items.map((it) => [it.item_id, it]));
-  const list = (v) => (Array.isArray(v) ? v : []);
+  const list = (v) => (Array.isArray(v) ? [...new Set(v)] : []); // 같은 번호는 한 번만
 
   // 쉰 칸 안내
   const rest = a.rest && typeof a.rest === "object" ? { ...a.rest } : {};
   for (const slot of Object.keys(rest)) events.push({ t: "slot", slot, line: rest[slot] });
 
   // 1) 값 매기기: 값이 빈칸인 물건에만 표준값
-  for (const id of list(a.pricing)) {
+  const slots = {};
+  const pricingIds = list(a.pricing);
+  slots.pricing = { ids: pricingIds };
+  for (const id of pricingIds) {
     const it = byId.get(id);
     if (!it || it.price !== null) continue;
     it.price = DEF.get(id).std;
@@ -40,23 +44,35 @@ export function runDay(stall, actions) {
   //    (부분 상자는 사지 않는다). 한 행이 broke이면 그 뒤 행도 모두 broke(설계 「그 행부터 들여오지 않고」).
   const fee = next.upgrades.includes("cart") ? CART_FEE_BIG : CART_FEE;
   let bought = 0, fees = 0, broke = false;
-  const restockRows = [...list(a.restock).map((id) => [id, CRATE]), ...list(a.best).map((id) => [id, CRATE * 2])];
-  for (const [id, want] of restockRows) {
+  // restock과 best에 같은 물건이 둘 다 있으면 둘 다 한다(칸마다 목록 안의 중복만 제거)
+  const restockRows = [
+    ...list(a.restock).map((id) => [id, CRATE, "restock"]),
+    ...list(a.best).map((id) => [id, CRATE * 2, "best"]),
+  ];
+  slots.restock = { ids: [], n: 0, fee: 0 };
+  slots.best = { ids: [], n: 0, fee: 0 };
+  for (const [id, want, slot] of restockRows) {
     const it = byId.get(id);
     if (!it) continue;
-    const n = Math.min(want, STOCK_MAX - it.stock);
+    const rec = slots[slot];
+    const n = Math.max(0, Math.min(want, STOCK_MAX - it.stock)); // 저장이 깨져 재고가 한도를 넘어도 돈이 늘지 않게
     const cost = DEF.get(id).cost * n;
-    if (broke || next.money < cost + fee) { broke = true; events.push({ t: "broke", item_id: id }); continue; }
+    if (broke || next.money < cost + fee) { broke = true; events.push({ t: "broke", item_id: id, slot }); continue; }
     next.money -= cost + fee;
     bought += cost;
     fees += fee;
-    if (n <= 0) { events.push({ t: "full", item_id: id, fee }); continue; }
+    rec.ids.push(id);
+    rec.fee += fee;
+    if (n <= 0) { events.push({ t: "full", item_id: id, fee, slot }); continue; }
     it.stock += n;
-    events.push({ t: "fill", item_id: id, n, cost, fee });
+    rec.n += n;
+    events.push({ t: "fill", item_id: id, n, cost, fee, slot });
   }
 
   // 3) 할인(오늘 하루): 값 × 0.8 반올림, 인기 × 1.6
-  const onSale = new Set(list(a.discount).filter((id) => byId.has(id)));
+  const discountIds = list(a.discount).filter((id) => byId.has(id));
+  slots.discount = { ids: discountIds };
+  const onSale = new Set(discountIds);
   const unitPrice = (it) => {
     const p = it.price !== null ? it.price : DEF.get(it.item_id).std; // 빈칸이면 표준값(허탕 계산용)
     return onSale.has(it.item_id) ? Math.round(p * DISCOUNT) : p;
@@ -66,18 +82,20 @@ export function runDay(stall, actions) {
   const sorted = [...next.items].sort((x, y) => x.item_id - y.item_id);
   let shelfIds;
   if (a.display === null || a.display === undefined) shelfIds = sorted.filter((it) => it.stock > 0).map((it) => it.item_id);
-  else shelfIds = [...new Set(list(a.display).filter((id) => byId.has(id)))];
-  const shelf = new Set(shelfIds.slice(0, next.shelf));
+  else shelfIds = list(a.display).filter((id) => byId.has(id));
+  shelfIds = shelfIds.slice(0, next.shelf);
+  const shelf = new Set(shelfIds);
+  if (a.display !== null && a.display !== undefined) slots.display = { ids: shelfIds };
 
   // 5) 오늘의 인기: TREND_DAYS일 구간마다 하나(구간 안에서는 같은 난수 → 같은 물건)
   const segment = Math.floor((day - 1) / TREND_DAYS);
   const trendRng = rngFor(next.seed, -1 - segment);
-  const trendId = sorted[Math.floor(trendRng() * sorted.length)].item_id;
+  const trendId = BASE_IDS[Math.floor(trendRng() * BASE_IDS.length)];
 
   // 6) 손님
   const rng = rngFor(next.seed, day);
   const regulars = next.regulars;
-  const count = Math.min(regulars, Math.floor(regulars * 0.4) + (next.upgrades.includes("sign") ? 2 : 0) + Math.floor(rng() * 4));
+  const count = Math.min(regulars, Math.floor(regulars * 0.4) + (next.upgrades.includes("sign") ? SIGN_BONUS : 0) + Math.floor(rng() * 4));
   const weights = sorted.map((it) => DEF.get(it.item_id).pop * (onSale.has(it.item_id) ? DISCOUNT_POP : 1) * (it.item_id === trendId ? TREND_POP : 1));
   const totalW = weights.reduce((x, y) => x + y, 0);
   const pool = Array.from({ length: regulars }, (_, i) => i + 1); // 손님 번호 1..단골 수, 하루에 한 번씩만
@@ -103,11 +121,12 @@ export function runDay(stall, actions) {
       events.push({ t: "miss", customer_id, item_id: it.item_id, qty: want, why, lost: price * want });
       continue;
     }
-    const qty = Math.min(want, it.stock); // 재고가 모자라면 있는 만큼만
+    const qty = Math.min(want, it.stock); // 재고가 모자라면 있는 만큼만 팔고, 모자란 몫은 못 판 값(lost)에만 더한다(miss 사건 없음)
     it.stock -= qty;
     revenue += price * qty;
     sold += qty;
-    events.push({ t: "buy", customer_id, item_id: it.item_id, qty, price });
+    lost += price * (want - qty);
+    events.push({ t: "buy", customer_id, item_id: it.item_id, qty, want, price });
     todays.push({ order_id: nextOrder++, customer_id, day, items: [{ item_id: it.item_id, qty }] });
   }
 
@@ -118,10 +137,12 @@ export function runDay(stall, actions) {
     profit: revenue - bought - fees,
     report: a.report === undefined ? null : a.report,
     rest,
+    trend: trendId,
   };
+  if (a.report !== null && a.report !== undefined) slots.report = { value: a.report };
   next.day = day + 1;
   next.orders = [...next.orders, ...todays].filter((o) => o.day >= next.day - KEEP_DAYS);
   next.log = [...next.log, structuredClone(summary)].slice(-LOG_DAYS);
-  next.last = { summary: structuredClone(summary), slotLines: { ...rest } };
+  next.last = { summary: structuredClone(summary), slots: structuredClone(slots), rested: { ...rest } };
   return { stall: next, events, summary };
 }
