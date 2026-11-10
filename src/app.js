@@ -1,6 +1,7 @@
 // 두억이와 SQL! — 앱 입구. 상태는 app = { save, screen, modal } 하나, 화면 전환은 show() 하나.
 import { loadEx, store, migrate, takeRefundNotice, refundNoticeText } from "./save.js";
-import { rollDay } from "./rules.js";
+import { rollDay, earnXp } from "./rules.js";
+import { passedChapters } from "./stall/state.js";
 import { ensureQuests } from "./quests.js";
 import { say as pickLine } from "./say.js";
 import { OUTFITS } from "../data/outfits.js";
@@ -26,9 +27,10 @@ import * as done from "./ui/done.js";
 import * as badges from "./ui/badges.js";
 import * as closet from "./ui/closet.js";
 import * as settings from "./ui/settings.js";
+import * as stall from "./ui/stall.js";
 
 export const VERSION = "v0.2.1";
-const SCREENS = { splash, home, lesson, done, badges, closet, settings };
+const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall };
 
 // ---- 저장소 (사파리 사생활 보호 모드 등에서 localStorage 접근이 막혀도 앱은 돈다) ----
 function pickStorage() {
@@ -223,6 +225,22 @@ async function afterDone() {
   await showInstallSheet(kind);
 }
 
+// ---- 두억이의 가게 (v0.3) ----
+/** 장 평가를 통과한 장 번호들(가게·칸·카드·의뢰 열림) */
+function stallPassed() { return passedChapters(app.chapters, app.save.completed_lessons); }
+/** 가게 상태 + 끝낸 의뢰의 XP를 한 번에 저장한다(재생 전). 의뢰 XP는 earnXp로: 하루 목표·연속 기록에 들어감(설계 S5) */
+function stallCommit(nextStall, completed = []) {
+  let s = { ...app.save, stall: nextStall };
+  let milestone = null;
+  for (const r of completed) {
+    const e = earnXp(s, r.xp, localDate());
+    s = e.save;
+    if (e.milestone) milestone = e.milestone;
+  }
+  const ok = commit(s);
+  return { ok, milestone };
+}
+
 // 하던 레슨 기록(v0.6.2 다): 본 저장과 따로 한 칸. 없는 레슨·24시간 지난 기록은 읽을 때 지운다
 const resume = {
   read: () => readResume(storage, { now: Date.now(), exists: (id) => !!lessonById(id) }),
@@ -237,6 +255,7 @@ const ctx = {
   get save() { return app.save; },
   commit, show, say, sound, toast, finish,
   daily, dailyStep, finishDaily: finishDailyChallenge,
+  stallPassed, stallCommit,
   get chapters() { return app.chapters; },
   get lessons() { return app.lessons; },
   get advanced() { return app.advanced; },

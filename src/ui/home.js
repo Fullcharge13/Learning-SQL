@@ -7,6 +7,7 @@ import { esc, icon, bar, dueogiSays, dialog, toast } from "./dom.js";
 import { tabBar, bindTabs, statusBar } from "./nav.js";
 import { pathEndText } from "../curriculum.js";
 import { hasNewContent } from "../newcontent.js";
+import { stallOpen } from "../stall/state.js";
 
 // 「새 내용」 점(v0.7.1): 노드 옆 작은 꼬리표. 누르기는 노드가 받는다(pointer-events: none, 노드 크기 그대로)
 const NEW_LABEL = "새 내용 있음";
@@ -109,6 +110,26 @@ function dailyCard(st) {
   </section>`;
 }
 
+// 두억이의 가게 입구(v0.3, 설계 §6-1): 3장 평가 전에는 자물쇠, 뒤에는 가게 가기
+function stallCard(ctx) {
+  if (typeof ctx.stallPassed !== "function") return "";
+  const open = stallOpen(ctx.stallPassed());
+  const st = ctx.save.stall;
+  if (!open) {
+    return `<section class="panel stall-card locked" aria-labelledby="st-title">
+      <span class="stall-ic" aria-hidden="true">${icon("lock")}</span>
+      <div class="stall-card-text"><h2 id="st-title">두억이의 가게</h2><p>3장 평가를 통과하면 열려요</p></div>
+      <button class="btn ghost small stall-go" id="stall-go" aria-disabled="true" aria-label="두억이의 가게, 잠김, 3장 평가를 통과하면 열려요">${icon("lock")}잠김</button>
+    </section>`;
+  }
+  const note = st && st.opened ? `${st.day}일째 · 가게 돈 ${st.money}냥` : "새 가게가 문 열기를 기다려요";
+  return `<section class="panel stall-card" aria-labelledby="st-title">
+    <span class="stall-ic" aria-hidden="true">${icon("chest")}</span>
+    <div class="stall-card-text"><h2 id="st-title">두억이의 가게</h2><p>${esc(note)}</p></div>
+    <button class="btn sun stall-go" id="stall-go">${icon("play")}가게 가기</button>
+  </section>`;
+}
+
 function reviewCard(save) {
   const queue = save.review_queue || [];
   if (!queue.length) return "";
@@ -193,6 +214,7 @@ export function render(root, ctx) {
         ${allDone ? `<p class="all-done">준비된 레슨을 모두 끝냈어요. 다시 풀거나 복습하며 XP를 모아 봐요.</p>` : ""}
       </section>
       ${dst && dst.state === "locked" ? dailyCard(dst) : ""}
+      ${stallCard(ctx)}
       ${reviewCard(save)}
       ${questCard(save)}
       ${sections || '<p class="panel">레슨을 불러오지 못했어요. 새로고침해 주세요.</p>'}
@@ -205,6 +227,11 @@ export function render(root, ctx) {
   if (go) go.addEventListener("click", () => ctx.show("lesson", { id: currentId }));
   const dg = root.querySelector("#daily");
   if (dg) dg.addEventListener("click", () => ctx.show("lesson", { daily: true }));
+  const sg = root.querySelector("#stall-go");
+  if (sg) sg.addEventListener("click", () => {
+    if (sg.getAttribute("aria-disabled") === "true") { toast("3장 평가를 통과하면 열려요"); return; }
+    ctx.show("stall");
+  });
   const rv = root.querySelector("#review");
   if (rv) rv.addEventListener("click", () => ctx.show("lesson", { review: true }));
   root.querySelectorAll("[data-lesson]").forEach((b) => b.addEventListener("click", async () => {

@@ -2475,6 +2475,216 @@ def test_show_card():
             assert not a.errors, a.errors
 
 
+# ---------------------------------------------------------------- 두억이의 가게 (v0.3 작업 7)
+
+def _stall_shot_dir():
+    d = os.path.join(ROOT, ".superpowers", "sdd", "2026-11-11-두억이와-SQL-v0.3", "shots")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _stall_seed(through_exam=True):
+    """실제 1~3장 레슨을 끝낸 저장. through_exam=False면 3장 평가(3-5) 바로 앞까지"""
+    done = ["%d-%d" % (c, i) for c in (1, 2, 3) for i in range(1, 6)]
+    if not through_exam:
+        done = done[:-1]
+    return {"saveVer": 1, "xp": 300, "yeopjeon": 50, "completed_lessons": done,
+            "current_lesson": "4-1" if through_exam else "3-5", "current_chapter": 4 if through_exam else 3,
+            "grading_results": {k: {"perfect": True, "attempts": 1} for k in done}}
+
+
+def _stall_intro_lines():
+    out = subprocess.run(["node", "-e", "import('./data/lines.js').then(m => console.log(JSON.stringify(m.LINES.stall_intro.map(l => l.text))))"],
+                         cwd=ROOT, capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout)
+
+
+def _to_stall(a):
+    a.page.click("#stall-go")
+    a.page.wait_for_selector("#app[data-screen=stall] .screen.stall")
+    a.page.wait_for_timeout(150)
+
+
+def _stall_measure(a, name, fails):
+    a.page.wait_for_timeout(120)
+    m = measure(a, name)
+    for p in m["problems"]:
+        fails.append("%s/%s: %s" % (a.device, name, p))
+    if m["small"]:
+        fails.append("%s/%s: small %s" % (a.device, name, m["small"]))
+    return m
+
+
+def test_stall_entrance():
+    sd = _stall_shot_dir()
+    # 3장 평가 전: 자물쇠와 안내, 눌러도 안 열림
+    with App("iPhone 17", save=_stall_seed(False), url=real_url()) as a:
+        a.start()
+        card = a.page.inner_text(".stall-card")
+        a.page.locator(".stall-card").scroll_into_view_if_needed()
+        a.shot("stall-entrance-locked.png")
+        assert "locked" in a.page.get_attribute(".stall-card", "class")
+        assert "3장 평가를 통과하면 열려요" in card, card
+        a.page.click("#stall-go", force=True)   # aria-disabled라 Playwright는 기다림: 사람처럼 그냥 누름
+        a.page.wait_for_timeout(300)
+        assert a.js("() => document.getElementById('app').dataset.screen") == "home"
+        assert "3장 평가를 통과하면 열려요" in a.page.inner_text("#toasts")
+        assert a.save().get("stall") is None
+        assert not a.errors, a.errors
+    # 3-5 통과: 열림, 처음 열면 소개 대사, 두 번째는 없음
+    intro = _stall_intro_lines()
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        assert "locked" not in a.page.get_attribute(".stall-card", "class")
+        a.page.locator(".stall-card").scroll_into_view_if_needed()
+        a.shot("stall-entrance-open.png")
+        _to_stall(a)
+        said = a.page.inner_text(".stall-say")
+        a.shot("stall-first-open.png", full=True)
+        shutil.copy(os.path.join(OUT, "stall-first-open.png"), os.path.join(sd, "stall-first-open.png"))
+        print("    intro: %s" % said)
+        assert said in intro, (said, intro)
+        s = a.save()["stall"]
+        assert s["opened"] is True and s["day"] == 1 and s["money"] == 100, s
+        assert "1일째" in a.page.inner_text(".stall-top")
+        a.page.click("#stall-close")
+        a.page.wait_for_selector(".screen.home")
+        assert "1일째" in a.page.inner_text(".stall-card")
+        _to_stall(a)
+        assert not a.page.query_selector(".stall-say")
+        assert not a.errors, a.errors
+
+
+SAW_REPLAY_JS = r"""() => { window.__sawReplay = false;
+  new MutationObserver(() => { if (document.querySelector('.replay')) window.__sawReplay = true; })
+    .observe(document.getElementById('app'), { childList: true, subtree: true }); }"""
+
+
+def test_stall_day():
+    sd = _stall_shot_dir()
+    fails = []
+    for dev in ["iPhone 17", "iPhone SE"]:
+        with App(dev, save=_stall_seed(True), url=real_url()) as a:
+            a.start()
+            _to_stall(a)
+            tag = slug(dev)
+            _stall_measure(a, "stall-idle", fails)
+            a.shot("stall-%s-idle.png" % tag, full=True)
+            before = a.save()
+            a.page.click("#open-day")
+            a.page.wait_for_selector(".replay .replay-log li", timeout=30_000)
+            a.page.wait_for_timeout(2600)   # 손님 몇 명이 오가게
+            _stall_measure(a, "stall-replay", fails)
+            a.page.wait_for_selector(".stall-svg .cust.in", timeout=10_000)
+            a.page.wait_for_timeout(380)   # 걸어 들어오는 0.32초
+            a.shot("stall-%s-replay.png" % tag)
+            mid = a.save()["stall"]
+            assert mid["day"] == 2, "saved before the replay ends: %s" % mid["day"]
+            a.page.click("#skip")
+            a.page.wait_for_selector(".settle")
+            settle = a.page.inner_text(".settle")
+            s = a.save()
+            st = s["stall"]
+            profit = st["last"]["summary"]["profit"]
+            print("    %s: day %s, profit %s, xp %s→%s, settle %r" % (dev, st["day"], profit, before["xp"], s["xp"], " ".join(settle.split())[:160]))
+            assert st["day"] == 2, st["day"]
+            assert "2일째" in settle, settle
+            assert ("%d냥" % abs(profit)) in settle, (profit, settle)
+            assert "의뢰 완료! XP +5" in settle, settle
+            assert s["xp"] - before["xp"] == 5, (before["xp"], s["xp"])
+            assert "r01" in st["order"]["done"], st["order"]
+            assert s["streak"]["todayXp"] >= 5, s["streak"]
+            last = a.page.inner_text(".last")
+            assert "재고 채우기" in last, last
+            assert "2일째" in a.page.inner_text(".stall-top")
+            _stall_measure(a, "stall-settle", fails)
+            a.js("() => window.scrollTo(0, 0)")   # 붙박이 윗줄이 전체 캡처 중간에 찍히지 않게
+            a.shot("stall-%s-settle.png" % tag, full=True)
+            for n in ("idle", "settle"):
+                shutil.copy(os.path.join(OUT, "stall-%s-%s.png" % (tag, n)), os.path.join(sd, "stall-%s-%s.png" % (tag, n)))
+            shutil.copy(os.path.join(OUT, "stall-%s-replay.png" % tag), os.path.join(sd, "stall-%s-replay.png" % tag))
+            # 칸 켜고 끄기(시작 칸 재고 채우기): 저장에 바로
+            a.page.click('[data-slot="restock"]')
+            assert a.save()["stall"]["slots"]["restock"]["on"] is False
+            assert a.page.get_attribute('[data-slot="restock"]', "aria-checked") == "false"
+            a.page.click('[data-slot="restock"]')
+            assert a.save()["stall"]["slots"]["restock"]["on"] is True
+            # 쓸 표 보기: 가게 장부 표 4개
+            a.page.click("#stall-tables")
+            a.page.wait_for_function("() => document.querySelectorAll('.tables-sheet .sql-result[data-filled]').length === 4", timeout=30_000)
+            sheet = a.page.inner_text(".tables-sheet")
+            assert "내 물건" in sheet and "인절미" in sheet and "단골 손님" in sheet, sheet[:300]
+            _stall_measure(a, "stall-tables", fails)
+            a.shot("stall-%s-tables.png" % tag)
+            a.page.click(".modal .btn.primary")
+            a.page.wait_for_selector(".modal", state="detached")
+            assert not a.errors, a.errors
+    # 움직임 줄이기: 재생 없이 정산 카드
+    with App("iPhone 17", save=_stall_seed(True), url=real_url(), reduced=True) as a:
+        a.start()
+        _to_stall(a)
+        a.js(SAW_REPLAY_JS)
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".settle", timeout=30_000)
+        saw = a.js("() => window.__sawReplay")
+        print("    reduced motion: replay shown = %s" % saw)
+        assert saw is False
+        assert a.save()["stall"]["day"] == 2
+        a.shot("stall-reduced-settle.png")
+        assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
+def test_stall_double_open():
+    # 두 번 빨리 누르기 → 하루는 한 번
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        a.js("() => { const b = document.querySelector('#open-day'); b.click(); b.click(); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); }")
+        a.page.wait_for_function("() => JSON.parse(localStorage.getItem('dueogi-sql-save')).stall.day >= 2", timeout=30_000)
+        a.page.wait_for_selector(".replay, .settle")
+        a.page.wait_for_timeout(800)
+        assert a.save()["stall"]["day"] == 2, a.save()["stall"]["day"]
+        if a.page.is_visible("#skip"):
+            a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        assert a.save()["stall"]["day"] == 2
+        assert not a.errors, a.errors
+    # 재생 중에 홈으로 나갔다 오기 → day 2 그대로, 오류 없음
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay .replay-log li", timeout=30_000)
+        a.page.wait_for_timeout(500)
+        a.page.click("#stall-close")
+        a.page.wait_for_selector(".screen.home")
+        a.page.wait_for_timeout(1500)
+        assert a.save()["stall"]["day"] == 2
+        _to_stall(a)
+        a.page.wait_for_timeout(1500)
+        assert a.save()["stall"]["day"] == 2
+        assert "2일째" in a.page.inner_text(".stall-top")
+        assert not a.page.query_selector(".replay")
+        assert a.page.is_enabled("#open-day")
+        assert not a.errors, a.errors
+    # 계산 중(저장 전)에 나갔다 오기 → 저장은 한 번, 돌아온 화면은 끝난 뒤 새 상태로
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        a.js("() => { document.querySelector('#open-day').click(); document.querySelector('#stall-close').click(); }")
+        a.page.wait_for_selector(".screen.home")
+        _to_stall(a)
+        a.page.wait_for_function("() => JSON.parse(localStorage.getItem('dueogi-sql-save')).stall.day >= 2", timeout=30_000)
+        a.page.wait_for_function("() => document.querySelector('.stall-top') && document.querySelector('.stall-top').innerText.includes('2일째')", timeout=10_000)
+        a.page.wait_for_timeout(800)
+        s = a.save()
+        assert s["stall"]["day"] == 2, s["stall"]["day"]
+        assert a.page.is_enabled("#open-day")
+        assert not a.errors, a.errors
+
+
 def _select(argv):
     """인자: 시험 이름(test_…) 또는 --only 이름(test_<이름> 또는 test_<이름>_… 모두). 없으면 전부"""
     names = [n for n, f in globals().items() if n.startswith("test_") and callable(f)]

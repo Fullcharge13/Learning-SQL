@@ -10,6 +10,7 @@ const SITUATIONS = [
   "course_done",
   "greet", "correct", "combo", "wrong", "running", "error", "hint",
   "lesson_done", "streak_up", "streak_broken", "outfit_bought", "welcome_back",
+  "stall_intro", "stall_request_done",   // v0.3 두억이의 가게
 ];
 const FACES = [...FACE_IDS];   // 두억이 표정 12가지(설계 §8-3)
 
@@ -44,7 +45,7 @@ test("no_repeat: rng가 항상 같은 칸을 가리켜도 직전 줄은 피함",
   assert.notEqual(r.index, 0);
 });
 
-test("all_situations: 13종 모두 3~5줄, 표정 이름이 두억이 12종 안에 있음", () => {
+test("all_situations: 15종 모두 3~5줄, 표정 이름이 두억이 12종 안에 있음", () => {
   assert.deepEqual(Object.keys(LINES).sort(), [...SITUATIONS].sort());
   for (const s of SITUATIONS) {
     assert.ok(LINES[s].length >= 3 && LINES[s].length <= 5, `${s} 줄 수 ${LINES[s].length}`);
@@ -210,6 +211,7 @@ test("faces: 상황마다 설계 §8-3의 표정 (정답 만세, 오답 놀람, 
     greet: "proud", correct: "cheer", combo: "wink", wrong: "surprise", running: "think", error: "surprise",
     hint: "think", lesson_done: "cheer", course_done: "swing", streak_up: "laugh", streak_broken: "cry",
     outfit_bought: "eat", welcome_back: "sleep",
+    stall_intro: "wink", stall_request_done: "cheer",   // v0.3 가게: 소개는 윙크, 의뢰 완료는 만세
   });
   for (const s of SITUATIONS) for (const l of LINES[s]) assert.equal(l.face, SITUATION_FACE[s], `${s}: ${l.text}`);
   assert.ok(FACE_IDS.includes(FALLBACK_LINE.face));

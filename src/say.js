@@ -67,6 +67,8 @@ export const SITUATION_FACE = Object.freeze({
   streak_broken: "cry",    // 연속 기록 끊김
   outfit_bought: "eat",    // 의상실
   welcome_back: "sleep",   // 오랜만의 접속
+  stall_intro: "wink",     // 두억이의 가게를 처음 열 때(v0.3)
+  stall_request_done: "cheer", // 가게 의뢰 완료(v0.3)
 });
 
 /** 대사 없이 화면이 직접 고르는 표정 */
