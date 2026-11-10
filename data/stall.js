@@ -11,10 +11,11 @@ export const SHELF = 4;             // 진열대 칸
 export const SHELF_BIG = 6;         // 넓은 진열대
 export const REGULARS = 20;         // 단골 수
 export const REGULARS_BIG = 30;     // 단골 늘리기 뒤
+export const CUSTOMER_RATE = 0.8; // 오늘 손님 = floor(단골 × 이 값) + 간판 + 난수 0~3 (작업 6에서 data로 옮김)
 export const SIGN_BONUS = 2;        // 간판: 손님 +2
 export const DISCOUNT = 0.8;        // 할인: 값 × 0.8
 export const DISCOUNT_POP = 1.6;    // 할인: 인기 × 1.6
-export const TREND_POP = 2;         // 오늘의 인기: 인기 × 2
+export const TREND_POP = 4;         // 오늘의 인기: 인기 × 4
 export const TREND_DAYS = 3;        // 오늘의 인기는 3일마다 바뀜
 export const KEEP_DAYS = 3;         // 장부에 두는 주문: 최근 3일
 export const LOG_DAYS = 7;          // 저장해 두는 하루 기록: 최근 7일
@@ -29,7 +30,7 @@ export const ITEMS = [
   { item_id: 4, name: "엿", category: "먹거리", price: 4, cost: 2, stock: 10, pop: 3 },
   { item_id: 5, name: "짚신", category: "잡화", price: 12, cost: 7, stock: 3, pop: 2 },
   { item_id: 6, name: "부채", category: "잡화", price: 10, cost: 6, stock: 5, pop: 2 },
-  { item_id: 7, name: "꿀떡", category: "먹거리", price: null, std: 8, cost: 4, stock: 10, pop: 4, upgrade: "newitems" },
+  { item_id: 7, name: "꿀떡", category: "먹거리", price: null, std: 8, cost: 4, stock: 10, pop: 10, upgrade: "newitems" },
   { item_id: 8, name: "한지", category: "잡화", price: null, std: 11, cost: 5, stock: 10, pop: 2, upgrade: "newitems" },
 ];
 
@@ -73,7 +74,7 @@ export const UPGRADES = [
   { id: "newitems", name: "새 물건", desc: "꿀떡과 한지가 값이 빈칸인 채로 들어와요", price: 200 },
   { id: "cart", name: "큰 수레", desc: "수레 삯이 2냥에서 1냥으로 줄어요", price: 250 },
   { id: "shelf", name: "넓은 진열대", desc: "진열 칸이 4칸에서 6칸으로 늘어요", price: 300 },
-  { id: "regulars", name: "단골 늘리기", desc: "단골이 20명에서 30명으로 늘어요", price: 400 },
+  { id: "regulars", name: "단골 늘리기", desc: "단골이 20명에서 30명으로 늘어요", price: 350 },
 ];
 
 // --- 자동화 칸 (설계 §3-1). 배열 순서 = 하루의 실행 순서. frame: where = SELECT name FROM items WHERE {where},
@@ -167,16 +168,16 @@ export const REQUESTS = [
     solution: { restock: where(k("col_stock"), k("op_lt"), n(4)) },
   },
   {
-    id: "r02", need: 3, from: "주막 아주머니 달래", xp: 5, withinDays: 4,
-    line: "어제 식혜가 동나서 그냥 돌아왔지 뭐야. 이틀 내리 다 팔려서 못 사는 손님이 없게 해 줄래? 숫자를 조금 올려 봐. (진열대에 못 올라 돌아가는 손님은 세지 않을게)",
+    id: "r02", need: 3, from: "주막 아주머니 달래", xp: 5, withinDays: 6,
+    line: "어제 식혜가 동나서 그냥 돌아왔지 뭐야. 이틀 내리 다 팔려서 못 사는 손님이 없게 해 줄래? 숫자를 넉넉히 올려 봐. (진열대에 못 올라 돌아가는 손님은 세지 않을게)",
     goal: { type: "no_miss", days: 2 },
-    solution: { restock: where(k("col_stock"), k("op_lt"), n(5)) },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(12)) },
   },
   {
-    id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 6,
+    id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 8,
     line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 다 팔려서 못 사는 손님은 없게 이틀만 해 보게.",
     goal: { type: "cart_max", fee: 6, days: 2 },
-    solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(10)) },
   },
   {
     id: "r04", need: 3, from: "두억이", xp: 5, withinDays: 6,
@@ -188,7 +189,7 @@ export const REQUESTS = [
     id: "r05", need: 4, from: "옆 좌판 짚신 장수 덕보", xp: 5, withinDays: 1,
     line: "재고가 잔뜩 쌓인 먹거리는 깎아서 빨리 파는 게 좋아. AND로 조건 두 개를 묶어 할인 칸에 넣어 봐.",
     goal: { type: "slot_ok", slot: "discount" },
-    solution: { discount: where(k("col_stock"), k("op_gt"), n(15), k("kw_and"), k("col_category"), k("op_eq"), k("str_food")) },
+    solution: { discount: where(k("col_stock"), k("op_gt"), n(25), k("kw_and"), k("col_category"), k("op_eq"), k("str_food")) },
   },
   {
     id: "r06", need: 4, from: "두억이", xp: 5, withinDays: 20,
@@ -215,7 +216,7 @@ export const REQUESTS = [
     solution: {},
   },
   {
-    id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 4,
+    id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 6,
     line: "꿀떡에 값이 없어서 못 샀어요! 값이 빈칸인 물건은 IS NULL로 찾을 수 있대요. 값이 없거나 다 팔려서 못 사고 가는 일이 이틀 동안 없게 해 줘요. (진열대에 안 보여서 못 사는 건 괜찮아요)",
     goal: { type: "no_miss", days: 2 },
     solution: { pricing: where(k("col_price"), k("kw_isnull")) },

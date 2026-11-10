@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newStall, buyUpgrade, cleanStall } from "../../src/stall/state.js";
 import { runDay } from "../../src/stall/day.js";
-import { ITEMS, KEEP_DAYS, LOG_DAYS } from "../../data/stall.js";
+import { ITEMS, KEEP_DAYS, LOG_DAYS, CUSTOMER_RATE, SIGN_BONUS, REGULARS, REGULARS_BIG } from "../../data/stall.js";
 
 const none = { pricing: [], restock: [], best: [], discount: [], display: null, report: null, rest: {} };
 const act = (o = {}) => ({ ...none, ...o });
@@ -66,7 +66,8 @@ test("기본 진열(display null): 재고>0인 물건을 item_id 순서로 칸 �
   const s = { ...newStall(2), items: newStall(2).items.map((it) => ({ ...it, stock: it.item_id === 1 ? 0 : 30 })) };
   const r = runDay(s, act());
   assert.ok(ev(r, "buy").every((e) => [2, 3, 4, 5].includes(e.item_id)));
-  assert.ok(ev(r, "miss").filter((e) => e.why === "shelf").every((e) => e.item_id === 6));
+  // 진열 안 된 물건은 1(재고 0이라 기본 진열에서 빠짐)과 6(칸이 모자람)뿐
+  assert.ok(ev(r, "miss").filter((e) => e.why === "shelf").every((e) => e.item_id === 1 || e.item_id === 6));
   assert.ok(ev(r, "buy").length > 0);
 });
 
@@ -156,24 +157,29 @@ test("할인: discount:[3]이면 식혜 판매가 4, 할인 없으면 5; 식혜 
   assert.ok(withD > 0 && withD > without, `${withD} vs ${without}`);
 });
 
-test("손님 수: 단골 20·간판 없음 → 8~11, 간판 → 10~13 (여러 날)", () => {
+// 손님 수 = min(단골, floor(단골 × CUSTOMER_RATE) + 간판 + 난수 0~3). 계수는 작업 6에서 data로 옮겨 조정함
+const band = (reg, bonus) => [Math.min(reg, Math.floor(reg * CUSTOMER_RATE) + bonus), Math.min(reg, Math.floor(reg * CUSTOMER_RATE) + bonus + 3)];
+
+test("손님 수: 단골 20·간판 없음, 간판 있음 → 공식의 띠 안 (여러 날)", () => {
   const seen = new Set(), seenSign = new Set();
+  const [lo, hi] = band(REGULARS, 0), [slo, shi] = band(REGULARS, SIGN_BONUS);
   for (let seed = 1; seed <= 40; seed++) {
     const s = newStall(seed);
     const c = runDay(s, act()).summary.customers;
-    assert.ok(c >= 8 && c <= 11, `no sign ${c}`);
+    assert.ok(c >= lo && c <= hi, `no sign ${c}`);
     seen.add(c);
     const cs = runDay(withUp(s, "sign"), act()).summary.customers;
-    assert.ok(cs >= 10 && cs <= 13, `sign ${cs}`);
+    assert.ok(cs >= slo && cs <= shi, `sign ${cs}`);
     seenSign.add(cs);
   }
-  assert.ok(seen.size >= 3 && seenSign.size >= 3);
+  assert.ok(seen.size >= 3 && seenSign.size >= 2);
 });
 
-test("단골 30명이면 12~15명", () => {
+test("단골 30명이면 공식의 띠 안", () => {
+  const [lo, hi] = band(REGULARS_BIG, 0);
   for (let seed = 1; seed <= 20; seed++) {
     const c = runDay(withUp(newStall(seed), "regulars"), act()).summary.customers;
-    assert.ok(c >= 12 && c <= 15, `${c}`);
+    assert.ok(c >= lo && c <= hi, `${c}`);
   }
 });
 

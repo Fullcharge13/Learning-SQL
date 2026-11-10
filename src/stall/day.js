@@ -2,7 +2,7 @@
 // 난수는 rngFor(씨앗, 날짜)만 쓴다(Math.random 금지). 설계 docs/specs/2026-11-11-두억이의-가게-설계.md §2-2, §2-3.
 import {
   ITEMS, STOCK_MAX, CRATE, CART_FEE, CART_FEE_BIG, DISCOUNT, DISCOUNT_POP, TREND_POP, TREND_DAYS,
-  KEEP_DAYS, LOG_DAYS, MONEY_MAX, SIGN_BONUS,
+  KEEP_DAYS, LOG_DAYS, MONEY_MAX, SIGN_BONUS, CUSTOMER_RATE,
 } from "../../data/stall.js";
 import { rngFor } from "./rng.js";
 
@@ -95,7 +95,7 @@ export function runDay(stall, actions) {
   // 6) 손님
   const rng = rngFor(next.seed, day);
   const regulars = next.regulars;
-  const count = Math.min(regulars, Math.floor(regulars * 0.4) + (next.upgrades.includes("sign") ? SIGN_BONUS : 0) + Math.floor(rng() * 4));
+  const count = Math.min(regulars, Math.floor(regulars * CUSTOMER_RATE) + (next.upgrades.includes("sign") ? SIGN_BONUS : 0) + Math.floor(rng() * 4));
   const weights = sorted.map((it) => DEF.get(it.item_id).pop * (onSale.has(it.item_id) ? DISCOUNT_POP : 1) * (it.item_id === trendId ? TREND_POP : 1));
   const totalW = weights.reduce((x, y) => x + y, 0);
   const pool = Array.from({ length: regulars }, (_, i) => i + 1); // 손님 번호 1..단골 수, 하루에 한 번씩만
