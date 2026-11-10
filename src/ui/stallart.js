@@ -12,13 +12,14 @@ const UPGRADE = new Map(UPGRADES.map((u) => [u.id, u]));
 export const itemName = (id) => (ITEM.has(id) ? ITEM.get(id).name : `물건 ${id}`);
 export const customerName = (id) => (CUSTOMER.has(id) ? CUSTOMER.get(id).name : "손님");
 export const slotName = (id) => (SLOT.has(id) ? SLOT.get(id).name : id);
-const names = (ids) => (ids || []).map(itemName).join("·");
+const idList = (v) => (Array.isArray(v) ? v : []); // 가져온 저장의 이상한 값에도 깨지지 않게
+const names = (ids) => idList(ids).map(itemName).join("·");
 const won = (n) => `${Number(n) || 0}냥`;
 /** 이익처럼 음수가 될 수 있는 냥: 음수는 「−7냥」 */
 const signedWon = (n) => (Number(n) < 0 ? `−${Math.abs(Number(n))}냥` : won(n));
 
 // 받침에 따라 「으로/로」(ㄹ 받침은 「로」)
-function ro(word) {
+export function ro(word) {
   const c = String(word).charCodeAt(String(word).length - 1) - 0xac00;
   if (c < 0 || c > 11171) return `${word}로`;
   const jong = c % 28;
@@ -109,8 +110,8 @@ export function summaryRows(s) {
 /** 어제 장부의 칸별 줄: 지금 켜진 칸만 */
 export function lastLines(last, stall) {
   if (!last || typeof last !== "object") return [];
-  const sl = last.slots || {};
-  const rested = last.rested || {};
+  const sl = last.slots && typeof last.slots === "object" ? last.slots : {};
+  const rested = last.rested && typeof last.rested === "object" ? last.rested : {};
   const out = [];
   for (const def of SLOTS) {
     const st = stall && stall.slots && stall.slots[def.id];
@@ -118,8 +119,8 @@ export function lastLines(last, stall) {
     const head = `${def.name}: `;
     if (Object.hasOwn(rested, def.id)) { out.push(`${head}쉼 — ${restReason(rested[def.id])}`); continue; }
     const r = sl[def.id];
-    if (!r) { out.push(`${head}어제는 돌지 않았어요`); continue; }
-    const ids = r.ids || [];
+    if (!r || typeof r !== "object") { out.push(`${head}어제는 돌지 않았어요`); continue; }
+    const ids = idList(r.ids);
     if (def.id === "report") { out.push(`${head}${r.value === null || r.value === undefined ? "빈 값" : String(r.value)}`); continue; }
     if (!ids.length) { out.push(`${head}찾은 물건이 없었어요`); continue; }
     if (def.id === "restock" || def.id === "best") {
@@ -156,7 +157,7 @@ const BOX_X0 = 22, BOX_X1 = 262, BOX_Y0 = 58, BOX_GAP = 6, BOX_H = 44;
 /** 진열대에 올라갈 물건 번호(칸 수만큼, 빈 칸은 null). ids가 없으면 물건 번호 순 */
 function shelfCells(stall, ids) {
   const n = stall.shelf === 8 ? 8 : 6;
-  const list = ids || [...stall.items].sort((a, b) => a.item_id - b.item_id).map((it) => it.item_id);
+  const list = Array.isArray(ids) ? ids : [...stall.items].sort((a, b) => a.item_id - b.item_id).map((it) => it.item_id);
   return Array.from({ length: n }, (_, i) => (i < list.length ? list[i] : null));
 }
 

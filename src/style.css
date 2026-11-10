@@ -793,10 +793,11 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 .stall-svg .cust[data-kind="여우"] .cust-ears { display: inline; }
 .stall-dueogi { position: absolute; right: 2%; bottom: 3%; width: 21%; line-height: 0; }
 .stall-dueogi svg { width: 100%; height: auto; }
+/* 손님 말풍선: 판대 위, 손님 머리 오른쪽(차양의 「두억이네」 간판을 가리지 않게). 두억이(오른쪽 21%) 앞에서 멈춤 */
 .cust-bubble {
-  position: absolute; left: 4%; top: 2%; max-width: 62%; margin: 0;
-  background: var(--card); border: 2px solid var(--ink); border-radius: 14px 14px 14px 4px;
-  padding: 6px 10px; font-size: .9rem; font-weight: 800; line-height: 1.35; box-shadow: 2px 2px 0 rgba(34, 48, 74, .15);
+  position: absolute; left: 34%; top: 71%; max-width: 44%; margin: 0;
+  background: var(--card); border: 2px solid var(--ink); border-radius: 4px 14px 14px 14px;
+  padding: 4px 9px; font-size: .85rem; font-weight: 800; line-height: 1.3; box-shadow: 2px 2px 0 rgba(34, 48, 74, .15);
 }
 .cust-bubble[data-kind="miss"] { background: var(--coral-soft); }
 .open-day { min-height: 56px; font-size: 1.12rem; }

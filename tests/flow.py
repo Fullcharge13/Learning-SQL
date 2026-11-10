@@ -2581,9 +2581,15 @@ def test_stall_day():
             a.shot("stall-%s-replay.png" % tag)
             mid = a.save()["stall"]
             assert mid["day"] == 2, "saved before the replay ends: %s" % mid["day"]
+            # 재생 중에는 결과를 미리 보이지 않음: 게시판은 아침의 의뢰(r01), 어제 장부 없음(첫날), 윗줄은 1일째
+            assert "재고 채우기 칸이 열렸어" in a.page.inner_text(".req-line")
+            assert not a.page.query_selector(".last") and not a.page.query_selector(".req-done")
+            assert "1일째" in a.page.inner_text(".stall-top")
+            assert a.page.get_attribute(".replay-log", "aria-live") is None
             a.page.click("#skip")
             a.page.wait_for_selector(".settle")
             settle = a.page.inner_text(".settle")
+            assert a.page.get_attribute(".settle", "aria-live") == "polite"
             s = a.save()
             st = s["stall"]
             profit = st["last"]["summary"]["profit"]
@@ -2636,54 +2642,109 @@ def test_stall_day():
     assert not fails, "\n".join(fails)
 
 
+def _stall_once(a, before_xp):
+    """하루가 한 번만 지났는가: day 2, 첫 의뢰 하나, XP +5 한 번"""
+    s = a.save()
+    assert s["stall"]["day"] == 2, s["stall"]["day"]
+    assert s["stall"]["order"]["done"] == ["r01"], s["stall"]["order"]
+    assert s["xp"] == before_xp + 5, (before_xp, s["xp"])
+
+
 def test_stall_double_open():
     # 두 번 빨리 누르기 → 하루는 한 번
     with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
         a.start()
         _to_stall(a)
+        xp0 = a.save()["xp"]
         a.js("() => { const b = document.querySelector('#open-day'); b.click(); b.click(); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); }")
         a.page.wait_for_function("() => JSON.parse(localStorage.getItem('dueogi-sql-save')).stall.day >= 2", timeout=30_000)
         a.page.wait_for_selector(".replay, .settle")
         a.page.wait_for_timeout(800)
-        assert a.save()["stall"]["day"] == 2, a.save()["stall"]["day"]
+        _stall_once(a, xp0)
         if a.page.is_visible("#skip"):
             a.page.click("#skip")
         a.page.wait_for_selector(".settle")
-        assert a.save()["stall"]["day"] == 2
+        _stall_once(a, xp0)
         assert not a.errors, a.errors
     # 재생 중에 홈으로 나갔다 오기 → day 2 그대로, 오류 없음
     with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
         a.start()
         _to_stall(a)
+        xp0 = a.save()["xp"]
         a.page.click("#open-day")
         a.page.wait_for_selector(".replay .replay-log li", timeout=30_000)
         a.page.wait_for_timeout(500)
         a.page.click("#stall-close")
         a.page.wait_for_selector(".screen.home")
         a.page.wait_for_timeout(1500)
-        assert a.save()["stall"]["day"] == 2
+        _stall_once(a, xp0)
         _to_stall(a)
         a.page.wait_for_timeout(1500)
-        assert a.save()["stall"]["day"] == 2
+        _stall_once(a, xp0)
         assert "2일째" in a.page.inner_text(".stall-top")
         assert not a.page.query_selector(".replay")
         assert a.page.is_enabled("#open-day")
         assert not a.errors, a.errors
-    # 계산 중(저장 전)에 나갔다 오기 → 저장은 한 번, 돌아온 화면은 끝난 뒤 새 상태로
+    # 계산 중(저장 전)에 나갔다 오기 → 저장은 한 번, 돌아온 화면은 끝난 뒤 새 상태로 + 의뢰 완료 알림
     with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
         a.start()
         _to_stall(a)
+        xp0 = a.save()["xp"]
         a.js("() => { document.querySelector('#open-day').click(); document.querySelector('#stall-close').click(); }")
         a.page.wait_for_selector(".screen.home")
         _to_stall(a)
         a.page.wait_for_function("() => JSON.parse(localStorage.getItem('dueogi-sql-save')).stall.day >= 2", timeout=30_000)
         a.page.wait_for_function("() => document.querySelector('.stall-top') && document.querySelector('.stall-top').innerText.includes('2일째')", timeout=10_000)
         a.page.wait_for_timeout(800)
-        s = a.save()
-        assert s["stall"]["day"] == 2, s["stall"]["day"]
+        _stall_once(a, xp0)
         assert a.page.is_enabled("#open-day")
+        assert "의뢰 완료! XP +5" in a.page.inner_text("#toasts")
         assert not a.errors, a.errors
 
+
+TIMEOUT_TEXT = "오늘은 장부 셈이 너무 오래 걸려 칸들이 쉬었어요"
+
+
+def test_stall_engine_fail():
+    # 실행기를 못 받음(load): 하루가 지나지 않고, XP 그대로, 안내, 단추가 다시 켜짐
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        xp0 = a.save()["xp"]
+        a.js("() => { window.__dueogi.ctx.sql.runLedger = async () => ({ results: [], error: 'load', timeout: false }); }")
+        a.page.click("#open-day")
+        a.page.wait_for_function("() => (document.getElementById('toasts') || {}).innerText && document.getElementById('toasts').innerText.includes('실행기 준비 중이에요')", timeout=10_000)
+        a.page.wait_for_selector("#open-day:not([disabled])")
+        s = a.save()
+        print("    load: day %s, xp %s, toast %r" % (s["stall"]["day"], s["xp"], a.page.inner_text("#toasts")))
+        assert s["stall"]["day"] == 1 and s["xp"] == xp0, (s["stall"]["day"], s["xp"])
+        assert s["stall"]["order"]["done"] == []
+        assert not a.page.query_selector(".replay, .settle")
+        assert "1일째" in a.page.inner_text(".stall-top")
+        a.errors = [e for e in a.errors if "장 열기 실패" not in e]
+        assert not a.errors, a.errors
+    # 묶음 전체 시간 초과: 하루는 지나고, 쉰 칸 줄은 하나(어느 칸 탓도 하지 않음)
+    with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        xp0 = a.save()["xp"]
+        a.js("() => { window.__dueogi.ctx.sql.runLedger = async () => ({ results: [], error: 'timeout', timeout: true }); }")
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay-log li.rest", timeout=30_000)
+        a.page.wait_for_timeout(1200)
+        rest = a.js("() => [...document.querySelectorAll('.replay-log li.rest')].map((li) => li.textContent)")
+        log = a.page.inner_text(".replay-log")
+        print("    timeout: rest lines %s" % rest)
+        assert rest == [TIMEOUT_TEXT], rest
+        assert "재고 채우기" not in log, log
+        a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        s = a.save()
+        assert s["stall"]["day"] == 2, s["stall"]["day"]
+        assert s["xp"] == xp0 and s["stall"]["order"]["done"] == [], (s["xp"], s["stall"]["order"])   # 칸이 쉬어 첫 의뢰는 아직
+        last = a.page.inner_text(".last")
+        assert "장부 셈이 너무 오래 걸렸어요" in last and "ON" not in last, last
+        assert not a.errors, a.errors
 
 def _select(argv):
     """인자: 시험 이름(test_…) 또는 --only 이름(test_<이름> 또는 test_<이름>_… 모두). 없으면 전부"""

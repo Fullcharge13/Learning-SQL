@@ -14,12 +14,13 @@ import { esc, escCode, icon, toast, celebrate } from "./dom.js";
 import { openTables } from "./tables.js";
 import { stallSVG, playReplay, summaryRows, lastLines, requestProgress, itemName } from "./stallart.js";
 
-export { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, restLines, TIMEOUT_LINE } from "./stallart.js";
+export { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, restLines, TIMEOUT_LINE, ro } from "./stallart.js";
 
 export const ENGINE_WAIT = "실행기 준비 중이에요. 잠시 뒤에 다시 눌러 주세요.";
 const REPLAY_STEP = 750;   // 손님 한 명(ms)
 
 let inflight = null;       // 하루 계산 중인 약속(화면을 다시 그려도 하나)
+let missedDone = [];       // 계산 중에 화면을 떠났을 때 끝낸 의뢰: 돌아오면 알림으로 알림
 
 function reducedMotion() {
   try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
@@ -141,7 +142,7 @@ export function render(root, ctx) {
     if (!day) return "";
     const s = day.summary;
     const done = day.completed.map((r) => `<p class="req-done">${icon("check")}의뢰 완료! XP +${esc(r.xp)}</p>`).join("");
-    return `<section class="panel settle" aria-labelledby="settle-title" data-autofocus>
+    return `<section class="panel settle" aria-labelledby="settle-title" role="status" aria-live="polite">
       <h2 id="settle-title">${esc(s.day)}일째 정산</h2>
       ${rowsHTML(s)}
       ${s.trend ? `<p class="settle-trend">오늘의 인기: ${esc(itemName(s.trend))}</p>` : ""}
@@ -162,15 +163,15 @@ export function render(root, ctx) {
         ${artHTML(showing, artOpts)}
         ${view === "replay" ? `<section class="panel replay" aria-labelledby="replay-title">
             <h2 id="replay-title">${esc(day.before.day)}일째 장사 중</h2>
-            <ol class="replay-log" aria-live="polite"></ol>
+            <ol class="replay-log"></ol>
             <button class="btn ghost wide" id="skip">건너뛰기</button>
           </section>`
           : `<button class="btn sun wide open-day" id="open-day"${busy ? " disabled" : ""}>${icon("play")}<span>${inflight ? "장 여는 중…" : "장 열기"}</span></button>`}
         ${view === "settle" ? settleHTML() : ""}
-        ${requestHTML(stall())}
+        ${requestHTML(showing)}
         ${slotsHTML(stall(), busy)}
-        ${lastHTML(stall())}
-        ${upgradesHTML(stall(), busy)}
+        ${lastHTML(showing)}
+        ${upgradesHTML(showing, busy)}
         <button class="btn ghost wide" id="stall-tables">${icon("table")}<span>쓸 표 보기</span></button>
       </main>
     </div>`;
@@ -208,7 +209,7 @@ export function render(root, ctx) {
     const r = buyUpgrade(stall(), id);
     if (!r.ok) { toast(r.reason === "money" ? "가게 돈이 모자라요" : "살 수 없어요"); return; }
     const c = checkUpgradeNow(r.stall, ctx.stallPassed());
-    ctx.stallCommit(c.stall, c.completed);
+    const saved = ctx.stallCommit(c.stall, c.completed);
     ctx.sound.play("buy");
     const u = UPGRADES.find((x) => x.id === id);
     toast(`${u ? u.name : "성장"}을 들였어요`);
@@ -218,6 +219,7 @@ export function render(root, ctx) {
     }
     if (view === "settle") view = "idle";
     paint();
+    if (saved.milestone) celebrate({ outfit: ctx.save.outfit, milestone: saved.milestone });
   }
 
   async function openDay() {
@@ -243,7 +245,10 @@ export function render(root, ctx) {
     paint();
     let out = null, failed = false;
     try { out = await job; } catch (e) { console.warn("장 열기 실패:", e); failed = true; } finally { inflight = null; }
-    if (!alive) return;
+    if (!alive) {
+      if (out && out.completed.length) missedDone = out.completed;   // 돌아온 화면이 알린다
+      return;
+    }
     if (failed) { toast(ENGINE_WAIT); paint(); return; }
     if (!out) { paint(); return; }
     day = out;
@@ -275,9 +280,18 @@ export function render(root, ctx) {
     if (day && day.milestone) celebrate({ outfit: ctx.save.outfit, milestone: day.milestone });
   }
 
+  // 계산 중에 떠났던 하루가 의뢰를 끝냈으면 돌아와서 알린다
+  function noticeMissed() {
+    if (!alive || !missedDone.length) return;
+    const xp = missedDone.reduce((n, q) => n + q.xp, 0);
+    missedDone = [];
+    toast(`의뢰 완료! XP +${xp}`);
+  }
+
   paint();
+  noticeMissed();
   // 다른 판의 이 화면이 하루를 계산하는 중이면 끝난 뒤 새 상태로 다시 그린다
-  if (inflight) inflight.then(() => paint(), () => paint());
+  if (inflight) inflight.then(() => { paint(); noticeMissed(); }, () => paint());
   return () => {
     alive = false;
     if (replay) { replay.stop(); replay = null; }

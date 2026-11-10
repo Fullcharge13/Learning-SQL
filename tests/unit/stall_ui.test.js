@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { REQUESTS } from "../../data/stall.js";
 import { newStall } from "../../src/stall/state.js";
-import { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, TIMEOUT_LINE, restLines } from "../../src/ui/stall.js";
+import { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, TIMEOUT_LINE, restLines, ro } from "../../src/ui/stall.js";
 import { explain } from "../../src/grade.js";
 
 const sum = (o = {}) => ({ day: 1, customers: 9, sold: 8, missed: 2, missBy: { shelf: 1, stock: 1, price: 0 }, lost: 11, revenue: 50, bought: 10, fees: 4, profit: 36, report: null, rest: {}, trend: 2, ...o });
@@ -102,4 +102,33 @@ test("requestProgress: 허탕 없는 날은 다 팔림·값 없음만 센다는 
   assert.match(requestProgress(r01, s), /재고 채우기/);
   const r06 = REQUESTS.find((r) => r.id === "r06");
   assert.match(requestProgress(r06, s), /간판/);
+});
+
+test("bubbleText: 사기 — 찾던 물건 대신(want_item), 모자란 개수(want > qty), 보통", () => {
+  assert.equal(bubbleText({ t: "buy", customer_id: 1, item_id: 4, qty: 1, want: 1, want_item: 2 }), "그럼 엿으로 할게요");
+  assert.equal(bubbleText({ t: "buy", customer_id: 1, item_id: 3, qty: 1, want: 1, want_item: 2 }), "그럼 식혜로 할게요");
+  assert.equal(bubbleText({ t: "buy", customer_id: 1, item_id: 3, qty: 1, want: 2 }), "1개만 남았네");
+  assert.equal(bubbleText({ t: "buy", customer_id: 1, item_id: 1, qty: 2, want: 2 }), "인절미 2개 주세요");
+});
+
+test("ro: 받침 없음·ㄹ 받침은 「로」, 다른 받침은 「으로」, 한글 아님은 「로」", () => {
+  assert.equal(ro("식혜"), "식혜로");
+  assert.equal(ro("엿"), "엿으로");
+  assert.equal(ro("꿀떡"), "꿀떡으로");
+  assert.equal(ro("물"), "물로");      // ㄹ 받침
+  assert.equal(ro("한지"), "한지로");
+  assert.equal(ro("abc"), "abc로");
+});
+
+test("lastLines: 가져온 저장의 이상한 ids(글자·숫자·객체·null)에도 깨지지 않음", () => {
+  const s = newStall(1);
+  for (const k of ["pricing", "discount", "display", "best"]) s.slots[k] = { on: true, mode: "frame", parts: {} };
+  for (const junk of ["식혜", 3, { a: 1 }, null, undefined]) {
+    const last = { summary: sum(), slots: { pricing: { ids: junk }, restock: { ids: junk, n: 10, fee: 2 }, best: { ids: junk }, discount: { ids: junk }, display: { ids: junk } }, rested: {} };
+    const lines = lastLines(last, s);
+    assert.ok(Array.isArray(lines) && lines.length >= 5, String(junk));
+    for (const l of lines) assert.equal(typeof l, "string");
+  }
+  // slots 자체가 이상해도
+  assert.ok(Array.isArray(lastLines({ summary: sum(), slots: "x", rested: 5 }, s)));
 });
