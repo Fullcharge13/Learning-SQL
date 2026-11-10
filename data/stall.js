@@ -200,7 +200,7 @@ export const REQUESTS = [
   },
   {
     id: "r07", need: 5, from: "꼬마 손님 콩이", xp: 5, withinDays: 1,
-    line: "진열대에 뭐가 먼저 올라가요? ORDER BY로 순서를 정하고 LIMIT으로 몇 칸 올릴지 정해 봐요. 진열대는 6칸이에요(넓은 진열대를 들이면 8칸).",
+    line: "진열대에 뭐가 먼저 올라가요? ORDER BY로 순서를 정하고 LIMIT으로 몇 칸 올릴지 정해 봐요. 진열대는 6칸이에요(넓은 진열대를 들이면 8칸). 순서를 바꿔 가며 어제 장부의 이익을 비교해 봐요.",
     goal: { type: "slot_ok", slot: "display" },
     solution: { display: { mode: "frame", parts: { order: [k("col_stock"), k("kw_desc")], limit: [n(6)] } } },
   },

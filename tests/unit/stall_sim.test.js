@@ -62,9 +62,10 @@ test("judge: 목표 밖 값에 NG", () => {
   assert.ok(bad({ slots: { display: { dProfit: 0.01, dMiss: 0.01 } } }).length); // 반올림 잡음 수준은 효과로 안 침
   assert.equal(bad({ slots: { report: { dProfit: 0, dMiss: 0 } } }).length, 0); // 하루 보고는 판정 제외
   // 진열하기: 40일 전체가 0 이하여도 넓은 진열대 전 날들이 양수면 OK(그렇게 판정했다고 밝힘), 둘 다 아니면 NG
-  const pre = judge({ ...okStats(), slots: { display: { dProfit: -0.6, dMiss: -0.3, pre: { dProfit: 1.2, dMiss: 0, runs: 12 } } } });
-  assert.ok(pre.every((l) => l.ok) && pre.some((l) => /넓은 진열대를 사기 전/.test(l.text)));
-  assert.ok(bad({ slots: { display: { dProfit: -0.6, dMiss: -0.3, pre: { dProfit: -0.2, dMiss: 0, runs: 12 } } } }).length);
+  // 판정 S12: 진열하기는 「켜면 결과가 달라짐」(차이 크기) — 손해여도 차이가 크면 OK, 차이가 거의 없으면 NG
+  const moved = judge({ ...okStats(), slots: { display: { dProfit: -0.6, dMiss: -0.3 } } });
+  assert.ok(moved.every((l) => l.ok) && moved.some((l) => /결과가 달라짐/.test(l.text)));
+  assert.ok(bad({ slots: { display: { dProfit: 0.1, dMiss: 0.05 } } }).length);
   assert.ok(bad({ having: [{ n: 4, profit: 40 }, { n: 12, profit: 35 }, { n: 20, profit: 30 }] }).length); // 기준이 낮을수록 좋기만 함
   const lines = judge({ ...okStats(), good: { profit: 50, miss: 1 } });
   assert.ok(lines.some((l) => !l.ok && /NG/.test(l.text)));

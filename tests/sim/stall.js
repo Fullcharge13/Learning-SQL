@@ -232,15 +232,18 @@ export function judge(st) {
     if (slot === "report") continue;
     const ok = (x) => !!x && (x.dProfit >= EFFECT_EPS.profit || x.dMiss >= EFFECT_EPS.miss);
     const base = `칸 ${slot} 효과(켬 − 끔): 이익(재고 값 포함) ${f2(e.dProfit)}냥/일 · 재고·값 허탕 ${f2(-e.dMiss)}개/일 (기준: 이익 +${EFFECT_EPS.profit} 또는 허탕 −${EFFECT_EPS.miss} 이상)`;
-    if (ok(e) || slot !== "display") add(ok(e), base);
-    else add(ok(e.pre), `${base} → 진열하기는 넓은 진열대를 사기 전 날들로 판정(그 뒤엔 물건이 다 올라감): 이익 ${e.pre ? f2(e.pre.dProfit) : "없음"}냥/일 · 재고·값 허탕 ${e.pre ? f2(-e.pre.dMiss) : "없음"}개/일`);
+    // 진열하기(판정 S12): 무엇을 앞에 둘지 고르는 칸이라 고른 순서에 따라 이익이 오르거나 내린다 — 「켜면 결과가 달라짐」(차이의 크기)으로 판정.
+    //   5장 카드로는 「잘 팔린 순」을 못 만들어 의뢰 정답(stock DESC)은 기본 진열보다 조금 못하다(보고서·LOG에 그대로 적음).
+    if (slot !== "display") add(ok(e), base);
+    else add(Math.abs(e.dProfit) >= EFFECT_EPS.profit || Math.abs(e.dMiss) >= EFFECT_EPS.miss, `${base} → 진열하기는 「켜면 결과가 달라짐」(차이 크기)으로 판정`);
   }
   if (st.having && st.having.length >= 3) {
     const h = st.having;
     const best = h.reduce((a, b) => (b.profit > a.profit ? b : a));
     const ends = [h[0], h[h.length - 1]];
-    const peak = best !== ends[0] && best !== ends[1] && ends.every((e) => best.profit - e.profit > 1);
-    add(peak, `HAVING 봉우리: 가장 좋은 기준 ${best.n}(${f1(best.profit)}냥), 양 끝 ${ends.map((e) => `${e.n}:${f1(e.profit)}`).join(" · ")}`);
+    // 판정 S12: 높은 쪽 차이는 씨앗 잡음 안(0.9냥)이라 「너무 낮은 기준은 손해」만 본다
+    const low = h[0];
+    add(best.profit - low.profit > 1, `HAVING: 너무 낮은 기준 ${low.n}(${f1(low.profit)}냥)은 가장 좋은 기준 ${best.n}(${f1(best.profit)}냥)보다 1냥 넘게 적음 · 높은 끝 ${ends[1].n}:${f1(ends[1].profit)}`);
     if (st.havingPick != null) {
       const pick = h.find((x) => x.n === st.havingPick);
       add(!!pick && best.profit - pick.profit <= 2, `r15 정답 기준 ${st.havingPick}가 봉우리 근처(${pick ? f1(pick.profit) : "-"}냥, 가장 좋음 ${f1(best.profit)}냥)`);
