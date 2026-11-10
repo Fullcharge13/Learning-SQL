@@ -101,6 +101,7 @@ export function runDay(stall, actions) {
   const pool = Array.from({ length: regulars }, (_, i) => i + 1); // 손님 번호 1..단골 수, 하루에 한 번씩만
   let nextOrder = next.orders.reduce((m, o) => (Number.isInteger(o.order_id) && o.order_id > m ? o.order_id : m), 0) + 1;
   let revenue = 0, sold = 0, missed = 0, lost = 0;
+  const missBy = { shelf: 0, stock: 0, price: 0 }; // 허탕 까닭별(의뢰 no_miss·cart_max는 재고·값 허탕만 셈, 작업 5)
   const todays = [];
   for (let i = 0; i < count; i++) {
     const pick = i + Math.floor(rng() * (pool.length - i));
@@ -117,6 +118,7 @@ export function runDay(stall, actions) {
     else if (it.price === null) why = "price";
     if (why) {
       missed++;
+      missBy[why]++;
       lost += price * want;
       events.push({ t: "miss", customer_id, item_id: it.item_id, qty: want, why, lost: price * want });
       continue;
@@ -133,7 +135,7 @@ export function runDay(stall, actions) {
   // 7) 정산
   next.money = Math.min(MONEY_MAX, next.money + revenue);
   const summary = {
-    day, customers: count, sold, missed, lost, revenue, bought, fees,
+    day, customers: count, sold, missed, missBy, lost, revenue, bought, fees,
     profit: revenue - bought - fees,
     report: a.report === undefined ? null : a.report,
     rest,

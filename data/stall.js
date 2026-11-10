@@ -149,5 +149,111 @@ export const CARDS = [
   { id: "kw_having", text: "HAVING", chapter: 8, kind: "kw" },
 ];
 
-// --- 의뢰 15개: 작업 5에서 채움 ---
-export const REQUESTS = [];
+// --- 의뢰 15개 (설계 §4-1). 한 번에 하나, 차례대로. need = 그 장까지 평가를 통과해야 이어짐.
+//     goal: slot_ok{slot} · no_miss{days} · cart_max{fee, days} · profit{n} · report{answerSql} · upgrade{id}
+//     no_miss·cart_max의 「허탕」은 재고 바닥·값 빈칸 허탕만 센다(진열 칸이 모자라 생긴 허탕은 칸으로 못 없앰, 작업 5).
+//     solution = 그 차례에 열린 카드만으로 목표를 이루는 칸 구성(tests/stall_requests.js가 실제 엔진으로 확인).
+//     보내는 사람은 두억이와 새로 지은 장터 이웃·손님(실존·민속 인물 아님). 수치는 작업 6이 경제를 맞춘 뒤 다시 검사한다. ---
+const k = (c) => ({ c });                 // 카드 하나
+const n = (v) => ({ c: "num", n: v });   // 숫자 카드
+const where = (...cards) => ({ mode: "frame", parts: { where: cards } });
+const full = (...cards) => ({ mode: "full", parts: { full: cards } });
+
+export const REQUESTS = [
+  {
+    id: "r01", need: 3, from: "두억이", xp: 5, withinDays: 1,
+    line: "재고 채우기 칸이 열렸어! 지금은 다 떨어져야(stock < 1) 채워. 재고가 몇 개 아래일 때 채우면 좋을까?",
+    goal: { type: "slot_ok", slot: "restock" },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(4)) },
+  },
+  {
+    id: "r02", need: 3, from: "주막 아주머니 달래", xp: 5, withinDays: 4,
+    line: "어제 식혜가 동나서 그냥 돌아왔지 뭐야. 이틀 내리 물건이 떨어지지 않게 해 줄래? 숫자를 조금 올려 봐.",
+    goal: { type: "no_miss", days: 2 },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(5)) },
+  },
+  {
+    id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 6,
+    line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 물건은 떨어지지 않게 이틀만 해 보게.",
+    goal: { type: "cart_max", fee: 6, days: 2 },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
+  },
+  {
+    id: "r04", need: 3, from: "두억이", xp: 5, withinDays: 6,
+    line: "하루에 25냥 넘게 남겨 보자! 너무 많이 들여오면 들여온 값이 이익을 깎아.",
+    goal: { type: "profit", n: 25 },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(3)) },
+  },
+  {
+    id: "r05", need: 4, from: "옆 좌판 짚신 장수 덕보", xp: 5, withinDays: 1,
+    line: "재고가 잔뜩 쌓인 먹거리는 깎아서 빨리 파는 게 좋아. AND로 조건 두 개를 묶어 할인 칸에 넣어 봐.",
+    goal: { type: "slot_ok", slot: "discount" },
+    solution: { discount: where(k("col_stock"), k("op_gt"), n(15), k("kw_and"), k("col_category"), k("op_eq"), k("str_food")) },
+  },
+  {
+    id: "r06", need: 4, from: "두억이", xp: 5, withinDays: 20,
+    line: "가게 돈이 150냥 모이면 간판을 달자. 지나가던 손님이 하루 두 명은 더 들를 거야.",
+    goal: { type: "upgrade", id: "sign" },
+    solution: {},
+  },
+  {
+    id: "r07", need: 5, from: "꼬마 손님 콩이", xp: 5, withinDays: 1,
+    line: "진열대에 뭐가 먼저 올라가요? ORDER BY로 순서를 정하고 LIMIT으로 몇 칸 올릴지 정해 봐요.",
+    goal: { type: "slot_ok", slot: "display" },
+    solution: { display: { mode: "frame", parts: { order: [k("col_stock"), k("kw_desc")], limit: [n(4)] } } },
+  },
+  {
+    id: "r08", need: 5, from: "주막 아주머니 달래", xp: 5, withinDays: 8,
+    line: "요즘 장사가 제법이네! 하루에 35냥 남기는 날을 한번 만들어 봐.",
+    goal: { type: "profit", n: 35 },
+    solution: {},
+  },
+  {
+    id: "r09", need: 6, from: "두억이", xp: 5, withinDays: 20,
+    line: "새 물건(꿀떡·한지)을 들여오자! 200냥이야. 그런데 값이 아직 안 정해져서 들어온대.",
+    goal: { type: "upgrade", id: "newitems" },
+    solution: {},
+  },
+  {
+    id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 4,
+    line: "꿀떡에 값이 없어서 못 샀어요! 값이 빈칸인 물건은 IS NULL로 찾을 수 있대요. 이틀만 허탕 없이 해 줘요.",
+    goal: { type: "no_miss", days: 2 },
+    solution: { pricing: where(k("col_price"), k("kw_isnull")) },
+  },
+  {
+    id: "r11", need: 7, from: "두억이", xp: 5, withinDays: 1,
+    line: "하루 보고 칸이 열렸어. 가게에 남은 재고를 다 더하면 몇 개일까? SUM이 도와줄 거야.",
+    goal: { type: "report", answerSql: "SELECT SUM(stock) FROM items" },
+    solution: { report: full(k("kw_select"), k("fn_sum"), k("col_stock"), k("p_close"), k("kw_from"), k("tbl_items")) },
+  },
+  {
+    id: "r12", need: 7, from: "서당 학동 똘이", xp: 5, withinDays: 1,
+    line: "최근 사흘 동안 물건이 모두 몇 개 팔렸어요? order_items 표의 qty를 더해 보고에 적어 주세요.",
+    goal: { type: "report", answerSql: "SELECT SUM(qty) FROM order_items" },
+    solution: { report: full(k("kw_select"), k("fn_sum"), k("col_qty"), k("p_close"), k("kw_from"), k("tbl_order_items")) },
+  },
+  {
+    id: "r13", need: 7, from: "수레꾼 굴렁", xp: 5, withinDays: 25,
+    line: "큰 수레를 장만하면 한 번 부를 때 삯이 1냥이라네. 250냥 모이면 들이게.",
+    goal: { type: "upgrade", id: "cart" },
+    solution: {},
+  },
+  {
+    id: "r14", need: 8, from: "옆 좌판 짚신 장수 덕보", xp: 5, withinDays: 1,
+    line: "잘 팔린 물건은 두 상자씩 들여야지. GROUP BY로 물건마다 판 개수를 묶고, HAVING으로 많이 팔린 것만 골라 봐.",
+    goal: { type: "slot_ok", slot: "best" },
+    solution: {
+      best: full(k("kw_select"), k("col_item_id"), k("kw_from"), k("tbl_order_items"), k("kw_groupby"), k("col_item_id"),
+        k("kw_having"), k("fn_sum"), k("col_qty"), k("p_close"), k("op_ge"), n(8)),
+    },
+  },
+  {
+    id: "r15", need: 8, from: "두억이", xp: 5, withinDays: 8,
+    line: "마지막 부탁이야! 두 상자씩 너무 자주 들이면 들여온 값이 이익을 깎아. HAVING 기준을 올려서 하루에 45냥을 남겨 보자.",
+    goal: { type: "profit", n: 45 },
+    solution: {
+      best: full(k("kw_select"), k("col_item_id"), k("kw_from"), k("tbl_order_items"), k("kw_groupby"), k("col_item_id"),
+        k("kw_having"), k("fn_sum"), k("col_qty"), k("p_close"), k("op_ge"), n(15)),
+    },
+  },
+];

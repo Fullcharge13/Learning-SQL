@@ -30,7 +30,7 @@ test("데이터 표 모양", () => {
   assert.equal(CUSTOMERS.length, 30);
   assert.equal(new Set(CUSTOMERS.map((c) => c.name)).size, 30);
   assert.deepEqual(UPGRADES.map((u) => u.id), ["sign", "newitems", "cart", "shelf", "regulars"]);
-  assert.deepEqual(REQUESTS, []);
+  assert.equal(REQUESTS.length, 15); // 작업 5에서 채움(자세한 모양은 stall_requests.test.js)
 });
 
 test("카드 id는 겹치지 않고 칸 id는 6개", () => {

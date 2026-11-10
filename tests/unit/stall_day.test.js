@@ -356,3 +356,14 @@ test("cleanStall은 last를 평범한 객체로 유지한다", () => {
   const r = runDay(newStall(1), act({ restock: [3] }));
   assert.deepEqual(cleanStall(JSON.parse(JSON.stringify(r.stall))).last, r.stall.last);
 });
+
+test("summary.missBy: 허탕을 까닭(shelf·stock·price)별로 세고 합은 missed (작업 5)", () => {
+  for (const seed of [1, 2, 3, 4]) {
+    const r = runDay(setStock(newStall(seed), (it) => (it.item_id === 3 ? 0 : 30)), act());
+    const by = { shelf: 0, stock: 0, price: 0 };
+    for (const e of ev(r, "miss")) by[e.why]++;
+    assert.deepEqual(r.summary.missBy, by);
+    assert.equal(by.shelf + by.stock + by.price, r.summary.missed);
+    assert.deepEqual(r.stall.last.summary.missBy, by);
+  }
+});
