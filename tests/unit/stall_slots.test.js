@@ -107,3 +107,29 @@ test("cardLocked", () => {
   assert.equal(cardLocked(card("kw_and"), new Set([3])), "4장을 끝내면 열려요");
   assert.equal(cardLocked(card("kw_and"), new Set([3, 4])), null);
 });
+
+test("toFull은 덜 채운 틀도 카드를 잃지 않는다", () => {
+  const ids = (st) => st.parts.full.map((t) => t.c);
+  const a = toFull(slot("restock"), { on: true, mode: "frame", parts: { where: [] } });
+  assert.deepEqual(ids(a), ["kw_select", "col_name", "kw_from", "tbl_items", "kw_where"]);
+  const b = toFull(slot("display"), { on: true, mode: "frame", parts: { order: [{ c: "col_price" }, { c: "kw_desc" }], limit: [] } });
+  assert.deepEqual(ids(b), ["kw_select", "col_name", "kw_from", "tbl_items", "kw_orderby", "col_price", "kw_desc", "kw_limit"]);
+  assert.equal(slotSql(slot("display"), { on: true, mode: "frame", parts: { order: [{ c: "col_price" }], limit: [] } }), null);
+});
+
+test("acceptRows: 배열이 아닌 행·items 없음에도 던지지 않는다", () => {
+  const r = acceptRows(slot("restock"), { columns: ["name"], rows: [null, "x", ["엿"]] }, newStall(1));
+  assert.deepEqual(r.ids, [4]);
+  assert.deepEqual(acceptRows(slot("restock"), { columns: ["name"], rows: [["엿"]] }, {}), { ok: true, ids: [] });
+});
+
+test("item_id와 name 열이 같이 있으면 item_id가 먼저", () => {
+  const r = acceptRows(slot("restock"), { columns: ["name", "item_id"], rows: [["엿", 1]] }, newStall(1));
+  assert.deepEqual(r.ids, [1]);
+});
+
+test("숫자 카드 n은 0~30으로 조인다", () => {
+  const f = (n) => slotSql(slot("display"), { on: true, mode: "frame", parts: { order: [{ c: "col_price" }], limit: [{ c: "num", n }] } });
+  assert.equal(f(99), "SELECT name FROM items ORDER BY price LIMIT 30");
+  assert.equal(f(-5), "SELECT name FROM items ORDER BY price LIMIT 0");
+});

@@ -15,12 +15,13 @@ export function cardLocked(card, passed) {
 }
 
 // 틀 글자를 카드 토큰으로: {키}는 칸의 카드 자리, 나머지 낱말은 같은 글자의 카드
-function frameTokens(def, parts) {
+// lenient면 빈 자리는 아무것도 보태지 않고 고정 낱말만 남긴다(toFull용). 아니면 빈 자리에서 null
+function frameTokens(def, parts, lenient = false) {
   const out = [];
   for (const m of def.tpl.matchAll(/\{(\w+)\}|ORDER BY|\S+/g)) {
     if (m[1]) {
       const cards = parts && parts[m[1]];
-      if (!Array.isArray(cards) || cards.length === 0) return null; // 빈 틀 자리
+      if (!Array.isArray(cards) || cards.length === 0) { if (lenient) continue; return null; } // 빈 틀 자리
       out.push(...cards);
     } else {
       const c = CARD_BY_TEXT.get(m[0]);
@@ -31,10 +32,10 @@ function frameTokens(def, parts) {
   return out;
 }
 
-function tokens(def, st) {
+function tokens(def, st, lenient = false) {
   if (!st || !def) return null;
   if (st.mode === "full") return st.parts && Array.isArray(st.parts.full) && st.parts.full.length ? st.parts.full : null;
-  return def.tpl ? frameTokens(def, st.parts) : null;
+  return def.tpl ? frameTokens(def, st.parts, lenient) : null;
 }
 
 // 카드를 공백으로 잇되 「COALESCE(」 뒤, 「)」·「,」 앞은 붙인다. 숫자 카드는 n
@@ -43,7 +44,7 @@ function join(list) {
   for (const t of list) {
     const def = CARD_BY_ID.get(t.c);
     if (!def) return null;
-    const text = def.kind === "num" ? String(Number.isInteger(t.n) ? t.n : def.min) : def.text;
+    const text = def.kind === "num" ? String(Number.isInteger(t.n) ? Math.min(def.max, Math.max(def.min, t.n)) : def.min) : def.text;
     const glue = out === "" || out.endsWith("(") || text === ")" || text === ",";
     out += (glue ? "" : " ") + text;
   }
@@ -56,7 +57,7 @@ export function slotSql(def, st) {
 }
 
 export function toFull(def, st) {
-  const t = tokens(def, st);
+  const t = tokens(def, st, true);
   return { on: !!(st && st.on), mode: "full", parts: { full: t ? t.map((x) => ({ ...x })) : [] } };
 }
 
@@ -73,10 +74,11 @@ export function acceptRows(def, result, stall) {
   let idx = cols.indexOf("item_id"), byId = true;
   if (idx < 0) { idx = cols.indexOf("name"); byId = false; }
   if (idx < 0) return { ok: false, why: NO_COL };
-  const have = new Set((stall.items || []).map((it) => it.item_id));
+  const have = new Set(((stall && stall.items) || []).map((it) => it.item_id));
   const nameToId = new Map(ITEMS.map((it) => [it.name, it.item_id]));
   const seen = new Set(), ids = [];
   for (const r of rows) {
+    if (!Array.isArray(r)) continue;
     const raw = r[idx];
     const id = byId ? Number(raw) : nameToId.get(raw);
     if (!Number.isInteger(id) || !have.has(id) || seen.has(id)) continue;
