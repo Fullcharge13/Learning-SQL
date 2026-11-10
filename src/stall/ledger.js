@@ -1,5 +1,5 @@
 // 임시 장부: 가게 상태를 SQL(CREATE+INSERT) 글자로 바꾼다. 학습자 질의가 보는 표 4개(설계 §2-4). 순수 함수.
-import { ITEMS, CUSTOMERS } from "../../data/stall.js";
+import { ITEMS, CUSTOMERS, KEEP_DAYS } from "../../data/stall.js";
 
 const ITEM_BY_ID = new Map(ITEMS.map((it) => [it.item_id, it]));
 
@@ -44,8 +44,12 @@ export function ledgerSql(stall, customers = CUSTOMERS) {
   for (const c of customers.slice(0, stall.regulars)) {
     out.push(`INSERT INTO customers VALUES (${int(c.customer_id)}, ${q(c.name)}, ${q(c.kind)}, ${int(c.age)}, ${q(c.village)});`);
   }
+  // 최근 KEEP_DAYS일만(부르는 쪽이 정리했는지에 기대지 않음), 같은 order_id는 첫 번째만(깨진 저장이 UNIQUE 오류를 내지 않게)
+  const seenOrders = new Set();
   for (const o of stall.orders || []) {
     if (!o || !Number.isInteger(o.order_id) || !Number.isInteger(o.day)) continue;
+    if (o.day < stall.day - KEEP_DAYS || seenOrders.has(o.order_id)) continue;
+    seenOrders.add(o.order_id);
     out.push(`INSERT INTO orders VALUES (${o.order_id}, ${intOrNull(o.customer_id)}, ${o.day});`);
     for (const it of Array.isArray(o.items) ? o.items : []) {
       if (!it || !Number.isInteger(it.item_id) || !Number.isInteger(it.qty)) continue;

@@ -103,3 +103,20 @@ test("LEDGER_SCHEMA: 4표, 한글 이름·뜻, 열이 실제 표와 같음", () 
     for (const v of Object.values(def.cols)) assert.ok(typeof v === "string" && v.length > 0);
   }
 });
+
+test("같은 order_id가 두 번 있는 깨진 저장도 장부가 UNIQUE 오류 없이 올라간다(첫 주문만)", () => {
+  const s = { ...newStall(1), day: 3, orders: [
+    { order_id: 5, customer_id: 1, day: 2, items: [{ item_id: 1, qty: 1 }] },
+    { order_id: 5, customer_id: 2, day: 2, items: [{ item_id: 2, qty: 3 }] },
+  ] };
+  assert.equal(count("orders", s), 1);
+  assert.deepEqual(one("SELECT customer_id FROM orders", s).rows, [[1]]);
+  assert.deepEqual(one("SELECT item_id, qty FROM order_items", s).rows, [[1, 1]]);
+});
+
+test("장부는 최근 3일(day >= 오늘 - 3) 주문만 올린다: 호출하는 쪽이 정리하지 않아도", () => {
+  const mk = (id, day) => ({ order_id: id, customer_id: 1, day, items: [{ item_id: 1, qty: 1 }] });
+  const s = { ...newStall(1), day: 5, orders: [mk(1, 1), mk(2, 2), mk(3, 3), mk(4, 4)] };
+  assert.deepEqual(one("SELECT day FROM orders ORDER BY day", s).rows, [[2], [3], [4]]);
+  assert.equal(count("order_items", s), 3);
+});
