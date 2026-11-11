@@ -2746,6 +2746,168 @@ def test_stall_engine_fail():
         assert "장부 셈이 너무 오래 걸렸어요" in last and "ON" not in last, last
         assert not a.errors, a.errors
 
+def _seed_through(last_ch, stall=None):
+    """1~last_ch장 레슨(평가 포함)을 끝낸 저장. stall을 주면 가게 상태도"""
+    done = ["%d-%d" % (c, i) for c in range(1, last_ch + 1) for i in range(1, 6)]
+    s = {"saveVer": 1, "xp": 300, "yeopjeon": 50, "completed_lessons": done,
+         "current_lesson": "%d-1" % (last_ch + 1), "current_chapter": last_ch + 1,
+         "grading_results": {k: {"perfect": True, "attempts": 1} for k in done}}
+    if stall is not None:
+        s["stall"] = stall
+    return s
+
+
+def _to_editor(a, slot):
+    a.page.click('[data-edit="%s"]' % slot)
+    a.page.wait_for_selector(".screen.slot-editor")
+    a.page.wait_for_timeout(120)
+
+
+def _placed(a, part):
+    """그 자리에 놓인 카드 글자들(숫자 카드는 값)"""
+    return a.js("(p) => [...document.querySelectorAll(`.sp-part[data-part='${p}'] [data-k]`)].map((b) => b.dataset.text)", part)
+
+
+def _save_label(a):
+    return a.page.inner_text("#sp-save").strip()
+
+
+def test_stall_slot_edit():
+    sd = _stall_shot_dir()
+    fails = []
+    # 1) 3장까지 통과: 재고 채우기 고치기 → 숫자 카드 4 → 시험 실행 → 저장
+    for dev in ["iPhone 17", "iPhone SE"]:
+        tag = slug(dev)
+        with App(dev, save=_stall_seed(True), url=real_url()) as a:
+            a.start()
+            _to_stall(a)
+            _to_editor(a, "restock")
+            assert _placed(a, "where") == ["stock", "<", "1"], _placed(a, "where")
+            assert _save_label(a) == "그래도 저장", _save_label(a)
+            # 잠긴 카드: AND는 흐리고 「4장을 끝내면 열려요」, 누를 수 없음(단추가 아님)
+            and_lock = a.js("""() => { const c = [...document.querySelectorAll('.sp-picker .bcard.locked')].find((x) => x.dataset.text === 'AND');
+                return c ? { tag: c.tagName, row: c.closest('.sp-lockrow').innerText, op: getComputedStyle(c).opacity } : null; }""")
+            assert and_lock and and_lock["tag"] == "SPAN" and "4장을 끝내면 열려요" in and_lock["row"], and_lock
+            assert float(and_lock["op"]) < 0.8, and_lock
+            assert not a.page.query_selector("#sp-mode"), "전체 조립은 7장 뒤"
+            _stall_measure(a, "slot-editor", fails)
+            a.js("() => window.scrollTo(0, 0)")
+            a.shot("slot-editor-%s-open.png" % tag, full=True)
+            for _ in range(3):
+                a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
+            assert _placed(a, "where") == ["stock", "<", "4"], _placed(a, "where")
+            a.page.click("#sp-test")
+            a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
+            line = a.page.inner_text(".sp-accept")
+            print("    %s: test line %r" % (dev, line))
+            assert line.startswith("→") and "짚신을 채워요" in line, line
+            assert "짚신" in a.page.inner_text(".sp-result .rtable")
+            assert _save_label(a) == "저장", _save_label(a)
+            _stall_measure(a, "slot-editor-tested", fails)
+            a.page.wait_for_timeout(150)   # 편집기가 결과를 스스로 보이는 자리로 올림
+            vis = a.js("() => { const r = document.querySelector('.sp-accept').getBoundingClientRect(), d = document.querySelector('.sp-dock').getBoundingClientRect(); return r.bottom <= d.top + 1 && r.top >= 0; }")
+            assert vis, "풀이 줄이 저장 줄에 가림"
+            a.shot("slot-editor-%s-tested.png" % tag)
+            day0 = a.save()["stall"]["day"]
+            a.page.click("#sp-save")
+            a.page.wait_for_selector(".screen.stall")
+            st = a.save()["stall"]
+            assert st["day"] == day0, "저장은 하루를 넘기지 않음"
+            assert st["slots"]["restock"]["parts"]["where"][2] == {"c": "num", "n": 4}, st["slots"]["restock"]
+            sql = a.page.inner_text(".slot:has([data-edit='restock']) .slot-sql")
+            assert sql.endswith("WHERE stock < 4"), sql
+            # 고친 뒤 시험은 다시 「그래도 저장」, 빈자리는 막힘, 나갈 때 확인 → 버림
+            _to_editor(a, "restock")
+            a.page.click("#sp-test")
+            a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
+            assert _save_label(a) == "저장"
+            a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='-1']")
+            assert _save_label(a) == "그래도 저장", _save_label(a)
+            assert not a.page.query_selector(".sp-result .rtable"), "고치면 지난 시험 결과는 지움"
+            for _ in range(3):
+                a.page.click(".sp-part[data-part='where'] [data-k='0']")
+            assert _placed(a, "where") == []
+            assert a.page.is_disabled("#sp-save")
+            assert "빈자리를 채워 주세요" in a.page.inner_text(".sp-dock")
+            # 빈자리를 누르면 그 자리가 고르는 자리, 카드를 누르면 붙음
+            a.page.click(".sp-part[data-part='where'] .sp-hole")
+            a.page.click(".sp-picker button.bcard[data-text='price']")
+            assert _placed(a, "where") == ["price"]
+            _stall_measure(a, "slot-editor-edit", fails)
+            a.page.click("#sp-close")
+            a.page.wait_for_selector(".modal")
+            assert "버리" in a.page.inner_text(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".screen.stall")
+            assert a.save()["stall"]["slots"]["restock"]["parts"]["where"][2] == {"c": "num", "n": 4}
+            # 바꾼 것 없이 나가면 묻지 않음
+            _to_editor(a, "restock")
+            a.page.click("#sp-close")
+            a.page.wait_for_selector(".screen.stall")
+            assert not a.page.query_selector(".modal")
+            assert not a.errors, a.errors
+            for n in ("open", "tested"):
+                shutil.copy(os.path.join(OUT, "slot-editor-%s-%s.png" % (tag, n)), os.path.join(sd, "slot-editor-%s-%s.png" % (tag, n)))
+    # 2) 7장까지 통과: 「전체 조립」으로 바꾸면 같은 SQL이 카드로, 틀로 돌아가기는 확인 뒤 저장한 틀
+    restock = {"on": True, "mode": "frame", "parts": {"where": [{"c": "col_stock"}, {"c": "op_lt"}, {"c": "num", "n": 4}]}}
+    with App("iPhone 17", save=_seed_through(7, {"v": 1, "seed": 7, "opened": True, "slots": {"restock": restock}}), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        _to_editor(a, "restock")
+        a.page.click("#sp-mode")
+        a.page.wait_for_selector(".sp-part[data-part='full']")
+        full = " ".join(_placed(a, "full"))
+        print("    full: %r" % full)
+        assert full == "SELECT name FROM items WHERE stock < 4", full
+        _stall_measure(a, "slot-editor-full", fails)
+        a.js("() => window.scrollTo(0, 0)")
+        a.shot("slot-editor-iphone-17-full.png", full=True)
+        a.page.click(".sp-part[data-part='full'] [data-k='1']")      # name 빼기
+        a.page.click(".sp-picker button.bcard[data-text='item_id']")  # 끝에 붙음
+        a.page.click("#sp-mode")
+        a.page.wait_for_selector(".modal")
+        assert "전체 조립으로 고친 것은 사라져요" in a.page.inner_text(".modal")
+        a.page.click(".modal .btn.coral")
+        a.page.wait_for_selector(".sp-part[data-part='where']")
+        assert _placed(a, "where") == ["stock", "<", "4"], _placed(a, "where")
+        # 전체 조립으로 저장
+        a.page.click("#sp-mode")
+        a.page.wait_for_selector(".sp-part[data-part='full']")
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
+        a.page.click("#sp-save")
+        a.page.wait_for_selector(".screen.stall")
+        st = a.save()["stall"]["slots"]["restock"]
+        assert st["mode"] == "full" and len(st["parts"]["full"]) == 8, st
+        # 하루 보고(전체 조립 칸): SELECT COUNT(*) FROM items → 「→ 보고: 6」
+        _to_editor(a, "report")
+        assert not a.page.query_selector("#sp-mode"), "전체만 쓰는 칸은 바꾸기 없음"
+        for t in ("SELECT", "COUNT(*)", "FROM", "items"):
+            a.page.click(".sp-picker button.bcard[data-text='%s']" % t)
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
+        line = a.page.inner_text(".sp-accept")
+        assert line == "→ 보고: 6", line
+        a.page.click("#sp-save")
+        a.page.wait_for_selector(".screen.stall")
+        assert "SELECT COUNT(*) FROM items" in a.page.inner_text(".slot:has([data-edit='report']) .slot-sql")
+        # 오류 SQL: 레슨과 같은 한국어 안내, 「그래도 저장」
+        _to_editor(a, "discount")
+        for t in ("price", "<", "AND"):
+            a.page.click(".sp-picker button.bcard[data-text='%s']" % t)
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .err-panel", timeout=30_000)
+        err = a.page.inner_text(".sp-result")
+        print("    error: %r" % " ".join(err.split())[:120])
+        assert _save_label(a) == "그래도 저장"
+        _stall_measure(a, "slot-editor-error", fails)
+        a.shot("slot-editor-iphone-17-error.png")
+        for n in ("full", "error"):
+            shutil.copy(os.path.join(OUT, "slot-editor-iphone-17-%s.png" % n), os.path.join(sd, "slot-editor-iphone-17-%s.png" % n))
+        assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
 def _select(argv):
     """인자: 시험 이름(test_…) 또는 --only 이름(test_<이름> 또는 test_<이름>_… 모두). 없으면 전부"""
     names = [n for n, f in globals().items() if n.startswith("test_") and callable(f)]

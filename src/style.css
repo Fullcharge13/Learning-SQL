@@ -857,3 +857,60 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 .up .up-buy { flex: none; min-width: 96px; }
 .up.own .up-text b { color: var(--teal-ink); }
 .tables-note { margin: 0 0 10px; }
+
+/* ---------- 칸 편집기 (v0.3 작업 8): 틀 줄 + 카드 고르기 + 시험 실행. 카드 모양은 레슨 카드 조립(.bcard)과 같음 ---------- */
+.slot-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.slot-edit .ic { width: 18px; height: 18px; }
+.sp-body { padding: 14px calc(16px + var(--sar)) calc(110px + var(--sab)) calc(16px + var(--sal)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.sp-body > .panel { margin: 0; }
+.sp-desc { margin: 0; font-size: .92rem; color: var(--ink-2); }
+.sp-build h2, .sp-picker h2 { font-size: 1.02rem; margin: 0 0 8px; }
+.sp-line {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 64px; padding: 10px;
+  border: 2px dashed var(--line); border-radius: 16px; background: rgba(255, 253, 248, .6);
+}
+.sp-fixed { font-family: var(--mono); font-size: 14px; font-weight: 700; line-height: 1.4; color: var(--ink-2); overflow-wrap: anywhere; min-width: 0; }
+.sp-part {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 4px;
+  border: 2px dashed var(--sun-deep); border-radius: 14px; background: rgba(255, 243, 196, .35);
+}
+.sp-part.active { border-style: solid; border-color: var(--teal-ink); background: var(--teal-soft); box-shadow: 0 0 0 2px rgba(31, 158, 147, .25); }
+.sp-hole {
+  min-width: 48px; min-height: 48px; padding: 0 10px; border-radius: 12px; border: 2px dashed var(--sun-deep);
+  background: var(--card); color: var(--sun-ink); font-family: var(--mono); font-weight: 800; font-size: 15px;
+}
+.sp-part.active .sp-hole { border-color: var(--teal-ink); color: var(--teal-ink); }
+.sp-num { display: inline-flex; align-items: center; gap: 2px; }
+.sp-bump {
+  width: 44px; height: 48px; border-radius: 12px; border: 2px solid var(--line); background: var(--card);
+  font-weight: 900; font-size: 1.2rem; color: var(--ink);
+}
+.sp-bump:disabled { opacity: .4; cursor: default; }
+.sp-group + .sp-group { margin-top: 12px; }
+.sp-gname { font-size: .85rem; font-weight: 800; color: var(--ink-2); margin: 0 0 6px; }
+.sp-cards { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-picker .bcard { min-height: 44px; min-width: 44px; padding: 4px 10px; font-size: 14px; }
+.sp-picker .bcard .bc-ko { font-size: .66rem; }
+.sp-lockrow { margin-top: 8px; padding: 6px 8px; border-radius: 12px; background: var(--paper-2); }
+.sp-lockwhy { display: flex; align-items: center; gap: 4px; margin: 0 0 4px; font-size: .78rem; font-weight: 700; color: var(--ink-2); }
+.sp-lockwhy .ic { width: 14px; height: 14px; }
+.sp-picker .bcard.locked {
+  min-height: 30px; min-width: 0; padding: 2px 7px; font-size: 12px; border-radius: 8px;
+  background: var(--card); color: var(--ink-2); border: 1.5px dashed #BFB49B; box-shadow: none; opacity: .62; cursor: default;
+}
+.sp-result { scroll-margin: 70px 0 110px; }   /* 붙박이 윗줄·저장 줄에 가리지 않게 */
+.sp-result:empty { display: none; }
+.sp-result .rtable { margin-bottom: 6px; }
+.sp-result .rt-scroll { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+.sp-result .err-panel { margin: 0; }
+.sp-accept { margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--teal-soft); color: var(--teal-deep); font-weight: 800; overflow-wrap: anywhere; }
+.sp-accept.bad { background: var(--coral-soft); color: var(--coral-ink); }
+.sp-warn { margin: 0; font-weight: 700; color: var(--coral-ink); }
+.sp-mode-box .btn { margin-bottom: 6px; }
+.sp-mode-box p { margin: 0; font-size: .85rem; }
+.sp-dock {
+  position: fixed; z-index: 25; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 100%; max-width: var(--maxw);
+  padding: 8px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal));
+  background: var(--paper); border-top: 2px solid var(--line);
+}
+.sp-block { margin: 0 0 6px; text-align: center; font-size: .9rem; font-weight: 800; color: var(--coral-ink); }

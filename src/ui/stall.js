@@ -13,6 +13,7 @@ import { FACES } from "../say.js";
 import { esc, escCode, icon, toast, celebrate } from "./dom.js";
 import { openTables } from "./tables.js";
 import { stallSVG, playReplay, summaryRows, lastLines, requestProgress, itemName } from "./stallart.js";
+import { openSlotEditor } from "./stallslot.js";
 
 export { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, restLines, TIMEOUT_LINE, ro } from "./stallart.js";
 
@@ -53,6 +54,7 @@ export function render(root, ctx) {
   let view = "idle";       // idle · replay · settle
   let day = null;          // 마지막으로 연 하루 { before, stall, events, summary, completed, timedOut }
   let replay = null;
+  let editing = false;     // 칸 편집기가 이 화면 자리를 쓰는 중(그동안 가게 화면은 다시 그리지 않음)
 
   const stall = () => ctx.save.stall;
 
@@ -106,6 +108,7 @@ export function render(root, ctx) {
         <p class="slot-desc">${esc(def.desc)}</p>
         <code class="slot-sql${sql ? "" : " blank"}">${escCode(shown)}</code>
         ${on && !sql ? `<p class="slot-note">빈자리가 있어 장을 열면 이 칸은 쉬어요</p>` : ""}
+        <div class="slot-foot"><button class="btn ghost small slot-edit" data-edit="${esc(def.id)}" aria-label="${esc(`${def.name} 칸 고치기`)}"${busy ? " disabled" : ""}>${icon("gear")}<span>고치기</span></button></div>
       </li>`;
     }).join("");
     return `<section class="panel slots" aria-labelledby="slots-title"><h2 id="slots-title">${icon("gear")}자동화 칸</h2><ul class="slot-list">${list}</ul></section>`;
@@ -152,7 +155,7 @@ export function render(root, ctx) {
   }
 
   function paint() {
-    if (!alive) return;
+    if (!alive || editing) return;
     const busy = !!inflight || view === "replay";
     const showing = view === "replay" && day ? day.before : stall();
     const artOpts = view === "replay" && day ? { ids: dayShelf(day.before, day.stall) } : {};
@@ -185,6 +188,7 @@ export function render(root, ctx) {
     const sk = root.querySelector("#skip");
     if (sk) sk.addEventListener("click", () => { if (replay) replay.skip(); });
     root.querySelectorAll("[data-slot]").forEach((b) => b.addEventListener("click", () => toggleSlot(b.dataset.slot)));
+    root.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => editSlot(b.dataset.edit)));
     root.querySelectorAll("[data-up]").forEach((b) => b.addEventListener("click", () => buy(b.dataset.up)));
     root.querySelector("#stall-tables").addEventListener("click", () => {
       openTables(Object.keys(LEDGER_SCHEMA), ctx.sql, { schema: LEDGER_SCHEMA, ledgerSql: ledgerSql(stall()) });
@@ -202,6 +206,22 @@ export function render(root, ctx) {
     paint();
     const sw = root.querySelector(`[data-slot="${id}"]`);
     if (sw) sw.focus({ preventScroll: true });
+  }
+
+  // 칸 고치기: 편집기가 이 화면 자리에 그려지고, 닫히면(저장·그냥 나가기) 가게 화면을 새 상태로 다시 그린다. 하루는 안 지나감
+  async function editSlot(id) {
+    if (inflight || view === "replay" || editing) return;
+    editing = true;
+    let saved = false;
+    try { saved = await openSlotEditor(ctx, id, { root }); } finally { editing = false; }
+    if (!alive) return;
+    if (saved) say = null;
+    paint();
+    const b = root.querySelector(`[data-edit="${id}"]`);
+    if (b) {
+      b.focus({ preventScroll: true });
+      try { b.closest(".slot").scrollIntoView({ block: "center" }); } catch { /* 옛 브라우저 */ }
+    }
   }
 
   function buy(id) {
