@@ -148,3 +148,46 @@ def test_next_version_sentence_only_when_some_chapter_lacks_advanced():
             ch["advanced"] = copy.deepcopy(donor)
     text, _ = readme_gen.build(d)
     assert NEXT_VERSION_LINE not in text and "다음 판" not in text.split("**심화**")[1].split("\n\n")[0]
+
+
+def test_stall_section_comes_from_data():
+    """v0.3 「두억이의 가게」 절: 칸·카드·의뢰·성장이 data/stall.js에서 나오고, 숫자(의뢰 15·성장 5)도 데이터를 센 값이다"""
+    d = _data()
+    text, n = _built()
+    st = d["stall"]
+    assert len(st["REQUESTS"]) == 15 and len(st["UPGRADES"]) == 5 and len(st["SLOTS"]) == 6
+    assert "## 두억이의 가게" in text
+    sect = text.split("## 두억이의 가게")[1].split("\n## ")[0]
+    assert "의뢰 %d개" % len(st["REQUESTS"]) in sect and "성장 %d가지" % len(st["UPGRADES"]) in sect
+    assert "자동화 칸 %d개" % len(st["SLOTS"]) in sect
+    # 칸: 이름·열리는 장·하는 일
+    for s in st["SLOTS"]:
+        assert "| %s | %d장 | %s |" % (s["name"], s["chapter"], s["desc"]) in sect, s["id"]
+    # 카드: 장마다 몇 장, 어떤 카드(숫자 카드는 하나)
+    for ch in sorted({c["chapter"] for c in st["CARDS"]}):
+        cards = [c for c in st["CARDS"] if c["chapter"] == ch]
+        assert re.search(r"^\| %d장 \| %d장 \|" % (ch, len(cards)), sect, re.M), ch
+    # 의뢰: 번호·보내는 사람·목표
+    for r in st["REQUESTS"]:
+        assert re.search(r"^\| %d \| %s \| %d장 \|" % (int(r["id"][1:]), re.escape(r["from"]), r["need"]), sect, re.M), r["id"]
+    # 성장: 이름·값·하는 일
+    for u in st["UPGRADES"]:
+        assert "| %s | %d냥 | %s |" % (u["name"], u["price"], u["desc"]) in sect, u["id"]
+    assert n["stall_requests"] == 15 and n["stall_upgrades"] == 5
+
+
+def test_stall_section_follows_data_changes():
+    """데이터에서 성장 하나를 빼면 README 숫자와 표가 따라 바뀐다(글자를 박아 둔 숫자가 아님)"""
+    d = copy.deepcopy(_data())
+    gone = d["stall"]["UPGRADES"].pop()
+    d["stall"]["REQUESTS"].pop()
+    text, _ = readme_gen.build(d)
+    sect = text.split("## 두억이의 가게")[1].split("\n## ")[0]
+    assert "성장 4가지" in sect and "의뢰 14개" in sect and gone["name"] not in sect
+
+
+def test_stall_version_and_commands():
+    """판 표시와 가게 시험 명령이 README에 있다"""
+    text, _ = _built()
+    assert "node tests/sim/stall.js" in text and "node tests/stall_requests.js" in text
+    assert _app_version() == "v0.3" and "# 두억이와 SQL! v0.3\n" in text

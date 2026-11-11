@@ -11,6 +11,7 @@
 - data/badges.js         배지
 - data/outfits.js        의상(가격·얻는 법)
 - data/schema.js         장터 표·열의 한글 뜻
+- data/stall.js          「두억이의 가게」(v0.3) 칸·카드·의뢰·성장 표와 가게 수치
 - data/market.sql        장터 데이터(표마다 행 수를 파이썬 sqlite3로 셈)
 - src/dueogi.js          의상·표정 한국어 이름(그림 시트 설명)
 - src/app.js             게임 안 버전 표시(VERSION)
@@ -56,7 +57,10 @@ const rules = await imp("src/rules.js");
 const daily = await imp("src/daily.js");
 const quests = await imp("src/quests.js");
 const adv = await imp("src/advanced.js");
-console.log(JSON.stringify({ chapters, CONCEPTS, QUESTS, BADGES, OUTFITS, SCHEMA,
+const stall = await imp("data/stall.js");
+console.log(JSON.stringify({ stall: { SLOTS: stall.SLOTS, CARDS: stall.CARDS, REQUESTS: stall.REQUESTS, UPGRADES: stall.UPGRADES, ITEMS: stall.ITEMS,
+    consts: { START_MONEY: stall.START_MONEY, CRATE: stall.CRATE, STOCK_MAX: stall.STOCK_MAX, CART_FEE: stall.CART_FEE, SHELF: stall.SHELF,
+      REGULARS: stall.REGULARS, UNLOCK_CHAPTER: stall.UNLOCK_CHAPTER } }, chapters, CONCEPTS, QUESTS, BADGES, OUTFITS, SCHEMA,
   outfitKo: dueogi.OUTFIT_KO, faceKo: dueogi.FACE_KO, faces: dueogi.FACE_IDS,
   nums: { freezePrice: rules.FREEZE_PRICE, freezeMax: rules.FREEZE_MAX, milestones: rules.MILESTONES, dailyGoals: rules.DAILY_GOALS,
     dailyXp: daily.DAILY_XP, dailyYeopjeon: daily.DAILY_YEOPJEON, dailyBonusEvery: daily.DAILY_BONUS_EVERY,
@@ -127,6 +131,81 @@ def cell(text):
 def code_cell(sql):
     """카드 목록을 한 줄 SQL로 보여 준다(표 칸 안 `코드`)."""
     return "`" + " ".join(sql).replace("`", "'").replace("|", "\\|") + "`"
+
+
+def goal_text(r, st):
+    """의뢰 목표를 학습자 말로 짧게(데이터의 goal에서 만듦)"""
+    g = r["goal"]
+    slot = {x["id"]: x["name"] for x in st["SLOTS"]}
+    up = {u["id"]: u["name"] for u in st["UPGRADES"]}
+    t = g["type"]
+    if t == "slot_ok":
+        return "「%s」 칸을 고쳐 한 번 돌리기" % slot[g["slot"]]
+    if t == "no_miss":
+        return "다 팔림·값 없음 허탕이 없는 날 %d일" % g["days"]
+    if t == "cart_max":
+        return "수레 삯 %d냥 이하이면서 허탕 없는 날 %d일" % (g["fee"], g["days"])
+    if t == "profit":
+        return "하루 이익 %d냥 이상" % g["n"]
+    if t == "report":
+        return "하루 보고에 `%s`의 답을 적기" % g["answerSql"]
+    if t == "upgrade":
+        return "성장 「%s」 사기" % up[g["id"]]
+    raise SystemExit("readme_gen: 모르는 의뢰 목표 %r" % t)
+
+
+def stall_section(d, w):
+    """「두억이의 가게」 절: data/stall.js에서 칸·카드·의뢰·성장을 그대로 옮긴다"""
+    st = d["stall"]
+    c = st["consts"]
+    slots, cards, reqs, ups = st["SLOTS"], st["CARDS"], st["REQUESTS"], st["UPGRADES"]
+    w("## 두억이의 가게")
+    w("")
+    w(f"{c['UNLOCK_CHAPTER']}장 평가를 통과하면 홈에 「가게 가기」가 열려요. 내 가게를 SQL로 굴리는 놀이터예요: 「장 열기」 단추 한 번이 하루이고, "
+      "자동화 칸마다 SQL 카드로 「어떤 물건을 찾을지」를 정해 두면 가게가 그 결과대로 일해요. 칸을 바꾸면 이익·허탕(손님이 못 사고 돌아간 수)·수레 삯이 "
+      "어떻게 달라지는지 바로 겪어요. 가게 돈(냥)은 게임 안에서만 쓰고 엽전과 섞이지 않아요. 의뢰를 해내면 XP를 조금 받아요.")
+    w("")
+    w(f"- 시작: 돈 {c['START_MONEY']}냥, 진열대 {c['SHELF']}칸, 단골 {c['REGULARS']}명, 물건 6가지. 한 상자는 {c['CRATE']}개, 재고 한도는 물건마다 {c['STOCK_MAX']}개, 수레 삯은 {c['CART_FEE']}냥.")
+    w("- 하루: 아침에 칸이 차례로 일하고(값 매기기 → 재고 채우기 → 더 들이기 → 할인 → 진열), 손님이 오고, 저녁에 들여온 상자가 도착해요. 질의는 찾아보기만 하고(조회 전용), 찾은 행을 게임이 할 일로 받아요.")
+    w(f"- 칸 편집기: 처음엔 틀(`WHERE` 뒤만 조립), 7장을 끝내면 전체 조립. 「오늘 장부로 시험 실행」으로 하루를 보내지 않고 결과를 미리 볼 수 있어요.")
+    w("- 장 열기 재생은 「건너뛰기」가 있고, 휴대폰의 「동작 줄이기」를 켜면 재생 없이 바로 정산해요.")
+    w("")
+    w(f"### 자동화 칸 {len(slots)}개")
+    w("")
+    w("| 칸 | 열리는 장 | 하는 일 |")
+    w("|---|---|---|")
+    for s in slots:
+        w(f"| {cell(s['name'])} | {s['chapter']}장 | {cell(s['desc'])} |")
+    w("")
+    w(f"### 카드 {len(cards)}종 (장마다 열림)")
+    w("")
+    w("숫자 카드는 하나이고, 놓을 때 값을 정해요(0~30).")
+    w("")
+    w("| 열리는 장 | 카드 수 | 카드 |")
+    w("|---|---|---|")
+    for ch in sorted({x["chapter"] for x in cards}):
+        group = [x for x in cards if x["chapter"] == ch]
+        names = ", ".join("`%s`" % x["text"] if "text" in x else "숫자" for x in group)
+        w(f"| {ch}장 | {len(group)}장 | {names} |")
+    w("")
+    w(f"### 의뢰 {len(reqs)}개")
+    w("")
+    w("한 번에 하나씩 차례대로 이어져요. 그 장 평가를 통과해야 다음 의뢰가 열리고, 해내면 XP를 받아요. 의뢰마다 그 차례에 열린 카드만으로 풀 수 있는 정답 칸 구성이 데이터에 있고 시험으로 확인해요.")
+    w("")
+    w("| 번호 | 보내는 사람 | 열리는 장 | 목표 |")
+    w("|---|---|---|---|")
+    for r in reqs:
+        w(f"| {int(r['id'][1:])} | {cell(r['from'])} | {r['need']}장 | {goal_text(r, st)} |")
+    w("")
+    w(f"### 성장 {len(ups)}가지")
+    w("")
+    w("| 성장 | 값 | 하는 일 |")
+    w("|---|---|---|")
+    for u in ups:
+        w(f"| {cell(u['name'])} | {u['price']}냥 | {cell(u['desc'])} |")
+    w("")
+    w("가게 수치(손님 수·할인·인기 따위)는 모두 `data/stall.js` 한 곳에 있고, `node tests/sim/stall.js`의 자동 플레이(12판 중앙값)로 맞춰요. 표본이 12판이라 숫자는 조금씩 흔들려요.")
+    w("")
 
 
 def build(d):
@@ -208,6 +287,8 @@ def build(d):
     w("| `python3 tests/build_test.py` | 배포 파일: 크기 상한, 버전 표시, 장 파일, 서비스 작업자 저장본, 오프라인 열기, 라이선스 고지 |")
     w("| `python3 tests/flow.py` | 아이폰 17·17e·17 Pro Max·PC 크기 화면 순회: 넘침·콘솔 오류·터치 크기·카드 조립으로 첫 레슨 끝까지·장 평가·옛 저장 |")
     w("| `node tests/sim/economy.js` | 가상 학습자 30일 × 12판 엽전 경제 시뮬레이션(중앙값 표). `--daily`는 매일 도전까지 하는 학습자 |")
+    w("| `node tests/sim/stall.js` | 가게 자동 플레이 시뮬레이션(12판 × 40일): 시작 질의·좋은 조건 이익, 첫 성장 날, 칸마다 켜고 끈 차이, HAVING 기준 |")
+    w("| `node tests/stall_requests.js` | 가게 의뢰 15개 각각의 정답 칸 구성이 실제 엔진에서 목표를 이루는지 |")
     w("| `python3 -m pytest tests/py -q` | 이 README 생성기 |")
     w("")
     w("시험 중 브라우저를 쓰는 것은 Playwright(브라우저를 자동으로 조작하는 도구)의 Chromium이에요. "
@@ -219,9 +300,10 @@ def build(d):
     w("")
     w("```")
     structure = [
+        ("src/stall/", "가게 규칙 엔진(하루 계산·칸·의뢰·장부 실행)"),
         ("src/", "화면·규칙 코드, 두억이 그림(SVG), 소리, 채점, sql.js 작업자(worker.js)"),
         ("data/lessons/", f"1~{n_ch}장 레슨 표 (ch1.js … ch{n_ch}.js)"),
-        ("data/", "개념·대사·퀘스트·배지·의상·오류 설명·SQL 낱말 표, 장터 데이터(market.sql)"),
+        ("data/", "개념·대사·퀘스트·배지·의상·오류 설명·SQL 낱말 표, 장터 데이터(market.sql), 가게 표(stall.js)"),
         ("build.py", "배포 폴더(dist/) 만들기"),
         ("tools/", "개발 서버, 장터 데이터·README 생성, 그림 시트·아이콘 만들기"),
         ("tests/", "시험 도구 (unit, py, sim, 레슨 점검, 브라우저 시험)"),
@@ -352,6 +434,8 @@ def build(d):
         w(f"| {cell(o['name'])} | {how}{extra} | {cell(o.get('desc', ''))} |")
     w("")
 
+    stall_section(d, w)
+
     # ---- 두억이
     w("## 두억이")
     w("")
@@ -408,6 +492,7 @@ def build(d):
         "SQL 문법은 SQLite 기준이에요. 다른 데이터베이스(MySQL·PostgreSQL)와 다른 동작은 레슨에서 「이 장터에서는」이라고 밝히고, 16장에 비교 카드를 두었어요.",
         "서버가 없어 정답도 앱 파일 안에 들어 있어요. 마음먹고 파일을 열어 보면 볼 수 있어요.",
         "레슨 중간 진행은 24시간 동안만 이어서 할 수 있어요. 다른 휴대폰이나 브라우저로는 이어지지 않아요.",
+        "가게(v0.3)의 장 열기 재생·칸 편집기·입구도 아직 실제 아이폰에서 확인하지 못했어요(확인 목록 29~35). 할인 걸기·진열하기 칸은 지금 수치로는 이익이 조금 줄어드는 칸이라, 이익보다 허탕을 줄이는 실험 칸으로 봐요.",
         "PC에서도 열리지만 휴대폰 폭 그대로 가운데에 놓여요.",
     ]
     for x in limits:
@@ -416,7 +501,8 @@ def build(d):
     w("개발 과정과 결정 기록은 `LOG.md`, 설계는 `docs/specs/`, 작업 계획은 `docs/plans/`에 있어요.")
     w("")
     return "\n".join(L), {"lessons": n_lessons, "advanced": n_adv, "badges": n_badges, "outfits": n_outfits,
-                          "quests": n_quests, "items": n_items, "builds": n_build, "templates": n_tmpl, "version": version}
+                          "quests": n_quests, "items": n_items, "builds": n_build, "templates": n_tmpl, "version": version,
+                          "stall_requests": len(d["stall"]["REQUESTS"]), "stall_upgrades": len(d["stall"]["UPGRADES"])}
 
 
 def main():
@@ -428,7 +514,7 @@ def main():
     check = "--check" in args
     text, n = build(load_data())
     summary = (f"레슨 {n['lessons']} · 심화 {n['advanced']} · 문제 {n['items']} · 카드 조립 {n['builds']} · 틀 {n['templates']} · "
-               f"퀘스트 {n['quests']} · 배지 {n['badges']} · 의상 {n['outfits']} · 판 {n['version']}")
+               f"퀘스트 {n['quests']} · 배지 {n['badges']} · 의상 {n['outfits']} · 의뢰 {n['stall_requests']} · 성장 {n['stall_upgrades']} · 판 {n['version']}")
     if check:
         try:
             with open(README, encoding="utf-8") as f:
