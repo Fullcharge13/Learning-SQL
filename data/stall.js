@@ -178,7 +178,7 @@ export const REQUESTS = [
     id: "r03", need: 3, from: "수레꾼 굴렁", xp: 5, withinDays: 8,
     line: "수레를 너무 자주 부르는구먼. 하루 수레 삯은 6냥까지만, 그래도 다 팔려서 못 사는 손님은 없게 이틀만 해 보게.",
     goal: { type: "cart_max", fee: 6, days: 2 },
-    solution: { restock: where(k("col_stock"), k("op_lt"), n(8)) },
+    solution: { restock: where(k("col_stock"), k("op_lt"), n(11)) },
   },
   {
     id: "r04", need: 3, from: "두억이", xp: 5, withinDays: 6,
@@ -188,7 +188,7 @@ export const REQUESTS = [
   },
   {
     id: "r05", need: 4, from: "옆 좌판 짚신 장수 덕보", xp: 5, withinDays: 1,
-    line: "재고가 잔뜩 쌓인 먹거리는 깎아서 빨리 파는 게 좋아. AND로 조건 두 개를 묶어 할인 칸에 넣어 봐.",
+    line: "재고가 잔뜩 쌓인 먹거리는 깎으면 손님을 붙잡을 수 있대. AND로 조건 두 개를 묶어 할인 칸에 넣고, 이익은 어떻게 되는지 장부로 봐.",
     goal: { type: "slot_ok", slot: "discount" },
     solution: { discount: where(k("col_stock"), k("op_gt"), n(25), k("kw_and"), k("col_category"), k("op_eq"), k("str_food")) },
   },
@@ -217,7 +217,7 @@ export const REQUESTS = [
     solution: {},
   },
   {
-    id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 6,
+    id: "r10", need: 6, from: "꼬마 손님 콩이", xp: 5, withinDays: 10,
     line: "꿀떡에 값이 없어서 못 샀어요! 값이 빈칸인 물건은 IS NULL로 찾을 수 있대요. 값이 없거나 다 팔려서 못 사고 가는 일이 이틀 동안 없게 해 줘요. (진열대에 안 보여서 못 사는 건 괜찮아요)",
     goal: { type: "no_miss", days: 2 },
     solution: { pricing: where(k("col_price"), k("kw_isnull")) },

@@ -112,7 +112,7 @@ export function runDay(stall, actions) {
   };
   let nextOrder = next.orders.reduce((m, o) => (Number.isInteger(o.order_id) && o.order_id > m ? o.order_id : m), 0) + 1;
   let revenue = 0, sold = 0, missed = 0, lost = 0;
-  const missBy = { shelf: 0, stock: 0, price: 0 }; // 마지막까지 못 산 허탕만 까닭별로(의뢰 no_miss·cart_max는 재고·값 허탕만 셈)
+  const missBy = { shelf: 0, stock: 0, price: 0, soldOut: 0 }; // 마지막까지 못 산 허탕만 까닭별로. soldOut은 shelf 중 「다 팔려 내려간」 몫(shelf 수는 그대로 — 시뮬 경제 보존)
   const todays = [];
   for (let i = 0; i < count; i++) {
     const customer_id = 1 + Math.floor(rng() * regulars);
@@ -133,9 +133,11 @@ export function runDay(stall, actions) {
         const price = unitPrice(wanted);
         missed++;
         missBy[why]++;
+        const soldOut = why === "shelf" && wanted.stock <= 0;
+        if (soldOut) missBy.soldOut++;
         lost += price * want;
         // soldOut: 진열대에 없던 까닭이 「다 팔려 내려감」이면 표시(화면 말풍선 「다 팔렸네」용, 셈은 그대로 shelf — 판정 S12)
-        events.push({ t: "miss", customer_id, item_id: wanted.item_id, qty: want, why, lost: price * want, ...(why === "shelf" && wanted.stock <= 0 ? { soldOut: true } : {}) });
+        events.push({ t: "miss", customer_id, item_id: wanted.item_id, qty: want, why, lost: price * want, ...(soldOut ? { soldOut: true } : {}) });
         continue;
       }
       it = alt;

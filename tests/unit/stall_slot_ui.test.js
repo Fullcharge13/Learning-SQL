@@ -73,7 +73,9 @@ test("acceptLine: 칸마다 한 줄 풀이(받침에 맞는 조사), 오류는 �
   assert.equal(acceptLine(slot("restock"), { ok: true, ids: [1] }, s), "→ 인절미를 채워요");
   assert.equal(acceptLine(slot("best"), { ok: true, ids: [3] }, s), "→ 식혜를 두 상자씩 더 들여요");
   assert.equal(acceptLine(slot("discount"), { ok: true, ids: [3, 4] }, s), "→ 식혜·엿을 할인해요");
-  assert.equal(acceptLine(slot("display"), { ok: true, ids: [3, 4] }, s), "→ 진열대에 식혜·엿 순서로 올려요");
+  assert.equal(acceptLine(slot("display"), { ok: true, ids: [3, 4] }, s), "→ 진열대에 식혜·엿 순서로 올려요 (6칸 중 2칸만 채워요)");
+  assert.equal(acceptLine(slot("display"), { ok: true, ids: [3, 4, 5] }, { ...s, shelf: 3 }), "→ 진열대에 식혜·엿·짚신 순서로 올려요"); // 칸이 다 차면 안내 없음
+  assert.equal(acceptLine(slot("display"), { ok: true, ids: [3] }, { ...s, shelf: 4 }), "→ 진열대에 식혜 순서로 올려요 (4칸 중 1칸만 채워요)");
   // 진열대 칸 수(6)를 넘는 물건은 줄임표
   assert.equal(acceptLine(slot("display"), { ok: true, ids: [1, 2, 3, 4, 5, 6, 7] }, s), "→ 진열대에 인절미·약과·식혜·엿·짚신·부채 순서로 올려요 (나머지는 못 올라가요)");
   assert.equal(acceptLine(slot("report"), { ok: true, value: 7 }, s), "→ 보고: 7");

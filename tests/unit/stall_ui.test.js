@@ -132,3 +132,13 @@ test("lastLines: 가져온 저장의 이상한 ids(글자·숫자·객체·null)
   // slots 자체가 이상해도
   assert.ok(Array.isArray(lastLines({ summary: sum(), slots: "x", rested: 5 }, s)));
 });
+
+test("최종 검토 1: summaryRows는 다 팔림(stock+soldOut)과 안 보임(shelf−soldOut)을 나눠 보여 준다", () => {
+  const row = summaryRows(sum({ missed: 6, missBy: { shelf: 4, stock: 1, price: 1, soldOut: 3 } })).find(([k]) => k === "허탕")[1];
+  assert.match(row, /다 팔림 4/);
+  assert.match(row, /안 보임 1/);
+  assert.match(row, /값 없음 1/);
+  const only = summaryRows(sum({ missed: 2, missBy: { shelf: 2, stock: 0, price: 0, soldOut: 2 } })).find(([k]) => k === "허탕")[1];
+  assert.match(only, /다 팔림 2/);
+  assert.doesNotMatch(only, /안 보임/);
+});

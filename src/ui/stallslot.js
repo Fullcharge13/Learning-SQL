@@ -134,7 +134,7 @@ export function acceptLine(def, got, stall) {
   if (def.id === "display") {
     const shelf = Number.isInteger(stall && stall.shelf) ? stall.shelf : 6;
     const shown = ids.slice(0, shelf);
-    return `→ 진열대에 ${names(shown)} 순서로 올려요${ids.length > shelf ? " (나머지는 못 올라가요)" : ""}`;
+    return `→ 진열대에 ${names(shown)} 순서로 올려요${ids.length > shelf ? " (나머지는 못 올라가요)" : ids.length < shelf ? ` (${shelf}칸 중 ${ids.length}칸만 채워요)` : ""}`;
   }
   if (def.id === "pricing") {
     const blank = new Set(((stall && stall.items) || []).filter((it) => it.price === null).map((it) => it.item_id));

@@ -371,10 +371,10 @@ test("cleanStall은 last를 평범한 객체로 유지한다", () => {
 test("summary.missBy: 허탕을 까닭(shelf·stock·price)별로 세고 합은 missed (작업 5)", () => {
   for (const seed of [1, 2, 3, 4]) {
     const r = runDay(setStock(newStall(seed), (it) => (it.item_id === 3 ? 0 : 30)), act());
-    const by = { shelf: 0, stock: 0, price: 0 };
-    for (const e of ev(r, "miss")) by[e.why]++;
+    const by = { shelf: 0, stock: 0, price: 0, soldOut: 0 };
+    for (const e of ev(r, "miss")) { by[e.why]++; if (e.soldOut) by.soldOut++; }
     assert.deepEqual(r.summary.missBy, by);
-    assert.equal(by.shelf + by.stock + by.price, r.summary.missed);
+    assert.equal(by.shelf + by.stock + by.price, r.summary.missed); // soldOut은 shelf의 부분집합이라 합에 더하지 않는다(최종 검토 1)
     assert.deepEqual(r.stall.last.summary.missBy, by);
   }
 });
@@ -497,8 +497,21 @@ test("S11 ⑤ 같은 입력 → 같은 하루(대신 사기·붙잡기 포함), 
   const a = act({ discount: [3], display: [2, 3, 4, 5], restock: [2] });
   assert.equal(JSON.stringify(runDay(s, a)), JSON.stringify(runDay(s, a)));
   const r = runDay(s, act({ display: [2, 3, 4, 5] }));
-  const by = { shelf: 0, stock: 0, price: 0 };
-  for (const e of ev(r, "miss")) by[e.why]++;
+  const by = { shelf: 0, stock: 0, price: 0, soldOut: 0 };
+  for (const e of ev(r, "miss")) { by[e.why]++; if (e.soldOut) by.soldOut++; }
   assert.deepEqual(r.summary.missBy, by);
   assert.equal(r.summary.customers, ev(r, "buy").length + ev(r, "miss").length);
+});
+
+test("최종 검토 1: 다 팔려 내려간 물건을 찾는 허탕은 shelf로 세되 missBy.soldOut에도 센다(shelf 수는 그대로)", () => {
+  let found = 0;
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const r = runDay(setStock(newStall(seed), (it) => (it.item_id === 3 ? 0 : 30)), act());
+    const so = ev(r, "miss").filter((e) => e.why === "shelf" && e.soldOut).length;
+    assert.equal(r.summary.missBy.soldOut, so);
+    assert.ok(r.summary.missBy.soldOut <= r.summary.missBy.shelf);
+    assert.equal(r.summary.missBy.stock, 0); // 기본 진열은 재고 0을 숨기므로 stock 허탕은 없다
+    found += so;
+  }
+  assert.ok(found > 0, "표본에 다 팔림 허탕이 하나도 없다");
 });

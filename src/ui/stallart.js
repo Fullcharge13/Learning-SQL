@@ -95,7 +95,8 @@ export function arrivalLine(events, stall) {
 /** 정산 줄 [이름, 값] */
 export function summaryRows(s) {
   const by = (s && s.missBy) || {};
-  const parts = [["안 보임", by.shelf], ["다 팔림", by.stock], ["값 없음", by.price]].filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`);
+  const so = Number(by.soldOut) || 0; // shelf 중 다 팔려 내려간 몫은 「다 팔림」으로 보여 준다
+  const parts = [["안 보임", (Number(by.shelf) || 0) - so], ["다 팔림", (Number(by.stock) || 0) + so], ["값 없음", by.price]].filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`);
   return [
     ["손님", `${Number(s && s.customers) || 0}명`],
     ["팔린 개수", `${Number(s && s.sold) || 0}개`],

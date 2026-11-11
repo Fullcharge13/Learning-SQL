@@ -39,7 +39,7 @@ function lockedParts(req, passed) {
   return why;
 }
 
-const fmt = (s) => `이익 ${s.profit} · 허탕 ${s.missed}(재고 ${s.missBy.stock}·값 ${s.missBy.price}·진열 ${s.missBy.shelf}) · 수레 삯 ${s.fees} · 보고 ${s.report}`;
+const fmt = (s) => `이익 ${s.profit} · 허탕 ${s.missed}(재고 ${s.missBy.stock}·값 ${s.missBy.price}·진열 ${s.missBy.shelf} 중 다 팔림 ${s.missBy.soldOut}) · 수레 삯 ${s.fees} · 보고 ${s.report}`;
 
 const si = process.argv.indexOf("--seed"); // 다른 씨앗으로도 돌려 볼 때(기본 1, 완료 기준은 1)
 const SEED = si > 0 ? Number(process.argv[si + 1]) : 1;

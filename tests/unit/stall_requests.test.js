@@ -10,7 +10,7 @@ import { runLedger } from "../../src/sqlcore.js";
 const SQL = await initSqlJs();
 const runner = async (l, q) => ({ results: runLedger(SQL, l, q), error: null, timeout: false });
 const upTo = (n) => new Set(Array.from({ length: n - 2 }, (_, i) => i + 3)); // {3..n}
-const sum = (o = {}) => ({ day: 1, customers: 9, sold: 9, missed: 0, missBy: { shelf: 0, stock: 0, price: 0 }, lost: 0, revenue: 50, bought: 10, fees: 4, profit: 36, report: null, rest: {}, trend: 1, ...o });
+const sum = (o = {}) => ({ day: 1, customers: 9, sold: 9, missed: 0, missBy: { shelf: 0, stock: 0, price: 0, soldOut: 0 }, lost: 0, revenue: 50, bought: 10, fees: 4, profit: 36, report: null, rest: {}, trend: 1, ...o });
 const req = (goal, o = {}) => ({ id: "t", need: 3, from: "두억이", line: "", goal, xp: 5, solution: {}, withinDays: 3, ...o });
 // 의뢰 idx번째를 지금 의뢰로 둔 가게(앞 의뢰는 다 끝낸 상태)
 const at = (i, s = newStall(1)) => ({ ...s, order: { idx: i, done: REQUESTS.slice(0, i).map((r) => r.id), progress: {} } });
@@ -225,4 +225,14 @@ test("playDay: 하루 보고 의뢰면 answerSql을 같은 묶음에 붙여 같�
   // 보고 칸이 꺼져 있으면 미완료
   const off = { ...at(i), slots: {} };
   assert.deepEqual((await playDay(off, upTo(8), runner)).completed, []);
+});
+
+test("최종 검토 1: 다 팔림 허탕(shelf이지만 soldOut)은 no_miss·cart_max에서 고칠 수 있는 허탕으로 센다", () => {
+  const s = newStall(1);
+  const nm = req({ type: "no_miss", days: 2 });
+  assert.deepEqual(checkRequest(nm, s, sum({ missed: 2, missBy: { shelf: 2, stock: 0, price: 0, soldOut: 2 } })), { done: false, progress: { n: 0, of: 2 } });
+  const cm = req({ type: "cart_max", fee: 6, days: 2 });
+  assert.equal(checkRequest(cm, s, sum({ missed: 1, missBy: { shelf: 1, stock: 0, price: 0, soldOut: 1 } })).progress.n, 0);
+  // soldOut이 아닌 진열 허탕은 여전히 세지 않는다
+  assert.equal(checkRequest(nm, s, sum({ missed: 2, missBy: { shelf: 2, stock: 0, price: 0, soldOut: 0 } })).progress.n, 1);
 });

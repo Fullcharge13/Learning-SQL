@@ -2,11 +2,11 @@
 // 설계 docs/specs/2026-11-11-두억이의-가게-설계.md §4-1. XP는 여기서 주지 않는다 — completed를 받은 화면이 earnXp로 준다.
 import { REQUESTS, UNLOCK_CHAPTER } from "../../data/stall.js";
 
-// 고칠 수 있는 허탕: 재고가 바닥났거나(stock) 값이 빈칸(price). 진열 칸이 모자라 생긴 허탕(shelf)은
-// 진열대가 물건 수보다 작아 칸으로 없앨 수 없으므로 의뢰 판정에서 세지 않는다(작업 5 결정, 보고서 참고).
+// 고칠 수 있는 허탕: 재고가 바닥났거나(stock) 값이 빈칸(price), 또는 다 팔려 진열대에서 내려간(soldOut — 셈은 shelf지만
+// 「다 팔림」이라 채우면 고쳐짐; 최종 검토 1). 진열 칸이 모자라 생긴 허탕(shelf − soldOut)은 칸으로 없앨 수 없어 세지 않는다.
 function fixableMisses(summary) {
   const by = summary && summary.missBy;
-  if (by && typeof by === "object") return (Number(by.stock) || 0) + (Number(by.price) || 0);
+  if (by && typeof by === "object") return (Number(by.stock) || 0) + (Number(by.price) || 0) + (Number(by.soldOut) || 0);
   return Number(summary && summary.missed) || 0; // missBy가 없는 옛 기록이면 전체 허탕
 }
 
