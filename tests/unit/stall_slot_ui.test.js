@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SLOTS, CARDS } from "../../data/stall.js";
 import { newStall } from "../../src/stall/state.js";
-import { placeCard, removeCard, bumpNum, saveState, acceptLine, frameDefault, pickerGroups, EMPTY_BLOCK, MAX_PART } from "../../src/ui/stallslot.js";
+import { placeCard, removeCard, bumpNum, saveState, acceptLine, frameDefault, pickerGroups, previewSql, tooLong, EMPTY_BLOCK, TOO_MANY, MAX_PART } from "../../src/ui/stallslot.js";
+import { toFull } from "../../src/stall/slots.js";
 
 const slot = (id) => SLOTS.find((s) => s.id === id);
 const frame = (where) => ({ on: true, mode: "frame", parts: { where } });
@@ -106,4 +107,25 @@ test("pickerGroups: 3~8장 카드 전부를 네 묶음으로, 잠긴 카드는 �
     const firstLocked = grp.cards.findIndex((x) => x.locked);
     if (firstLocked >= 0) assert.ok(grp.cards.slice(firstLocked).every((x) => x.locked));
   }
+});
+
+test("tooLong·saveState: 한 자리가 40장을 넘으면 저장 막힘(toFull로 넘친 경우 포함)", () => {
+  const def = slot("restock");
+  const many = frame([{ c: "col_stock" }, { c: "op_lt" }, ...Array.from({ length: 36 }, () => ({ c: "num", n: 1 }))]);
+  assert.equal(tooLong(many), false);
+  const full = toFull(def, many);              // SELECT name FROM items WHERE + 38장
+  assert.ok(full.parts.full.length > MAX_PART);
+  assert.equal(tooLong(full), true);
+  assert.equal(saveState(full, def, { ok: true }).blocked, TOO_MANY);
+  assert.equal(TOO_MANY, "한 자리에는 카드를 40장까지 놓을 수 있어요");
+  assert.equal(saveState(many, def, null).blocked, null);
+});
+
+test("previewSql: 지금 SQL 한 줄, 빈 자리는 [ ]", () => {
+  assert.equal(previewSql(slot("restock"), newStall(1).slots.restock), "SELECT name FROM items WHERE stock < 1");
+  assert.equal(previewSql(slot("restock"), frame([])), "SELECT name FROM items WHERE [ ]");
+  assert.equal(previewSql(slot("display"), { mode: "frame", parts: { order: [{ c: "col_price" }, { c: "kw_desc" }] } }),
+    "SELECT name FROM items ORDER BY price DESC LIMIT [ ]");
+  assert.equal(previewSql(slot("report"), { mode: "full", parts: { full: [] } }), "[ ]");
+  assert.equal(previewSql(slot("report"), { mode: "full", parts: { full: [{ c: "kw_select" }, { c: "fn_count" }] } }), "SELECT COUNT(*)");
 });

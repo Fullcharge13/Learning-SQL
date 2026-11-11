@@ -2796,6 +2796,9 @@ def test_stall_slot_edit():
             for _ in range(3):
                 a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
             assert _placed(a, "where") == ["stock", "<", "4"], _placed(a, "where")
+            # 고를 때 조립 줄이 화면 밖이어도: 아래 줄에 지금 SQL 한 줄 + 알림
+            assert a.page.inner_text(".sp-preview").strip().endswith("WHERE stock < 4"), a.page.inner_text(".sp-preview")
+            assert "4" in a.page.inner_text(".sp-live"), a.page.inner_text(".sp-live")
             a.page.click("#sp-test")
             a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
             line = a.page.inner_text(".sp-accept")
@@ -2833,6 +2836,10 @@ def test_stall_slot_edit():
             a.page.click(".sp-part[data-part='where'] .sp-hole")
             a.page.click(".sp-picker button.bcard[data-text='price']")
             assert _placed(a, "where") == ["price"]
+            assert "price 놓았어요" in a.page.inner_text(".sp-live"), a.page.inner_text(".sp-live")
+            assert a.page.inner_text(".sp-preview").strip().endswith("WHERE price"), a.page.inner_text(".sp-preview")
+            a.page.locator(".sp-picker .sp-group").last.scroll_into_view_if_needed()
+            a.shot("slot-editor-%s-picking.png" % tag)
             _stall_measure(a, "slot-editor-edit", fails)
             a.page.click("#sp-close")
             a.page.wait_for_selector(".modal")
@@ -2840,13 +2847,29 @@ def test_stall_slot_edit():
             a.page.click(".modal .btn.coral")
             a.page.wait_for_selector(".screen.stall")
             assert a.save()["stall"]["slots"]["restock"]["parts"]["where"][2] == {"c": "num", "n": 4}
+            # 시험 실행 중에 고치면: 그 실행 결과는 버리고 「그래도 저장」 그대로
+            _to_editor(a, "restock")
+            a.js("""() => { const s = window.__dueogi.ctx.sql; const orig = s.runLedger.bind(s); window.__rl = orig;
+                s.runLedger = (l, q) => new Promise((ok) => setTimeout(() => ok(orig(l, q)), 1500)); }""")
+            a.page.click("#sp-test")
+            a.page.wait_for_selector(".sp-result p.muted")
+            a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
+            assert _save_label(a) == "그래도 저장", _save_label(a)
+            a.page.wait_for_timeout(2500)
+            assert not a.page.query_selector(".sp-result .rtable"), "고치기 전에 시작한 시험 결과가 보임"
+            assert _save_label(a) == "그래도 저장", _save_label(a)
+            a.js("() => { window.__dueogi.ctx.sql.runLedger = window.__rl; }")
+            a.page.click("#sp-close")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".screen.stall")
             # 바꾼 것 없이 나가면 묻지 않음
             _to_editor(a, "restock")
             a.page.click("#sp-close")
             a.page.wait_for_selector(".screen.stall")
             assert not a.page.query_selector(".modal")
             assert not a.errors, a.errors
-            for n in ("open", "tested"):
+            for n in ("open", "tested", "picking"):
                 shutil.copy(os.path.join(OUT, "slot-editor-%s-%s.png" % (tag, n)), os.path.join(sd, "slot-editor-%s-%s.png" % (tag, n)))
     # 2) 7장까지 통과: 「전체 조립」으로 바꾸면 같은 SQL이 카드로, 틀로 돌아가기는 확인 뒤 저장한 틀
     restock = {"on": True, "mode": "frame", "parts": {"where": [{"c": "col_stock"}, {"c": "op_lt"}, {"c": "num", "n": 4}]}}
@@ -2869,6 +2892,20 @@ def test_stall_slot_edit():
         assert "전체 조립으로 고친 것은 사라져요" in a.page.inner_text(".modal")
         a.page.click(".modal .btn.coral")
         a.page.wait_for_selector(".sp-part[data-part='where']")
+        assert _placed(a, "where") == ["stock", "<", "4"], _placed(a, "where")
+        # 저장하지 않은 틀 고침도 전체 → 틀에서 그대로(바꾼 순간의 틀을 되살림)
+        a.page.click(".sp-part[data-part='where'] [data-k='2']")
+        assert _placed(a, "where") == ["stock", "<"]
+        a.page.click("#sp-mode")
+        a.page.wait_for_selector(".sp-part[data-part='full']")
+        a.page.click("#sp-mode")
+        a.page.wait_for_selector(".modal")
+        a.page.click(".modal .btn.coral")
+        a.page.wait_for_selector(".sp-part[data-part='where']")
+        assert _placed(a, "where") == ["stock", "<"], _placed(a, "where")
+        a.page.click(".sp-picker button.bcard[data-c='num']")
+        for _ in range(3):
+            a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
         assert _placed(a, "where") == ["stock", "<", "4"], _placed(a, "where")
         # 전체 조립으로 저장
         a.page.click("#sp-mode")

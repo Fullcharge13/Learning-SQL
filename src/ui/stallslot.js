@@ -19,6 +19,7 @@ import { itemName } from "./stallart.js";
 
 export const MAX_PART = 40;                          // 한 자리의 카드 한도(설계 §3-2, cleanStall과 같음)
 export const EMPTY_BLOCK = "빈자리를 채워 주세요";
+export const TOO_MANY = `한 자리에는 카드를 ${MAX_PART}장까지 놓을 수 있어요`;
 const NUM_START = 1;                                 // 숫자 카드를 처음 놓을 때 값
 const CARD = new Map(CARDS.map((c) => [c.id, c]));
 const PART_LABEL = { where: "WHERE 뒤", order: "ORDER BY 뒤", limit: "LIMIT 뒤", full: "전체" };
@@ -88,12 +89,28 @@ export function bumpNum(st, part, index, delta) {
   });
 }
 
-/** 저장 단추: 시험 실행이 지금 SQL로 성공했으면 「저장」, 아니면 「그래도 저장」. 빈 자리가 남으면 blocked */
+/** 어느 자리든 카드가 40장을 넘나(toFull은 틀의 고정 낱말까지 카드로 풀어서 넘칠 수 있음) */
+export function tooLong(st) {
+  const p = st && st.parts && typeof st.parts === "object" ? st.parts : {};
+  return Object.values(p).some((list) => Array.isArray(list) && list.length > MAX_PART);
+}
+
+/** 저장 단추: 시험 실행이 지금 SQL로 성공했으면 「저장」, 아니면 「그래도 저장」. 빈 자리가 남거나 40장을 넘으면 blocked */
 export function saveState(st, def, tested) {
   return {
     label: tested && tested.ok ? "저장" : "그래도 저장",
-    blocked: slotSql(def, st) === null ? EMPTY_BLOCK : null,
+    blocked: tooLong(st) ? TOO_MANY : slotSql(def, st) === null ? EMPTY_BLOCK : null,
   };
+}
+
+/** 저장 줄의 미리 보기: 지금 SQL 한 줄. 빈 자리는 「[ ]」 */
+export function previewSql(def, st) {
+  const one = (k) => {
+    const list = st && st.parts && Array.isArray(st.parts[k]) ? st.parts[k] : [];
+    return (list.length && slotSql({ tpl: `{${k}}` }, { mode: "frame", parts: { [k]: list } })) || "[ ]";
+  };
+  if ((st && st.mode === "full") || def.frame === "full") return one("full");
+  return def.tpl.replace(/\{(\w+)\}/g, (_, k) => one(k));
 }
 
 // 받침이 있으면 「을」, 없으면 「를」(한글 물건 이름)
@@ -267,7 +284,11 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
           </section>
           ${modeHTML()}
         </main>
-        <footer class="sp-dock"></footer>
+        <footer class="sp-dock">
+          <p class="sp-preview" aria-label="지금 SQL"><code class="sp-preview-code"></code></p>
+          <p class="sp-live" role="status" aria-live="polite"></p>
+          <div class="sp-dock-act"></div>
+        </footer>
       </div>`;
       paintLine();
       paintResult();
@@ -282,7 +303,15 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       r.innerHTML = running ? `<p class="muted">오늘 장부에 돌려 보는 중…</p>` : resultHTML;
       root.querySelector("#sp-test").disabled = running;
     }
-    function paintDock() { root.querySelector(".sp-dock").innerHTML = dockHTML(); }
+    function paintDock() {
+      root.querySelector(".sp-preview-code").innerHTML = escCode(previewSql(def, cur));
+      root.querySelector(".sp-dock-act").innerHTML = dockHTML();
+    }
+    // 고를 때 조립 줄이 화면 밖일 수 있어 저장 줄에 짧은 알림(읽기 프로그램에도 polite로)
+    function note(text) {
+      const n = root.querySelector(".sp-live");
+      if (n) n.textContent = text || "";
+    }
 
     // 고침: 지난 시험 결과는 지금 SQL의 것이 아니므로 지운다
     function edited(next) {
@@ -342,9 +371,11 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
     async function toggleMode() {
       if (!canFull) return;
       if (cur.mode !== "full") {
+        const full = toFull(def, cur);
+        if (tooLong(full)) { toast(`전체 조립으로 바꾸면 카드가 ${MAX_PART}장을 넘어요. 카드를 조금 빼고 바꿔 주세요`); return; }
         frameMemo = normParts(def, cur);
         active = "full";
-        edited(toFull(def, cur));
+        edited(full);
         paint();
       } else {
         const ok = await dialog({
@@ -386,8 +417,8 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       const next = clone(ctx.save.stall);
       const prev = next.slots[slotId];
       next.slots[slotId] = { on: prev ? !!prev.on : true, mode: cur.mode, parts: normParts(def, cur) };
-      ctx.stallCommit(next, []);
-      toast(tested && tested.ok ? `${def.name} 칸을 저장했어요` : `${def.name} 칸을 저장했어요. 시험에서 문제가 있으면 장을 열 때 그날은 쉬어요`);
+      const r = ctx.stallCommit(next, []);
+      if (r && r.ok) toast(tested && tested.ok ? `${def.name} 칸을 저장했어요` : `${def.name} 칸을 저장했어요. 시험에서 문제가 있으면 장을 열 때 그날은 쉬어요`);
       finish(true);
     }
 
@@ -399,24 +430,32 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       if (b.id === "sp-test") { runTest(); return; }
       if (b.id === "sp-mode") { toggleMode(); return; }
       if (b.id === "sp-save") { save(); return; }
-      if (b.dataset.hole) { active = b.dataset.hole; paintLine(); refocus(`[data-hole="${active}"]`); return; }
+      if (b.dataset.hole) { active = b.dataset.hole; paintLine(); note(`${PART_LABEL[active]} 자리에 놓아요`); refocus(`[data-hole="${active}"]`); return; }
       const part = b.closest(".sp-part");
       if (part && b.dataset.b !== undefined) {
         edited(bumpNum(cur, part.dataset.part, +b.dataset.b, +b.dataset.d));
+        const t = (cur.parts[part.dataset.part] || [])[+b.dataset.b];
+        note(t ? `숫자 ${t.n}` : "");
         refocus(`.sp-part[data-part="${part.dataset.part}"] [data-b="${b.dataset.b}"][data-d="${b.dataset.d}"]`);
         return;
       }
       if (part && b.dataset.k !== undefined) {
         active = part.dataset.part;
+        const gone = b.dataset.text;
         edited(removeCard(cur, part.dataset.part, +b.dataset.k));
+        note(`${gone} 뺐어요`);
         refocus(`.sp-part[data-part="${active}"] .sp-hole`);
         return;
       }
       if (b.dataset.c && b.closest(".sp-picker")) {
+        const card = CARD.get(b.dataset.c);
+        const why = card ? cardLocked(card, passed) : "없는 카드예요";
+        if (why) { toast(why); return; }   // 잠긴 카드는 단추로 그리지 않지만 한 번 더 막음
         const before = (cur.parts[active] || []).length;
         const next = placeCard(cur, active, b.dataset.c);
         if ((next.parts[active] || []).length === before) { toast(`한 자리에는 카드를 ${MAX_PART}장까지 놓을 수 있어요`); return; }
         edited(next);
+        note(`${b.dataset.text} 놓았어요`);
       }
     }
 

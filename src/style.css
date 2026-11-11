@@ -861,7 +861,7 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 /* ---------- 칸 편집기 (v0.3 작업 8): 틀 줄 + 카드 고르기 + 시험 실행. 카드 모양은 레슨 카드 조립(.bcard)과 같음 ---------- */
 .slot-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
 .slot-edit .ic { width: 18px; height: 18px; }
-.sp-body { padding: 14px calc(16px + var(--sar)) calc(110px + var(--sab)) calc(16px + var(--sal)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.sp-body { padding: 14px calc(16px + var(--sar)) calc(170px + var(--sab)) calc(16px + var(--sal)); display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .sp-body > .panel { margin: 0; }
 .sp-desc { margin: 0; font-size: .92rem; color: var(--ink-2); }
 .sp-build h2, .sp-picker h2 { font-size: 1.02rem; margin: 0 0 8px; }
@@ -898,7 +898,7 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
   min-height: 30px; min-width: 0; padding: 2px 7px; font-size: 12px; border-radius: 8px;
   background: var(--card); color: var(--ink-2); border: 1.5px dashed #BFB49B; box-shadow: none; opacity: .62; cursor: default;
 }
-.sp-result { scroll-margin: 70px 0 110px; }   /* 붙박이 윗줄·저장 줄에 가리지 않게 */
+.sp-result { scroll-margin: 70px 0 170px; }   /* 붙박이 윗줄·저장 줄에 가리지 않게 */
 .sp-result:empty { display: none; }
 .sp-result .rtable { margin-bottom: 6px; }
 .sp-result .rt-scroll { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
@@ -913,4 +913,9 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
   padding: 8px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal));
   background: var(--paper); border-top: 2px solid var(--line);
 }
+/* 저장 줄: 지금 SQL 한 줄(끝이 보이게 오른쪽 맞춤, 넘치면 앞쪽이 잘림) + 짧은 알림 */
+.sp-preview { display: flex; justify-content: flex-end; overflow: hidden; margin: 0 0 2px; padding: 4px 8px; border-radius: 8px; background: var(--navy);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 18px); mask-image: linear-gradient(to right, transparent, #000 18px); }
+.sp-preview-code { flex: none; white-space: nowrap; color: #F4EEDD; font-size: 13px; line-height: 1.5; }
+.sp-live { margin: 0 0 4px; min-height: 1.3em; font-size: .8rem; font-weight: 700; color: var(--teal-deep); text-align: center; }
 .sp-block { margin: 0 0 6px; text-align: center; font-size: .9rem; font-weight: 800; color: var(--coral-ink); }
