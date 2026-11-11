@@ -665,6 +665,8 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 .ins-steps li { display: grid; grid-template-columns: 26px 48px 1fr; align-items: center; gap: 10px; font-weight: 700; }
 .ins-no { width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-size: .85rem; }
 .ins-why { font-size: .9rem; color: var(--ink-2); background: var(--sun-soft); border-radius: 12px; padding: 10px 12px; }
+.ins-sub { font-size: 1rem; margin: 6px 0 8px; color: var(--ink-2); }
+.ins-prompt { margin: 0 0 12px; display: flex; gap: 8px; justify-content: center; align-items: center; }
 .ins-menu { display: grid; grid-template-columns: 48px 1fr; gap: 10px; align-items: center; font-weight: 700; }
 .ins-dots { width: 48px; height: 48px; border-radius: 10px; border: 2.5px solid var(--ink); background: #fff; display: grid; place-items: center; font-size: 1.4rem; font-weight: 900; line-height: 1; }
 

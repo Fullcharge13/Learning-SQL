@@ -2444,6 +2444,76 @@ def test_sheet_on_ledger_questions():
     assert not fails, "\n".join(fails[:40])
 
 
+FAKE_BIP_JS = """() => {
+  // 크롬의 「설치할 수 있어요」 신호를 흉내 낸다: prompt()를 부르면 표시를 남김
+  window.__prompted = 0;
+  const e = new Event("beforeinstallprompt", { cancelable: true });
+  e.prompt = () => { window.__prompted++; return Promise.resolve(); };
+  dispatchEvent(e);
+}"""
+
+SHEET_PROBE_JS = """() => {
+  const m = document.querySelector('.modal.install');
+  if (!m) return null;
+  return { cls: m.className, steps: m.querySelectorAll('.ins-steps li').length, text: m.innerText,
+           prompt: !!m.querySelector('#ins-prompt'), overflowX: m.scrollWidth > m.clientWidth + 1,
+           okH: m.querySelector('#ins-ok').getBoundingClientRect().height,
+           promptH: (m.querySelector('#ins-prompt') || { getBoundingClientRect: () => ({ height: 99 }) }).getBoundingClientRect().height };
+}"""
+
+
+def test_install_android():
+    """v0.3.1 (사용자 요청): 안드로이드 크롬에서도 「홈 화면에 추가」 안내 — 설정 단추는 ⋮ 메뉴 3단계(사파리 공유·7일 경고 없음),
+    크롬이 설치 신호를 주면 「바로 설치하기」 단추가 설치 창을 띄움, 첫 레슨을 끝내면 한 번 자동 안내, 넘침 없음·터치 44px."""
+    with App("Pixel 7") as a:
+        a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
+        a.page.wait_for_timeout(200)
+        a.dismiss()
+        a.page.click('[data-go="settings"]')
+        a.page.wait_for_selector(".screen.settings")
+        assert "인터넷이 없어도" in a.page.inner_text(".screen.settings")
+        # 1) 신호 없이: 3단계만
+        a.page.click("#install")
+        a.page.wait_for_selector(".modal.install")
+        r = a.js(SHEET_PROBE_JS)
+        print("    android sheet:", {k: r[k] for k in ("cls", "steps", "prompt", "overflowX")})
+        assert "android" in r["cls"] and r["steps"] == 3 and not r["prompt"], r
+        assert "⋮" in r["text"] and "앱 설치" in r["text"] and "공유 버튼" not in r["text"] and "7일" not in r["text"], r["text"]
+        assert not r["overflowX"] and r["okH"] >= 44, r
+        a.shot("install-android.png")
+        a.page.click("#ins-ok")
+        a.page.wait_for_selector(".modal.install", state="detached")
+        # 2) 설치 신호가 오면 「바로 설치하기」 → 설치 창(prompt) 한 번, 시트 닫힘
+        a.js(FAKE_BIP_JS)
+        a.page.click("#install")
+        a.page.wait_for_selector("#ins-prompt")
+        r = a.js(SHEET_PROBE_JS)
+        assert r["prompt"] and r["promptH"] >= 44 and not r["overflowX"], r
+        a.shot("install-android-prompt.png")
+        a.page.click("#ins-prompt")
+        a.page.wait_for_selector(".modal.install", state="detached")
+        assert a.js("() => window.__prompted") == 1
+        # 한 번 쓴 신호는 다시 못 쓰므로, 다시 열면 3단계만
+        a.page.click("#install")
+        a.page.wait_for_selector(".modal.install")
+        assert not a.js(SHEET_PROBE_JS)["prompt"]
+        a.page.click("#ins-ok")
+    # 3) 첫 레슨을 끝내면 안드로이드에도 한 번 자동 안내(android 종류)
+    with App("Pixel 7") as a:
+        a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
+        a.page.click("#continue")
+        a.page.wait_for_selector(".screen.lesson")
+        seen = []
+        a.play("1-1", hook=lambda n, app: seen.append(app.js(SHEET_PROBE_JS)) if app.page.is_visible("#ins-ok") else None)
+        a.page.wait_for_timeout(300)
+        if a.page.is_visible("#ins-ok"):
+            seen.append(a.js(SHEET_PROBE_JS))
+        hits = [x for x in seen if x]
+        assert hits and "android" in hits[0]["cls"], seen
+
+
 def test_show_card():
     """판정 R30 (16장): 보기 전용 카드 { say, show, dialect }는 다른 데이터베이스 SQL을 이름표·「돌지 않아요」 안내와 함께 코드 상자로만 보인다.
     실행하지 않으므로 결과 표·실행 단추가 없다(실행기가 준비된 뒤에도). 가장 좁은 폰(iPhone 17e)·17에서 38칸 줄이 한 줄, 넘침 없음."""

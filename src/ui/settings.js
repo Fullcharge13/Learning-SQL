@@ -91,7 +91,7 @@ export function render(root, ctx) {
       </section>
       <section class="panel">
         <h2>홈 화면에 추가</h2>
-        <p class="muted">아이폰 사파리에서는 홈 화면에 추가해 두면 앱처럼 열리고 기록도 더 안전해요.</p>
+        <p class="muted">홈 화면에 추가해 두면 앱처럼 바로 열리고, 인터넷이 없어도 열려요. 아이폰 사파리에서는 기록도 더 안전해요.</p>
         <button class="btn ghost wide" id="install">홈 화면에 추가 방법</button>
       </section>
       <p class="ver center">두억이와 SQL! ${esc(ctx.version)} · <a class="lic-link" href="licenses.txt" target="_blank" rel="noopener">사용한 프로그램</a></p>

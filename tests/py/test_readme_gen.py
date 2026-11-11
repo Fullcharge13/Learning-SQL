@@ -190,4 +190,4 @@ def test_stall_version_and_commands():
     """판 표시와 가게 시험 명령이 README에 있다"""
     text, _ = _built()
     assert "node tests/sim/stall.js" in text and "node tests/stall_requests.js" in text
-    assert _app_version() == "v0.3" and "# 두억이와 SQL! v0.3\n" in text
+    assert _app_version() == "v0.3.1" and "# 두억이와 SQL! v0.3.1\n" in text

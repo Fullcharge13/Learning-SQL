@@ -1,8 +1,11 @@
 // 「홈 화면에 추가」 안내를 보일지 정하는 순수 함수 (판정 C29, 설계서 7장 아이폰 대응)
-// 사파리 웹사이트 상태로는 7일 동안 열지 않으면 저장이 지워질 수 있어서, 아이폰·아이패드에서만 안내한다.
-// - 사파리: 홈 화면에 추가하는 3단계 안내("safari")
-// - 앱 안 브라우저(카카오톡·네이버·인스타그램·페이스북·라인): 사파리로 열라는 짧은 안내("inapp")
-// - iOS용 크롬·파이어폭스·엣지와 그 밖의 기기: 안내 없음
+// 사파리 웹사이트 상태로는 7일 동안 열지 않으면 저장이 지워질 수 있어서 아이폰·아이패드에 안내하고(v0.1),
+// v0.3.1부터 안드로이드에도 안내한다(앱처럼 바로 열림·오프라인).
+// - 아이폰 사파리: 홈 화면에 추가하는 3단계 안내("safari")
+// - 안드로이드 브라우저(크롬·삼성 인터넷 등): ⋮ 메뉴 3단계 안내("android")
+// - 앱 안 브라우저(카카오톡·네이버·인스타그램·페이스북·라인): 사파리/크롬으로 열라는 짧은 안내("inapp")
+// - 첫 레슨 뒤 자동 안내: iOS용 크롬·파이어폭스·엣지와 PC는 없음
+// - 설정 단추로 여는 안내: 그 밖의 기기는 두 방법을 다 보여 줌("both")
 
 export const INSTALL_HINT_KEY = "dueogi-sql-install-hint";
 
@@ -25,12 +28,26 @@ export function isIOSSafari(ua, maxTouchPoints = 0) {
   return isIOS(s, maxTouchPoints) && !OTHER_BROWSER.test(s) && !isInAppBrowser(s);
 }
 
-/** @returns {"safari" | "inapp" | null} */
+/** 안드로이드 기기인지 */
+export function isAndroid(ua) {
+  return /Android/i.test(String(ua || ""));
+}
+
+/** 첫 레슨 뒤 한 번 띄울 안내. @returns {"safari" | "android" | "inapp" | null} */
 export function installHintKind({ ua, maxTouchPoints = 0, standalone, shown }) {
   if (standalone || shown) return null;
+  if (isAndroid(ua)) return isInAppBrowser(ua) ? "inapp" : "android";
   if (!isIOS(ua, maxTouchPoints)) return null;
   if (isInAppBrowser(ua)) return "inapp";
   return isIOSSafari(ua, maxTouchPoints) ? "safari" : null;
+}
+
+/** 설정의 「홈 화면에 추가 방법」 단추로 여는 안내(언제나 보임). @returns {"safari" | "android" | "inapp" | "both"} */
+export function installSheetKind({ ua, maxTouchPoints = 0 }) {
+  if (isInAppBrowser(ua) && (isAndroid(ua) || isIOS(ua, maxTouchPoints))) return "inapp";
+  if (isAndroid(ua)) return "android";
+  if (isIOSSafari(ua, maxTouchPoints)) return "safari";
+  return "both";
 }
 
 /** 예전 이름: 안내를 보일지(종류와 관계없이) */

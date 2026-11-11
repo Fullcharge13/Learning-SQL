@@ -18,7 +18,7 @@ import { SqlRun } from "./sqlrun.js";
 import MARKET_SQL from "../data/market.sql";   // esbuild가 글자로 묶음(build.py·tools/dev.py: loader .sql=text)
 import { toast } from "./ui/dom.js";
 import { statusBar } from "./ui/nav.js";
-import { installHintKind, isIOS, isInAppBrowser, INSTALL_HINT_KEY } from "./install.js";
+import { installHintKind, installSheetKind, isAndroid, INSTALL_HINT_KEY } from "./install.js";
 import { openInstallSheet } from "./ui/installsheet.js";
 import * as splash from "./ui/splash.js";
 import * as home from "./ui/home.js";
@@ -29,7 +29,7 @@ import * as closet from "./ui/closet.js";
 import * as settings from "./ui/settings.js";
 import * as stall from "./ui/stall.js";
 
-export const VERSION = "v0.3";
+export const VERSION = "v0.3.1";
 const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall };
 
 // ---- 저장소 (사파리 사생활 보호 모드 등에서 localStorage 접근이 막혀도 앱은 돈다) ----
@@ -209,11 +209,23 @@ function installShown() {
 function isStandalone() {
   try { return navigator.standalone === true || matchMedia("(display-mode: standalone)").matches; } catch { return false; }
 }
-/** 설정 단추: 언제든 열기(앱 안 브라우저면 사파리로 열라는 안내) */
+// 크롬(안드로이드·PC)이 「설치할 수 있어요」 신호를 주면 받아 두었다가 「바로 설치하기」 단추로 띄운다(v0.3.1)
+let installPrompt = null;
+try {
+  addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; });
+  addEventListener("appinstalled", () => { installPrompt = null; });
+} catch { /* 신호가 없는 브라우저(사파리 등) */ }
+async function promptInstall() {
+  const p = installPrompt;
+  installPrompt = null; // 한 번 쓴 신호는 다시 못 씀
+  if (!p) return;
+  try { await p.prompt(); } catch { /* 사용자가 닫음 등 */ }
+}
+/** 설정 단추: 언제든 열기 — 기기에 맞는 안내(아이폰 사파리·안드로이드·앱 안 브라우저, 그 밖은 둘 다) */
 function showInstallSheet(kind) {
   const ua = navigator.userAgent;
-  const k = kind || (isIOS(ua, navigator.maxTouchPoints) && isInAppBrowser(ua) ? "inapp" : "safari");
-  return openInstallSheet({ outfit: app.save.outfit, kind: k });
+  const k = kind || installSheetKind({ ua, maxTouchPoints: navigator.maxTouchPoints });
+  return openInstallSheet({ outfit: app.save.outfit, kind: k, android: isAndroid(ua), onPrompt: installPrompt ? promptInstall : null });
 }
 /** 첫 레슨 완료 화면이 끝난 뒤 한 번만 */
 async function afterDone() {
