@@ -298,7 +298,7 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
           <section class="panel sp-build" aria-labelledby="sp-build-title">
             <div class="sp-build-head">
               <h2 id="sp-build-title">내 SQL <small>(놓인 카드를 누르면 빠져요)</small></h2>
-              <button class="btn ghost small sp-clear" id="sp-clear" aria-label="놓인 카드 모두 지우기">${icon("trash")}<span>비우기</span></button>
+              <button class="btn ghost small sp-clear" id="sp-clear">${icon("trash")}<span>비우기</span></button>
             </div>
             <div class="sp-line" aria-label="조립 줄"></div>
           </section>
@@ -438,6 +438,8 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       if (!ok || !alive || cur !== before) return;
       const prev = clone(cur);
       const prevActive = active;
+      const prevTested = tested;        // 되돌리면 비우기 전 시험 결과도 그대로(같은 SQL이므로)
+      const prevResult = resultHTML;
       edited(clearParts(def, cur));
       active = firstActive();
       paintLine();
@@ -452,7 +454,11 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
             if (!alive) return;
             edited(prev);
             active = prevActive;
+            tested = prevTested;
+            resultHTML = prevResult;
             paintLine();
+            paintResult();
+            paintDock();
             note("카드를 되돌렸어요");
             refocus("#sp-clear");
           },

@@ -48,6 +48,7 @@
 - test_dev_mode(v0.3.2): 설정 맨 아래 개발자 모드 — 켤 때 확인(그만두기 → 그대로), 띠·17-5·6-A3·8장 칸 카드 열림, 새로고침 유지,
   끄면 확인 없이 학습 기록·이어 하기 칸 원문 그대로(XP 40·5레슨). 아이폰 17·SE 넘침·터치. 캡처 .superpowers/sdd/v0.3.2/shots/dev-*.png
 - test_stall_tab(v0.3.2): 탭 5칸, 3장 평가 전 잠김(aria-disabled·알림만), 실제 3-5 통과 → 열림·점, 「<」는 들어온 화면으로, 점 규칙 (a)(b)(c)
+- test_dev_install_hint_and_flight(v0.3.2 고침 1): 개발자 모드 첫 레슨은 「홈 화면에 추가」 안내를 쓰지 않음, 가게 하루 계산 중 개발자 모드를 바꾸면 결과 버림, 가져오기 문구
 - test_stall_slot_clear(v0.3.2): 「비우기」 확인 창(처음 초점 그만두기), 지우기·되돌리기·5초 뒤 사라짐·다른 편집이면 사라짐·빈 칸이면 흐림, 전체 조립 칸
 """
 
@@ -3279,11 +3280,13 @@ def test_stall_tab():
             a.page.wait_for_selector(".settle")
             st = a.save()["stall"]
             assert st["order"]["done"] == ["r01"] and st["seenOrder"] == "r02", (st["order"], st.get("seenOrder"))
+            ups = [("sign", 150), ("newitems", 200), ("cart", 250), ("shelf", 300), ("regulars", 350)]   # data/stall.js UPGRADES
+            want_buy = [u for u, p in ups if st["money"] >= p]
+            assert st["seenBuy"] == want_buy, (st["money"], st["seenBuy"])
             a.page.click("#stall-close")
             a.page.wait_for_selector("#app[data-screen=home]")
-            want = st["money"] >= 150   # (b) 가장 싼 성장(간판 150냥)
-            print("    %s after day 1: money %s, dot %s (want %s)" % (dev, st["money"], _stall_tab(a)["dot"], want))
-            assert _stall_tab(a)["dot"] is want
+            print("    %s after day 1: money %s, seenBuy %s, dot %s" % (dev, st["money"], st["seenBuy"], _stall_tab(a)["dot"]))
+            assert _stall_tab(a)["dot"] is False, "가게 안에서 본 의뢰·성장은 점을 켜지 않음(사용자 결정 「새로 살 수 있게 됐을 때만」)"
             # (c) 가게 밖에서 의뢰가 끝나 다음 의뢰가 생김 → 점, (b) 돈이 성장 값 이상 → 점
             a.js("""() => { const c = window.__dueogi.ctx, st = structuredClone(c.save.stall);
               st.money = 10; st.order.done.push('r02'); st.order.idx = 2; c.commit({ ...c.save, stall: st }); c.show('home'); }""")
@@ -3292,8 +3295,22 @@ def test_stall_tab():
             a.page.click("#stall-close")
             a.page.wait_for_selector("#app[data-screen=home]")
             assert not _stall_tab(a)["dot"], "봤으면 점 없음"
-            a.js("""() => { const c = window.__dueogi.ctx; c.commit({ ...c.save, stall: { ...c.save.stall, money: 150 } }); c.show('home'); }""")
-            assert _stall_tab(a)["dot"], "(b) 간판 150냥"
+            # (b) 아직 안 본 성장을 새로 살 수 있게 됨 → 점, 본 뒤 돈이 줄었다 같은 값으로 다시 → 점 없음, 다음 성장을 새로 살 수 있게 됨 → 점
+            setm = """(m) => { const c = window.__dueogi.ctx; c.commit({ ...c.save, stall: { ...c.save.stall, money: m } }); c.show('home'); }"""
+            unseen = lambda: [(u, p) for u, p in ups if u not in a.save()["stall"]["seenBuy"]]
+            first = unseen()[0]
+            a.js(setm, first[1])
+            assert _stall_tab(a)["dot"], "(b) %s %d냥을 새로 살 수 있음" % first
+            _to_stall(a)
+            a.page.click("#stall-close")
+            a.page.wait_for_selector("#app[data-screen=home]")
+            assert not _stall_tab(a)["dot"], "본 성장은 점 없음"
+            a.js(setm, 20)
+            a.js(setm, first[1])
+            assert not _stall_tab(a)["dot"], "돈이 줄었다 같은 성장 값으로 다시 올라도 점 없음"
+            nxt = unseen()[0]
+            a.js(setm, nxt[1])
+            assert _stall_tab(a)["dot"], "(b) %s %d냥을 새로 살 수 있음" % nxt
             assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
 
@@ -3318,6 +3335,8 @@ def test_stall_slot_clear():
             assert _placed(a, "where") == ["stock", "<", "1"]
             c = _clear_state(a)
             assert not c["disabled"] and c["aria"] is None and c["w"] >= 44 and c["h"] >= 44, c
+            lab = a.page.get_attribute("#sp-clear", "aria-label")
+            assert lab is None or "비우기" in lab, "보이는 글 「비우기」가 이름에 들어가야(fix 1-4): %r" % lab
             # 시험 실행 → 「저장」 상태에서 비우면 시험 결과도 지워짐
             a.page.click("#sp-test")
             a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
@@ -3361,7 +3380,8 @@ def test_stall_slot_clear():
             assert _placed(a, "where") == ["stock", "<", "1"], _placed(a, "where")
             assert not a.page.query_selector(".toast-act")
             assert not _clear_state(a)["disabled"]
-            assert _save_label(a) == "그래도 저장", "되돌린 뒤에는 다시 시험해야"
+            assert _save_label(a) == "저장", "되돌리면 비우기 전 시험 결과도 그대로(fix 1-5)"
+            assert a.page.query_selector(".sp-result .rtable"), "되돌리면 시험 결과 표도 그대로"
             # 숫자를 바꾼 뒤 비우기 → 다른 편집을 하면 되돌리기 사라짐
             a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
             a.page.click("#sp-clear")
@@ -3372,6 +3392,18 @@ def test_stall_slot_clear():
             a.page.click(".sp-picker button.bcard[data-text='price']")
             assert not a.page.query_selector(".toast-act"), "다른 편집 뒤에는 되돌리기 없음"
             assert _placed(a, "where") == ["price"]
+            # 알림에 초점이 있는 동안은 5초가 지나도 안 사라짐(fix 1-4), 초점이 떠나면 남은 시간 뒤 사라짐
+            a.page.click("#sp-clear")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".toast-act")
+            a.js("() => document.querySelector('.toast-act').focus()")
+            a.page.wait_for_timeout(5800)
+            assert a.page.query_selector(".toast-act"), "초점이 있는 동안 알림이 사라짐"
+            a.js("() => document.querySelector('#sp-test').focus()")
+            a.page.wait_for_timeout(5300)
+            assert not a.page.query_selector(".toast-act"), "초점이 떠난 뒤 사라지지 않음"
+            a.page.click(".sp-picker button.bcard[data-text='price']")
             # 다시 비우고 5초 넘게 기다리면 알림이 사라지고 빈 채로
             a.page.click("#sp-clear")
             a.page.wait_for_selector(".modal")
@@ -3405,6 +3437,66 @@ def test_stall_slot_clear():
         assert " ".join(_placed(a, "full")) == "SELECT COUNT(*) FROM items"
         assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
+
+
+def test_dev_install_hint_and_flight():
+    """fix round 1: ① 개발자 모드에서 첫 레슨을 끝내도 학습자의 한 번뿐인 「홈 화면에 추가」 안내를 쓰지 않음(대조: 끈 채면 뜸)
+    ② 가게 하루 계산 중에 개발자 모드를 바꾸면 그 결과를 버림(학습 기록 가게가 그대로) ③ 개발자 모드 가져오기 확인 창 문구"""
+    with App("iPhone 17") as a:
+        a.js("() => localStorage.setItem('dueogi-sql.dev', '1')")
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go", timeout=20_000)
+        a.start()
+        a.page.click("#continue")
+        a.play("1-1")
+        a.page.wait_for_timeout(800)
+        shown = a.page.is_visible("#ins-ok")
+        if not shown:
+            a.page.click("#home")
+            a.page.wait_for_selector(".screen.home")
+            a.page.wait_for_timeout(400)
+            shown = a.page.is_visible("#ins-ok")
+        hint = a.js("() => localStorage.getItem('dueogi-sql-install-hint')")
+        print("    dev first lesson: install sheet %s, hint key %r" % (shown, hint))
+        assert not shown and hint is None, (shown, hint)
+        assert not a.errors, a.errors
+    with App("iPhone 17") as a:   # 대조: 학습 기록이면 안내가 뜨고 칸이 남음
+        a.start()
+        a.page.click("#continue")
+        a.play("1-1")
+        a.page.wait_for_selector("#ins-ok", timeout=5000)
+        assert a.js("() => localStorage.getItem('dueogi-sql-install-hint')") == "1"
+        a.dismiss()
+    # ② 학습 기록: 3장까지 통과, 가게 1일째(열어 봄). 개발자 모드 가게도 1일째에서 하루 계산 중에 끔
+    seed = _seed_through(3, {"v": 1, "seed": 5, "opened": True})
+    with App("iPhone 17", save=seed, url=real_url()) as a:
+        a.js("() => localStorage.setItem('dueogi-sql.dev', '1')")
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go", timeout=20_000)
+        a.start()
+        _to_stall(a)
+        learner0 = _raw(a, SAVE_KEY)
+        a.js("""() => { const s = window.__dueogi.ctx.sql; const orig = s.runLedger.bind(s);
+            s.runLedger = (l, q) => new Promise((ok) => setTimeout(() => ok(orig(l, q)), 1500)); }""")
+        a.page.click("#open-day")
+        a.page.wait_for_timeout(200)
+        a.js("() => { window.__dueogi.ctx.setDev(false); window.__dueogi.ctx.show('home'); }")
+        a.page.wait_for_timeout(4000)
+        s = a.save()
+        print("    flight: learner stall day %s, xp %s" % (s["stall"]["day"], s["xp"]))
+        assert s["stall"]["day"] == 1 and s["xp"] == seed["xp"], (s["stall"]["day"], s["xp"])
+        assert _raw(a, SAVE_KEY) == learner0, "개발자 모드의 하루가 학습 기록에 들어감"
+        assert json.loads(_raw(a, SAVE_KEY + ".dev"))["stall"]["day"] == 1, "버린 하루는 개발자 저장에도 안 들어감"
+        # ③ 개발자 모드 가져오기 확인 창
+        a.js("() => window.__dueogi.ctx.setDev(true)")
+        _go_tab(a, "settings")
+        a.page.set_input_files("#import", files=[{"name": "dueogi-sql-save.json", "mimeType": "application/json",
+                                                  "buffer": json.dumps({"saveVer": 1, "xp": 9, "yeopjeon": 1, "completed_lessons": []}).encode()}])
+        a.page.wait_for_selector(".modal-back")
+        body = a.page.inner_text(".modal-back")
+        assert "개발자 모드 기록만 바뀌어요" in body, body
+        a.page.click(".modal .btn.ghost")
+        assert not a.errors, a.errors
 
 
 def _select(argv):

@@ -168,7 +168,8 @@ function finish(info) {
   const firstEver = info.mode !== "review" && app.save.completed_lessons.length === 0;
   const { save, result } = finishLesson(app.save, { ...info, nextLessonId, nextChapter, advancedIds: advancedIds(app.chapters) }, new Date());
   commit(save);
-  if (firstEver) {
+  // 개발자 모드(검수용)의 첫 레슨은 학습자의 한 번뿐인 「홈 화면에 추가」 안내·저장 보존 요청을 쓰지 않는다(fix round 1)
+  if (firstEver && !app.dev) {
     requestPersist();
     app.installHintPending = true;
   }

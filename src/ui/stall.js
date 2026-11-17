@@ -3,7 +3,7 @@
 // 하루 흐름: 「장 열기」 → 단추 잠금 → playDay → 가게 저장(+ 의뢰 XP, 재생 전) → 재생 → 정산 카드 → 단추 풀림.
 // 하루 계산은 모듈에 하나만(inflight): 두 번 빨리 눌러도, 계산 중에 화면을 떠났다 와도 하루는 한 번만 지난다.
 import { SLOTS, UPGRADES } from "../../data/stall.js";
-import { newStall, buyUpgrade, stallOpen, markOrderSeen } from "../stall/state.js";
+import { newStall, buyUpgrade, stallOpen, markStallSeen } from "../stall/state.js";
 import { playDay } from "../stall/play.js";
 import { currentRequest, checkUpgradeNow } from "../stall/requests.js";
 import { ledgerSql, LEDGER_SCHEMA } from "../stall/ledger.js";
@@ -158,10 +158,10 @@ export function render(root, ctx, params = {}) {
     </section>`;
   }
 
-  // 새 소식 점(v0.3.2, stall/state.js stallTab의 (c)): 지금 할 수 있는 의뢰를 봤다고 적는다. 재생 중(아침 상태를 보임)에는 적지 않음
+  // 새 소식 점(v0.3.2, stall/state.js stallTab의 (b)·(c)): 지금 할 수 있는 의뢰·살 수 있는 성장을 봤다고 적는다. 재생 중(아침 상태를 보임)에는 적지 않음
   function seeOrder() {
     if (view === "replay" || !ctx.save.stall) return;
-    const next = markOrderSeen(ctx.save.stall, ctx.stallPassed());
+    const next = markStallSeen(ctx.save.stall, ctx.stallPassed());
     if (next !== ctx.save.stall) ctx.commit({ ...ctx.save, stall: next });
   }
 
@@ -258,6 +258,7 @@ export function render(root, ctx, params = {}) {
     if (inflight || view === "replay") return;
     const before = stall();
     const passedNow = ctx.stallPassed();
+    const dev0 = ctx.dev;   // 계산 중에 개발자 모드를 바꾸면 다른 저장 칸이 되므로 결과를 버린다(fix round 1)
     let timedOut = false;
     const runner = async (l, q) => {
       const r = await ctx.sql.runLedger(l, q);
@@ -267,6 +268,7 @@ export function render(root, ctx, params = {}) {
     const job = (async () => {
       const out = await playDay(before, passedNow, runner);
       const cur = ctx.save.stall;
+      if (ctx.dev !== dev0) return null;                         // 그 사이 개발자 모드를 켜거나 껐으면 버림(다른 칸의 가게)
       if (!cur || cur.day !== before.day) return null;          // 그 사이 다른 판이 하루를 넘겼으면 버림
       const saved = ctx.stallCommit(out.stall, out.completed);  // 재생 전에 저장
       return { ...out, before, timedOut, milestone: saved.milestone };

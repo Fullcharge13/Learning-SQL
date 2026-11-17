@@ -33,7 +33,8 @@ export function newStall(seed) {
     slots: { restock: { on: true, mode: "frame", parts: { where: [{ c: "col_stock" }, { c: "op_lt" }, { c: "num", n: 1 }] } } },
     orders: [], order: { idx: 0, done: [], progress: {} },
     log: [], last: null, opened: false,
-    seenOrder: null,   // v0.3.2: 가게 화면에서 마지막으로 본 「할 수 있는 의뢰」 id(아래 stallTab의 새 소식 점)
+    seenOrder: null,   // v0.3.2: 가게 화면에서 마지막으로 본 「할 수 있는 의뢰」 id(아래 stallTab의 새 소식 점 (c))
+    seenBuy: [],       // v0.3.2: 가게 화면에서 본 「살 수 있던 성장」 id들(아직 안 산 것만, 새 소식 점 (b))
   };
 }
 
@@ -138,6 +139,7 @@ export function cleanStall(raw) {
     last: isPlain(raw.last) ? structuredClone(raw.last) : null,
     opened: raw.opened === true,
     seenOrder: typeof raw.seenOrder === "string" && REQUEST_IDS.has(raw.seenOrder) ? raw.seenOrder : null,
+    seenBuy: Array.isArray(raw.seenBuy) ? [...new Set(raw.seenBuy.filter((id) => typeof id === "string" && UPGRADE_BY_ID.has(id)))] : [],
   };
 }
 
@@ -185,10 +187,11 @@ function availableOrder(stall, passed) {
  * - open: 3장 평가 통과(stallOpen). 잠김이면 점도 없음.
  * - dot(새 소식 점, open일 때만) — 아래 셋 중 하나라도 참:
  *   (a) 아직 장을 한 번도 열어 보지 않음: stall이 없음, opened가 false, 또는 1일째인데 어제 장부(last)가 없음
- *   (b) 가게 돈 ≥ 아직 안 산 성장 중 가장 싼 값(살 수 있는 성장이 있음)
+ *   (b) 아직 안 산 성장 중 지금 가게 돈으로 살 수 있는 것이 있고, 그중 하나라도 가게 화면에서 본 적이 없음(stall.seenBuy에 없음)
+ *       = 사용자 결정 「새로 살 수 있게 됐을 때만」. 본 성장은 돈이 줄었다 다시 늘어도 점을 켜지 않는다.
  *   (c) 지금 할 수 있는 의뢰(장 기다림이 아님)가 있고, 그 id가 가게 화면에서 마지막으로 본 의뢰(stall.seenOrder)와 다름
  *       = 앞 의뢰를 끝냈거나 장 평가를 통과해 새 의뢰를 할 수 있게 됐는데 아직 가게에 들어가 보지 않음.
- *       「지금 의뢰가 있다」만으로는 켜지 않는다(늘 켜지므로). 가게 화면을 그리면 markOrderSeen으로 적는다.
+ *       「지금 의뢰가 있다」만으로는 켜지 않는다(늘 켜지므로). 가게 화면을 그리면 markStallSeen으로 (b)·(c)를 함께 적는다.
  * @param save 앱 저장(save.stall을 봄)
  * @param passed 통과한 장 번호(Set, 개발자 모드면 stallPassedFor가 모든 장)
  */
@@ -196,17 +199,30 @@ export function stallTab(save, passed) {
   if (!stallOpen(passed)) return { open: false, dot: false };
   const st = save && isPlain(save.stall) ? save.stall : null;
   if (!st || st.opened !== true || (st.day === 1 && !st.last)) return { open: true, dot: true };
-  const owned = new Set(Array.isArray(st.upgrades) ? st.upgrades : []);
-  const left = UPGRADES.filter((u) => !owned.has(u.id)).map((u) => u.price);
-  if (left.length && Number(st.money) >= Math.min(...left)) return { open: true, dot: true };
+  const seenBuy = new Set(Array.isArray(st.seenBuy) ? st.seenBuy : []);
+  if (affordable(st).some((id) => !seenBuy.has(id))) return { open: true, dot: true };
   const avail = availableOrder(st, passed);
   return { open: true, dot: avail !== null && avail !== st.seenOrder };
 }
 
-/** 가게 화면을 그릴 때: 지금 할 수 있는 의뢰를 「봤음」으로 적은 새 가게. 바뀔 것이 없으면 같은 객체(저장하지 않아도 됨) */
-export function markOrderSeen(stall, passed) {
+// 아직 안 산 성장 중 지금 가게 돈으로 살 수 있는 것의 id(성장 표 순서)
+function affordable(stall) {
+  const owned = new Set(Array.isArray(stall.upgrades) ? stall.upgrades : []);
+  const money = Number(stall.money);
+  return UPGRADES.filter((u) => !owned.has(u.id) && money >= u.price).map((u) => u.id);
+}
+
+/** 가게 화면을 그릴 때: 지금 할 수 있는 의뢰(seenOrder)와 지금 살 수 있는 성장(seenBuy에 더함, 산 것은 뺌)을 「봤음」으로 적은 새 가게.
+ *  바뀔 것이 없으면 같은 객체(저장하지 않아도 됨) */
+export function markStallSeen(stall, passed) {
   if (!isPlain(stall)) return stall;
   const avail = availableOrder(stall, passed);
-  if (avail === null || avail === stall.seenOrder) return stall;
-  return { ...stall, seenOrder: avail };
+  const seenOrder = avail === null ? stall.seenOrder : avail;
+  const owned = new Set(Array.isArray(stall.upgrades) ? stall.upgrades : []);
+  const prev = Array.isArray(stall.seenBuy) ? stall.seenBuy : [];
+  const keep = new Set([...prev, ...affordable(stall)].filter((id) => !owned.has(id)));
+  const seenBuy = UPGRADES.map((u) => u.id).filter((id) => keep.has(id));
+  const sameBuy = seenBuy.length === prev.length && seenBuy.every((id, k) => id === prev[k]);
+  if (seenOrder === stall.seenOrder && sameBuy && Array.isArray(stall.seenBuy)) return stall;
+  return { ...stall, seenOrder, seenBuy };
 }

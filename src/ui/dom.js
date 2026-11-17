@@ -100,9 +100,21 @@ export function toast(msg, kind = "", { action = null, ms = 4200 } = {}) {
     document.body.appendChild(box);
   }
   const t = el(`<div class="toast ${kind}${action ? " has-act" : ""}"><span>${esc(msg)}</span>${action ? `<button class="toast-act">${esc(action.label)}</button>` : ""}</div>`);
-  const timer = setTimeout(() => t.remove(), ms);
+  // 단추가 있는 알림은 손가락·마우스가 올라가 있거나 초점이 있는 동안 시간을 멈춘다(fix round 1, 읽고 누를 시간)
+  let left = ms, started = Date.now(), timer = setTimeout(() => t.remove(), ms), paused = false;
+  const pause = () => { if (paused) return; paused = true; clearTimeout(timer); left = Math.max(0, left - (Date.now() - started)); };
+  const resume = () => {
+    if (!paused || t.matches(":hover") || t.contains(document.activeElement)) return;
+    paused = false; started = Date.now(); timer = setTimeout(() => t.remove(), Math.max(left, 1000));
+  };
   const close = () => { clearTimeout(timer); t.remove(); };
-  if (action) t.querySelector(".toast-act").addEventListener("click", () => { close(); action.onClick(); });
+  if (action) {
+    t.querySelector(".toast-act").addEventListener("click", () => { close(); action.onClick(); });
+    t.addEventListener("pointerenter", pause);
+    t.addEventListener("focusin", pause);
+    t.addEventListener("pointerleave", () => setTimeout(resume, 0));
+    t.addEventListener("focusout", () => setTimeout(resume, 0));
+  }
   box.appendChild(t);
   return close;
 }

@@ -202,7 +202,7 @@ export function render(root, ctx) {
     const next = ctx.migrate(raw);
     const ok = await dialog({
       title: "이 저장으로 바꿀까요?",
-      body: `<p>끝낸 레슨 ${next.completed_lessons.length}개, XP ${Math.max(0, next.xp)}, 엽전 ${Math.max(0, next.yeopjeon)}, 연속 기록 ${next.streak.days}일</p><p>지금 이 브라우저의 진행은 이 파일 내용으로 바뀌어요.</p>`,
+      body: `<p>끝낸 레슨 ${next.completed_lessons.length}개, XP ${Math.max(0, next.xp)}, 엽전 ${Math.max(0, next.yeopjeon)}, 연속 기록 ${next.streak.days}일</p>${ctx.dev ? "<p>개발자 모드 기록만 바뀌어요. 학습 기록은 그대로예요.</p>" : "<p>지금 이 브라우저의 진행은 이 파일 내용으로 바뀌어요.</p>"}`,
       buttons: [{ label: "그만두기", value: false }, { label: "바꾸기", value: true, kind: "primary" }],
     });
     if (!ok) return;
