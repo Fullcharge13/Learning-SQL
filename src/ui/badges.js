@@ -2,7 +2,7 @@
 import { shownBadges } from "../badges.js";
 import { CONCEPTS } from "../../data/concepts.js";
 import { esc } from "./dom.js";
-import { tabBar, bindTabs, statusBar } from "./nav.js";
+import { tabBar, bindTabs, statusBar, stallTabOf } from "./nav.js";
 
 const ART = {
   first_query: ["teal", "SQL"],
@@ -73,7 +73,7 @@ export function render(root, ctx) {
           : `<p class="muted">아직 없어요. 틀린 문제가 생기면 여기에 모여요.</p>`}
       </section>
     </main>
-    ${tabBar("badges")}
+    ${tabBar("badges", stallTabOf(ctx))}
   </div>`;
   bindTabs(root, ctx);
 }

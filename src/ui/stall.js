@@ -3,7 +3,7 @@
 // 하루 흐름: 「장 열기」 → 단추 잠금 → playDay → 가게 저장(+ 의뢰 XP, 재생 전) → 재생 → 정산 카드 → 단추 풀림.
 // 하루 계산은 모듈에 하나만(inflight): 두 번 빨리 눌러도, 계산 중에 화면을 떠났다 와도 하루는 한 번만 지난다.
 import { SLOTS, UPGRADES } from "../../data/stall.js";
-import { newStall, buyUpgrade, stallOpen } from "../stall/state.js";
+import { newStall, buyUpgrade, stallOpen, markOrderSeen } from "../stall/state.js";
 import { playDay } from "../stall/play.js";
 import { currentRequest, checkUpgradeNow } from "../stall/requests.js";
 import { ledgerSql, LEDGER_SCHEMA } from "../stall/ledger.js";
@@ -14,11 +14,13 @@ import { esc, escCode, icon, toast, celebrate } from "./dom.js";
 import { openTables } from "./tables.js";
 import { stallSVG, playReplay, summaryRows, lastLines, requestProgress, itemName } from "./stallart.js";
 import { openSlotEditor } from "./stallslot.js";
+import { TAB_SCREENS, STALL_LOCKED } from "./nav.js";
 
 export { eventLine, bubbleText, summaryRows, lastLines, requestProgress, arrivalLine, restLines, TIMEOUT_LINE, ro } from "./stallart.js";
 
 export const ENGINE_WAIT = "실행기 준비 중이에요. 잠시 뒤에 다시 눌러 주세요.";
 const REPLAY_STEP = 750;   // 손님 한 명(ms)
+const BACK_NAME = { home: "학습 길로", badges: "배지로", closet: "의상실로", settings: "설정으로" };
 
 let inflight = null;       // 하루 계산 중인 약속(화면을 다시 그려도 하나)
 let missedDone = [];       // 계산 중에 화면을 떠났을 때 끝낸 의뢰: 돌아오면 알림으로 알림
@@ -38,9 +40,11 @@ function newSeed() {
   try { return crypto.getRandomValues(new Uint32Array(1))[0] % 2147483647 || 1; } catch { return (Date.now() % 2147483647) || 1; }
 }
 
-export function render(root, ctx) {
+export function render(root, ctx, params = {}) {
+  // v0.3.2: 아래 탭 줄의 「가게」 칸에서 들어옴. 「<」는 들어온 화면(학습·배지·의상실·설정)으로 돌아감
+  const from = TAB_SCREENS.includes(params && params.from) ? params.from : "home";
   const passed = ctx.stallPassed();
-  if (!stallOpen(passed)) { toast("3장 평가를 통과하면 열려요"); ctx.show("home"); return undefined; }
+  if (!stallOpen(passed)) { toast(STALL_LOCKED); ctx.show(from); return undefined; }
 
   // 처음 열기: 가게를 만들고 두억이가 소개
   let say = null;
@@ -60,7 +64,7 @@ export function render(root, ctx) {
 
   function header(st) {
     return `<header class="stall-top">
-      <button class="icon-btn" id="stall-close" aria-label="가게 닫고 학습 길로">${icon("close")}</button>
+      <button class="icon-btn" id="stall-close" aria-label="${esc(`가게 닫고 ${BACK_NAME[from]}`)}">${icon("back")}</button>
       <h1 class="stall-title">두억이의 가게</h1>
       <div class="stall-stats">
         <span class="stall-day">${esc(st.day)}일째</span>
@@ -154,8 +158,16 @@ export function render(root, ctx) {
     </section>`;
   }
 
+  // 새 소식 점(v0.3.2, stall/state.js stallTab의 (c)): 지금 할 수 있는 의뢰를 봤다고 적는다. 재생 중(아침 상태를 보임)에는 적지 않음
+  function seeOrder() {
+    if (view === "replay" || !ctx.save.stall) return;
+    const next = markOrderSeen(ctx.save.stall, ctx.stallPassed());
+    if (next !== ctx.save.stall) ctx.commit({ ...ctx.save, stall: next });
+  }
+
   function paint() {
     if (!alive || editing) return;
+    seeOrder();
     const busy = !!inflight || view === "replay";
     const showing = view === "replay" && day ? day.before : stall();
     const artOpts = view === "replay" && day ? { ids: dayShelf(day.before, day.stall) } : {};
@@ -182,7 +194,7 @@ export function render(root, ctx) {
   }
 
   function bind() {
-    root.querySelector("#stall-close").addEventListener("click", () => ctx.show("home"));
+    root.querySelector("#stall-close").addEventListener("click", () => ctx.show(from));
     const od = root.querySelector("#open-day");
     if (od) od.addEventListener("click", openDay);
     const sk = root.querySelector("#skip");

@@ -1,7 +1,9 @@
 // 두억이와 SQL! — 앱 입구. 상태는 app = { save, screen, modal } 하나, 화면 전환은 show() 하나.
-import { loadEx, store, migrate, takeRefundNotice, refundNoticeText } from "./save.js";
+import { migrate, takeRefundNotice, refundNoticeText } from "./save.js";
 import { rollDay, earnXp } from "./rules.js";
-import { passedChapters } from "./stall/state.js";
+import { stallPassedFor } from "./stall/state.js";
+import { readDevFlag, setDevMode, loadSlot, storeSlot, keysFor, markDev } from "./devmode.js";
+import { lessonStateOf } from "./curriculum.js";
 import { ensureQuests } from "./quests.js";
 import { say as pickLine } from "./say.js";
 import { OUTFITS } from "../data/outfits.js";
@@ -11,7 +13,7 @@ import { ensureDaily, dailyStatus, recordDaily, finishDaily, finishedItems } fro
 import { createPersist } from "./persist.js";
 import { readResume, writeResume, clearResume } from "./resume.js";
 import { createLessonData, chaptersForConcepts } from "./lessondata.js";
-import { advancedState, advancedIds, isAdvancedId } from "./advanced.js";
+import { advancedIds } from "./advanced.js";
 import { loadDevChapters } from "./lessondev.js";
 import { createSound } from "./sound.js";
 import { SqlRun } from "./sqlrun.js";
@@ -29,7 +31,7 @@ import * as closet from "./ui/closet.js";
 import * as settings from "./ui/settings.js";
 import * as stall from "./ui/stall.js";
 
-export const VERSION = "v0.3.1";
+export const VERSION = "v0.3.2";
 const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall };
 
 // ---- 저장소 (사파리 사생활 보호 모드 등에서 localStorage 접근이 막혀도 앱은 돈다) ----
@@ -66,6 +68,7 @@ const app = {
   greetOverride: null,   // 다음 홈 인사 한 번: "welcome_back" | "streak_broken"
   lastLine: {},          // 대사 상황별 직전 줄 번호
   storeFailedShown: false,
+  dev: false,            // 개발자 모드(검수용, v0.3.2): 켜 있으면 저장·이어 하기를 따로 둔 칸에서 읽고 씀(src/devmode.js)
 };
 
 // SQL 실행기(설계 §4-4): 작업자 worker.js(sql.js를 묶어 넣음)가 sql-wasm.wasm(index.html 옆)을 받아 장터 데이터를 올린다.
@@ -93,8 +96,9 @@ function dayStart() {
 
 // ---- 저장 ----
 function commit(next) {
+  next = markDev(next, app.dev);   // 지금 칸에 맞는 개발자 표시(가져오기 등으로 빠지거나 섞여 들어와도)
   app.save = next;
-  const ok = store(storage, next);
+  const ok = storeSlot(storage, next, app.dev);
   if (!ok && !app.storeFailedShown) {
     app.storeFailedShown = true;
     toast("저장하지 못했어요. 브라우저 저장 공간이 꽉 찼거나 막혀 있어요. 설정에서 저장 내보내기를 해 두면 안전해요.", "warn");
@@ -128,18 +132,9 @@ function show(name, params = {}) {
 }
 
 // ---- 레슨 길 ----
-function lessonIndex(id) { return app.lessons.findIndex((l) => l.id === id); }
 function lessonById(id) { return app.lessons.find((l) => l.id === id) || app.advanced.find((l) => l.id === id); }
-function lessonState(id) {
-  const s = app.save;
-  // 심화(v0.7): 장 평가를 끝내면 열림. 지금 레슨 계산(아래)은 본 과정 lessons만 본다
-  if (isAdvancedId(id)) return advancedState(app.chapters, s, id) || "locked";
-  const i = lessonIndex(id);
-  if (i < 0) return "locked";
-  if (s.completed_lessons.includes(id)) return s.grading_results[id] && s.grading_results[id].perfect ? "perfect" : "done";
-  if (i === 0 || s.completed_lessons.includes(app.lessons[i - 1].id)) return "open";
-  return "locked";
-}
+// 레슨 상태는 curriculum.lessonStateOf 한 곳(본 과정 순서·심화·개발자 모드 isDev). 지금 레슨 계산(아래)은 본 과정 lessons만 본다
+function lessonState(id) { return lessonStateOf(app.chapters, app.save, id); }
 function currentLessonId() {
   const s = app.save;
   const cur = app.lessons.find((l) => l.id === s.current_lesson);
@@ -238,8 +233,8 @@ async function afterDone() {
 }
 
 // ---- 두억이의 가게 (v0.3) ----
-/** 장 평가를 통과한 장 번호들(가게·칸·카드·의뢰 열림) */
-function stallPassed() { return passedChapters(app.chapters, app.save.completed_lessons); }
+/** 장 평가를 통과한 장 번호들(가게·칸·카드·의뢰 열림). 개발자 모드 저장이면 모든 장(v0.3.2) */
+function stallPassed() { return stallPassedFor(app.save, app.chapters); }
 /** 가게 상태 + 끝낸 의뢰의 XP를 한 번에 저장한다(재생 전). 의뢰 XP는 earnXp로: 하루 목표·연속 기록에 들어감(설계 S5) */
 function stallCommit(nextStall, completed = []) {
   let s = { ...app.save, stall: nextStall };
@@ -254,17 +249,44 @@ function stallCommit(nextStall, completed = []) {
 }
 
 // 하던 레슨 기록(v0.6.2 다): 본 저장과 따로 한 칸. 없는 레슨·24시간 지난 기록은 읽을 때 지운다
+// 개발자 모드에서는 따로 둔 칸(keysFor(true).resume, v0.3.2)
 const resume = {
-  read: () => readResume(storage, { now: Date.now(), exists: (id) => !!lessonById(id) }),
-  write: (rec) => writeResume(storage, rec),
-  clear: () => clearResume(storage),
+  read: () => readResume(storage, { now: Date.now(), exists: (id) => !!lessonById(id), key: keysFor(app.dev).resume }),
+  write: (rec) => writeResume(storage, rec, keysFor(app.dev).resume),
+  clear: () => clearResume(storage, keysFor(app.dev).resume),
 };
+
+// ---- 개발자 모드 (검수용, v0.3.2) ----
+// 모든 화면 맨 위 줄무늬 띠(index.html #dev-banner). 켜 있으면 html.dev-on → --sat에 띠 높이를 더해 화면이 띠 밑으로 내려감
+function paintDev() {
+  try {
+    document.documentElement.classList.toggle("dev-on", app.dev);
+    const b = document.getElementById("dev-banner");
+    if (b) b.hidden = !app.dev;
+  } catch { /* 화면 없음 */ }
+}
+/** 켜고 끄기: 깃발을 남기고 그 칸의 저장으로 바꾼 뒤 오늘에 맞춤. 학습 기록은 켜 있는 동안 읽지도 쓰지도 않는다 */
+function setDev(on) {
+  on = !!on;
+  if (on === app.dev) return;
+  const { save, readFailed } = setDevMode(storage, on);
+  app.dev = on;
+  app.save = save;
+  app.storeFailedShown = false;
+  app.greetOverride = null;
+  if (readFailed) toast("저장을 읽지 못해 새로 시작해요. 이 브라우저의 저장 공간 설정을 확인해 주세요.", "warn");
+  paintDev();
+  if (app.lessons.length) resume.read();
+  dayStart();
+}
 
 const ctx = {
   app, resume,
   afterDone, showInstallSheet,
   version: VERSION,
   get save() { return app.save; },
+  get dev() { return app.dev; },
+  setDev,
   commit, show, say, sound, toast, finish,
   daily, dailyStep, finishDaily: finishDailyChallenge,
   stallPassed, stallCommit,
@@ -295,7 +317,9 @@ const ctx = {
 
 async function boot() {
   const root = document.getElementById("app");
-  const { save, readFailed } = loadEx(storage);
+  app.dev = readDevFlag(storage);
+  paintDev();
+  const { save, readFailed } = loadSlot(storage, app.dev);
   app.save = save;
   if (readFailed) toast("저장을 읽지 못해 새로 시작해요. 이 브라우저의 저장 공간 설정을 확인해 주세요.", "warn");
   requestPersist();

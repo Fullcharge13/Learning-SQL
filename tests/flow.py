@@ -44,6 +44,11 @@
 - test_shot_pin_allowlist(작업 16): 전체 캡처는 .lesson-foot·.tabbar만 옮기고, 결과 창이 열리면 안 옮기며, 실패해도 되돌림
 - test_foot_clear_safe_area(작업 16): --sab 34px + 힌트 모두 펼침 → 조립 화면 내용이 단추 줄 위에 다 보임
 - (심화 가지는 실제 1-A1~3으로 시험)
+- test_stall_entrance(v0.3.2 고침): 입구는 아래 탭 줄 「가게」 칸 — 잠김 알림만 / 처음 열면 소개 대사, 가게 화면에는 탭 줄 없음
+- test_dev_mode(v0.3.2): 설정 맨 아래 개발자 모드 — 켤 때 확인(그만두기 → 그대로), 띠·17-5·6-A3·8장 칸 카드 열림, 새로고침 유지,
+  끄면 확인 없이 학습 기록·이어 하기 칸 원문 그대로(XP 40·5레슨). 아이폰 17·SE 넘침·터치. 캡처 .superpowers/sdd/v0.3.2/shots/dev-*.png
+- test_stall_tab(v0.3.2): 탭 5칸, 3장 평가 전 잠김(aria-disabled·알림만), 실제 3-5 통과 → 열림·점, 「<」는 들어온 화면으로, 점 규칙 (a)(b)(c)
+- test_stall_slot_clear(v0.3.2): 「비우기」 확인 창(처음 초점 그만두기), 지우기·되돌리기·5초 뒤 사라짐·다른 편집이면 사라짐·빈 칸이면 흐림, 전체 조립 칸
 """
 
 import atexit
@@ -2571,9 +2576,18 @@ def _stall_intro_lines():
 
 
 def _to_stall(a):
-    a.page.click("#stall-go")
+    """아래 탭 줄의 「가게」 칸으로 들어감(v0.3.2: 홈 카드 없음)"""
+    a.page.click('.tabbar [data-go="stall"]')
     a.page.wait_for_selector("#app[data-screen=stall] .screen.stall")
     a.page.wait_for_timeout(150)
+
+
+def _stall_tab(a):
+    """가게 칸 상태: 잠김·점·aria"""
+    return a.js("""() => { const b = document.querySelector('.tabbar [data-go="stall"]'); if (!b) return null;
+      return { locked: b.classList.contains('locked'), dot: !!b.querySelector('.tab-dot'), lock: !!b.querySelector('.tab-lock'),
+               disabled: b.getAttribute('aria-disabled'), label: b.getAttribute('aria-label'), text: b.innerText.trim(),
+               tabs: [...document.querySelectorAll('.tabbar .tab')].map((t) => t.innerText.trim()) }; }""")
 
 
 def _stall_measure(a, name, fails):
@@ -2587,29 +2601,27 @@ def _stall_measure(a, name, fails):
 
 
 def test_stall_entrance():
+    """v0.3.2: 입구는 아래 탭 줄의 「가게」 칸(홈 카드 없음). 잠김 → 알림만 / 3-5 통과 → 처음 열면 소개 대사, 두 번째는 없음"""
     sd = _stall_shot_dir()
     # 3장 평가 전: 자물쇠와 안내, 눌러도 안 열림
     with App("iPhone 17", save=_stall_seed(False), url=real_url()) as a:
         a.start()
-        card = a.page.inner_text(".stall-card")
-        a.page.locator(".stall-card").scroll_into_view_if_needed()
-        a.shot("stall-entrance-locked.png")
-        assert "locked" in a.page.get_attribute(".stall-card", "class")
-        assert "3장 평가를 통과하면 열려요" in card, card
-        a.page.click("#stall-go", force=True)   # aria-disabled라 Playwright는 기다림: 사람처럼 그냥 누름
+        assert not a.page.query_selector(".stall-card"), "홈 가게 카드는 없앰"
+        t = _stall_tab(a)
+        assert t["locked"] and t["lock"] and t["disabled"] == "true", t
+        a.page.click('.tabbar [data-go="stall"]', force=True)   # aria-disabled라 Playwright는 기다림: 사람처럼 그냥 누름
         a.page.wait_for_timeout(300)
         assert a.js("() => document.getElementById('app').dataset.screen") == "home"
-        assert "3장 평가를 통과하면 열려요" in a.page.inner_text("#toasts")
+        assert "가게는 3장 평가를 통과하면 열려요" in a.page.inner_text("#toasts")
         assert a.save().get("stall") is None
         assert not a.errors, a.errors
     # 3-5 통과: 열림, 처음 열면 소개 대사, 두 번째는 없음
     intro = _stall_intro_lines()
     with App("iPhone 17", save=_stall_seed(True), url=real_url()) as a:
         a.start()
-        assert "locked" not in a.page.get_attribute(".stall-card", "class")
-        a.page.locator(".stall-card").scroll_into_view_if_needed()
-        a.shot("stall-entrance-open.png")
+        assert not _stall_tab(a)["locked"]
         _to_stall(a)
+        assert not a.page.query_selector(".tabbar"), "가게 화면에는 탭 줄이 없음"
         said = a.page.inner_text(".stall-say")
         a.shot("stall-first-open.png", full=True)
         shutil.copy(os.path.join(OUT, "stall-first-open.png"), os.path.join(sd, "stall-first-open.png"))
@@ -2620,7 +2632,6 @@ def test_stall_entrance():
         assert "1일째" in a.page.inner_text(".stall-top")
         a.page.click("#stall-close")
         a.page.wait_for_selector(".screen.home")
-        assert "1일째" in a.page.inner_text(".stall-card")
         _to_stall(a)
         assert not a.page.query_selector(".stall-say")
         assert not a.errors, a.errors
@@ -3011,6 +3022,387 @@ def test_stall_slot_edit():
         a.shot("slot-editor-iphone-17-error.png")
         for n in ("full", "error"):
             shutil.copy(os.path.join(OUT, "slot-editor-iphone-17-%s.png" % n), os.path.join(sd, "slot-editor-iphone-17-%s.png" % n))
+        assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
+# ---------------------------------------------------------------- v0.3.2 개발자 모드 · 가게 칸 · 비우기
+
+def _v032_shot_dir():
+    d = os.path.join(ROOT, ".superpowers", "sdd", "v0.3.2", "shots")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _keep(a, name, d, full=False):
+    """캡처를 tests/out/flow와 보고서 폴더에 함께"""
+    a.shot(name, full=full)
+    shutil.copy(os.path.join(OUT, name), os.path.join(d, name))
+
+
+def _measure_ok(a, name, fails):
+    a.page.wait_for_timeout(120)
+    m = measure(a, name)
+    for p in m["problems"]:
+        fails.append("%s/%s: %s" % (a.device, name, p))
+    if m["small"]:
+        fails.append("%s/%s: small %s" % (a.device, name, m["small"]))
+    return m
+
+
+def _raw(a, key):
+    return a.js("(k) => localStorage.getItem(k)", key)
+
+
+def _go_tab(a, name):
+    a.page.click('.tabbar [data-go="%s"]' % name)
+    a.page.wait_for_selector("#app[data-screen=%s]" % name)
+    a.page.wait_for_timeout(150)
+
+
+BAND_JS = r"""() => { const b = document.getElementById('dev-banner'); if (!b) return null;
+  const r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+  const h = document.querySelector('header.status, .lesson-top, .stall-top');
+  const first = h ? (h.firstElementChild || h).getBoundingClientRect() : null;
+  return { hidden: b.hidden, display: cs.display, pos: cs.position, top: r.top, bottom: r.bottom, h: r.height, text: b.innerText.trim(),
+           bg: cs.backgroundImage.slice(0, 40), on: document.documentElement.classList.contains('dev-on'),
+           contentTop: first ? first.top : null, events: cs.pointerEvents }; }"""
+
+
+def test_dev_mode():
+    """설정 맨 아래 개발자 모드: 켤 때 확인(그만두기 → 그대로), 켜면 띠·17-5·6-A3·가게 8장 카드 열림, 새로고침 유지,
+    끄면(확인 없음) 학습 기록 저장·이어 하기 칸이 한 글자도 그대로(XP 40·5레슨)"""
+    sd = _v032_shot_dir()
+    done = ["1-%d" % i for i in range(1, 6)]
+    seed = {"saveVer": 1, "xp": 40, "yeopjeon": 30, "completed_lessons": done, "current_lesson": "2-1", "current_chapter": 2,
+            "grading_results": {k: {"perfect": True, "attempts": 1} for k in done}}
+    fails = []
+    with App("iPhone 17", save=seed, url=real_url()) as a:
+        a.start()
+        assert _stall_tab(a)["locked"], "학습 기록은 1장만: 가게 잠김"
+        learner = _raw(a, SAVE_KEY)
+        resume0 = _raw(a, RESUME_KEY)
+        _go_tab(a, "settings")
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        assert a.page.get_attribute("#dev", "aria-checked") == "false"
+        last = a.js("() => { const ps = [...document.querySelectorAll('.screen.settings main > section')]; return ps[ps.length - 1].className; }")
+        assert "devmode" in last, "개발자 모드는 설정 맨 아래 칸: %s" % last
+        # 켜기 → 확인 창 → 그만두기: 그대로
+        a.page.click("#dev")
+        a.page.wait_for_selector(".modal")
+        assert "개발자 모드를 켤까요?" in a.page.inner_text(".modal")
+        a.page.click(".modal .btn.ghost")
+        a.page.wait_for_selector(".modal", state="detached")
+        assert a.page.get_attribute("#dev", "aria-checked") == "false"
+        assert a.js(BAND_JS)["hidden"] is True
+        assert _raw(a, "dueogi-sql.dev") is None
+        # 켜기 → 확인
+        a.page.click("#dev")
+        a.page.wait_for_selector(".modal")
+        _keep(a, "dev-confirm-iphone-17.png", sd)
+        a.page.click(".modal .btn.primary")
+        a.page.wait_for_selector(".screen.settings #dev[aria-checked=true]")
+        assert "켜져 있어요 · 끄면 학습 기록으로 돌아가요" in a.page.inner_text("#dev-note")
+        assert _raw(a, "dueogi-sql.dev") == "1"
+        band = a.js(BAND_JS)
+        print("    band: %s" % band)
+        assert band["display"] != "none" and band["pos"] == "fixed" and band["top"] == 0 and band["h"] >= 21 and band["text"] == "개발자 모드", band
+        assert band["events"] == "none" and band["on"], band
+        dev_save = json.loads(_raw(a, SAVE_KEY + ".dev"))
+        assert dev_save.get("dev_mode") is True and dev_save["xp"] == 0, dev_save
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        _keep(a, "dev-settings-on-iphone-17.png", sd)
+        _measure_ok(a, "dev-settings", fails)
+        # 학습 길: 17-5·6-A3 열림, 눌러서 레슨이 열림
+        _go_tab(a, "home")
+        band = a.js(BAND_JS)
+        assert band["contentTop"] is not None and band["contentTop"] >= band["bottom"] - 0.5, "상태 줄이 띠 밑에 가려짐: %s" % band
+        _keep(a, "dev-home-iphone-17.png", sd)
+        _measure_ok(a, "dev-home", fails)
+        st = a.js("() => ({ a: window.__dueogi.ctx.lessonState('17-5'), b: window.__dueogi.ctx.lessonState('6-A3'), c: window.__dueogi.ctx.lessonState('1-1') })")
+        assert st == {"a": "open", "b": "open", "c": "open"}, st
+        assert "open" in a.page.get_attribute('.node[data-lesson="17-5"]', "class")
+        assert "open" in a.page.get_attribute('.star-node[data-lesson="6-A3"]', "class")
+        a.page.locator('.node[data-lesson="17-5"]').scroll_into_view_if_needed()
+        a.page.click('.node[data-lesson="17-5"]')
+        a.page.wait_for_selector(".screen.lesson")
+        lt = a.js(BAND_JS)
+        assert lt["contentTop"] >= lt["bottom"] - 0.5, "레슨 위 줄이 띠 밑에: %s" % lt
+        _keep(a, "dev-lesson-17-5-iphone-17.png", sd)
+        a.page.click("#quit")
+        a.page.wait_for_timeout(300)
+        if a.page.query_selector(".modal"):
+            a.page.click(".modal .btn.ghost")
+        a.page.wait_for_selector(".screen.home")
+        a.page.locator('.star-node[data-lesson="6-A3"]').scroll_into_view_if_needed()
+        a.page.click('.star-node[data-lesson="6-A3"]')
+        a.page.wait_for_selector(".screen.lesson")
+        a.page.click("#quit")
+        a.page.wait_for_timeout(300)
+        if a.page.query_selector(".modal"):
+            a.page.click(".modal .btn.ghost")
+        a.page.wait_for_selector(".screen.home")
+        # 가게: 열림, 칸 6개 모두 열림, 8장(best) 칸 편집기의 카드 모두 열림
+        assert not _stall_tab(a)["locked"]
+        _to_stall(a)
+        assert not a.page.query_selector(".slot.locked"), "칸이 잠김"
+        assert len(a.page.query_selector_all(".slot")) == 6
+        stp = a.js(BAND_JS)
+        assert stp["contentTop"] >= stp["bottom"] - 0.5, "가게 위 줄이 띠 밑에: %s" % stp
+        _keep(a, "dev-stall-iphone-17.png", sd)
+        _measure_ok(a, "dev-stall", fails)
+        _to_editor(a, "best")
+        locked = a.js("() => document.querySelectorAll('.sp-picker .bcard.locked').length")
+        has = a.js("() => ['GROUP BY', 'HAVING', 'SUM('].map((t) => !!document.querySelector(`.sp-picker button.bcard[data-text='${t}']`))")
+        print("    dev editor(best): locked cards %s, GROUP BY/HAVING/SUM( buttons %s" % (locked, has))
+        assert locked == 0 and all(has), (locked, has)
+        a.page.click("#sp-close")
+        a.page.wait_for_selector(".screen.stall")
+        # 개발자 저장에서 하루 열기·칸 켜고 끄기(여러 번 저장)
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay, .settle", timeout=30_000)
+        if a.page.is_visible("#skip"):
+            a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        a.page.click('[data-slot="restock"]')
+        a.page.click('[data-slot="restock"]')
+        dev_save = json.loads(_raw(a, SAVE_KEY + ".dev"))
+        assert dev_save["stall"]["day"] == 2, dev_save["stall"]["day"]
+        assert _raw(a, SAVE_KEY) == learner, "켜 있는 동안 학습 기록 저장이 바뀜"
+        # 새로고침해도 켜짐
+        a.page.click("#stall-close")
+        a.page.wait_for_selector(".screen.home")
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go", timeout=20_000)
+        assert a.js(BAND_JS)["display"] != "none", "새로고침 뒤 띠가 사라짐"
+        _keep(a, "dev-splash-iphone-17.png", sd)
+        a.start()
+        assert a.js("() => window.__dueogi.ctx.dev") is True
+        assert a.save()["xp"] == 40, "a.save()는 학습 기록 칸"
+        assert a.js("() => window.__dueogi.ctx.save.stall.day") == 2
+        # 끄기: 확인 창 없이, 학습 기록 그대로
+        _go_tab(a, "settings")
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        a.page.click("#dev")
+        a.page.wait_for_selector(".screen.settings #dev[aria-checked=false]")
+        assert not a.page.query_selector(".modal"), "끌 때는 확인 창이 없음"
+        assert not a.page.query_selector("#dev-note")
+        assert a.js(BAND_JS)["display"] == "none"
+        assert _raw(a, "dueogi-sql.dev") is None
+        assert _raw(a, SAVE_KEY) == learner, "학습 기록 저장 원문이 바뀜"
+        assert _raw(a, RESUME_KEY) == resume0, "이어 하기 칸이 바뀜"
+        s = a.save()
+        print("    off: learner xp %s, lessons %s" % (s["xp"], s["completed_lessons"]))
+        assert s["xp"] == 40 and s["completed_lessons"] == done and "dev_mode" not in s
+        _go_tab(a, "home")
+        assert _stall_tab(a)["locked"]
+        assert "locked" in a.page.get_attribute('.node[data-lesson="17-5"]', "class")
+        assert not a.errors, a.errors
+    # 아이폰 SE: 띠가 켜진 설정·홈 넘침 없음, 터치 44px
+    with App("iPhone SE", save=seed, url=real_url()) as a:
+        a.js("() => localStorage.setItem('dueogi-sql.dev', '1')")
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go", timeout=20_000)
+        a.start()
+        _keep(a, "dev-home-iphone-se.png", sd)
+        _measure_ok(a, "dev-home", fails)
+        _go_tab(a, "settings")
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        _keep(a, "dev-settings-on-iphone-se.png", sd)
+        _measure_ok(a, "dev-settings", fails)
+        b = a.js(BAND_JS)
+        assert b["contentTop"] >= b["bottom"] - 0.5, b
+        assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
+def test_stall_tab():
+    """아래 탭 줄 5칸(학습·가게·배지·의상실·설정). 3장 평가 전 잠김(알림만), 3-5를 실제로 통과하면 열리고 새 소식 점,
+    가게 「<」는 들어온 화면으로, 홈 카드 없음, 넘침·터치"""
+    sd = _v032_shot_dir()
+    fails = []
+    for dev in ["iPhone 17", "iPhone SE"]:
+        tag = slug(dev)
+        with App(dev, save=_stall_seed(False), url=real_url()) as a:
+            a.start()
+            t = _stall_tab(a)
+            print("    %s locked tab: %s" % (dev, t))
+            assert t["tabs"] == ["학습", "가게", "배지", "의상실", "설정"], t["tabs"]
+            assert t["locked"] and t["lock"] and not t["dot"] and t["disabled"] == "true", t
+            assert "잠김" in t["label"] and "3장 평가를 통과하면 열려요" in t["label"], t
+            assert not a.page.query_selector(".stall-card") and "두억이의 가게" not in a.page.inner_text("main")
+            _keep(a, "tab-locked-%s.png" % tag, sd)
+            _measure_ok(a, "home-5tabs-locked", fails)
+            # 잠긴 칸: 다른 화면에서 눌러도 알림만
+            _go_tab(a, "badges")
+            a.page.click('.tabbar [data-go="stall"]', force=True)   # aria-disabled라 Playwright는 기다림: 사람처럼 그냥 누름
+            a.page.wait_for_timeout(300)
+            assert a.js("() => document.getElementById('app').dataset.screen") == "badges"
+            assert "가게는 3장 평가를 통과하면 열려요" in a.page.inner_text("#toasts")
+            # 3-5를 실제로 통과 → 홈으로 → 열림 + 점
+            _go_tab(a, "home")
+            a.page.click("#continue")
+            a.page.wait_for_selector(".screen.lesson")
+            assert a.lesson("3-5")["isExam"] is True
+            a.play("3-5")
+            a.dismiss()
+            a.page.click("#home")
+            a.page.wait_for_selector(".screen.home")
+            a.dismiss()
+            t = _stall_tab(a)
+            print("    %s after 3-5: %s" % (dev, t))
+            assert not t["locked"] and t["disabled"] is None and t["dot"] and "새 소식" in (t["label"] or ""), t
+            _keep(a, "tab-dot-%s.png" % tag, sd)
+            _measure_ok(a, "home-5tabs-dot", fails)
+            # 배지에서 들어가 「<」 → 배지로
+            _go_tab(a, "badges")
+            assert _stall_tab(a)["dot"]
+            _to_stall(a)
+            assert not a.page.query_selector(".tabbar")
+            assert "배지로" in a.page.get_attribute("#stall-close", "aria-label")
+            a.page.click("#stall-close")
+            a.page.wait_for_selector("#app[data-screen=badges]")
+            assert _stall_tab(a)["dot"], "(a) 아직 장을 한 번도 안 염"
+            # 의상실·설정에서도 들어온 곳으로
+            for origin in ("closet", "settings"):
+                _go_tab(a, origin)
+                _to_stall(a)
+                a.page.click("#stall-close")
+                a.page.wait_for_selector("#app[data-screen=%s]" % origin)
+            # 하루를 열어 첫 의뢰 완료 → 다음 의뢰(r02)는 가게 안에서 봄 → 나와도 (c) 점 없음
+            _go_tab(a, "home")
+            _to_stall(a)
+            a.page.click("#open-day")
+            a.page.wait_for_selector(".replay, .settle", timeout=30_000)
+            if a.page.is_visible("#skip"):
+                a.page.click("#skip")
+            a.page.wait_for_selector(".settle")
+            st = a.save()["stall"]
+            assert st["order"]["done"] == ["r01"] and st["seenOrder"] == "r02", (st["order"], st.get("seenOrder"))
+            a.page.click("#stall-close")
+            a.page.wait_for_selector("#app[data-screen=home]")
+            want = st["money"] >= 150   # (b) 가장 싼 성장(간판 150냥)
+            print("    %s after day 1: money %s, dot %s (want %s)" % (dev, st["money"], _stall_tab(a)["dot"], want))
+            assert _stall_tab(a)["dot"] is want
+            # (c) 가게 밖에서 의뢰가 끝나 다음 의뢰가 생김 → 점, (b) 돈이 성장 값 이상 → 점
+            a.js("""() => { const c = window.__dueogi.ctx, st = structuredClone(c.save.stall);
+              st.money = 10; st.order.done.push('r02'); st.order.idx = 2; c.commit({ ...c.save, stall: st }); c.show('home'); }""")
+            assert _stall_tab(a)["dot"], "(c) r03이 새로 생김"
+            _to_stall(a)
+            a.page.click("#stall-close")
+            a.page.wait_for_selector("#app[data-screen=home]")
+            assert not _stall_tab(a)["dot"], "봤으면 점 없음"
+            a.js("""() => { const c = window.__dueogi.ctx; c.commit({ ...c.save, stall: { ...c.save.stall, money: 150 } }); c.show('home'); }""")
+            assert _stall_tab(a)["dot"], "(b) 간판 150냥"
+            assert not a.errors, a.errors
+    assert not fails, "\n".join(fails)
+
+
+def _clear_state(a):
+    return a.js("""() => { const b = document.querySelector('#sp-clear');
+      return { disabled: b.disabled, aria: b.getAttribute('aria-disabled'), w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height }; }""")
+
+
+def test_stall_slot_clear():
+    """칸 편집기 「비우기」: 확인 창(처음 초점 그만두기) → 그만두기는 그대로 / 지우기 → 빈자리, 고정 낱말 남음, 저장 안 됨,
+    5초 「되돌리기」로 정확히 되살림, 5초 지나면 사라짐, 다른 편집이면 사라짐, 카드가 없으면 흐림. 전체 조립 칸도"""
+    sd = _v032_shot_dir()
+    fails = []
+    for dev in ["iPhone 17", "iPhone SE"]:
+        tag = slug(dev)
+        with App(dev, save=_stall_seed(True), url=real_url()) as a:
+            a.start()
+            _to_stall(a)
+            saved0 = a.save()["stall"]["slots"]
+            _to_editor(a, "restock")
+            assert _placed(a, "where") == ["stock", "<", "1"]
+            c = _clear_state(a)
+            assert not c["disabled"] and c["aria"] is None and c["w"] >= 44 and c["h"] >= 44, c
+            # 시험 실행 → 「저장」 상태에서 비우면 시험 결과도 지워짐
+            a.page.click("#sp-test")
+            a.page.wait_for_selector(".sp-result .rtable", timeout=30_000)
+            assert _save_label(a) == "저장"
+            # 그만두기
+            a.page.click("#sp-clear")
+            a.page.wait_for_selector(".modal")
+            title = a.page.inner_text(".modal h2")
+            focus = a.js("() => document.activeElement && document.activeElement.innerText.trim()")
+            print("    %s confirm: %r, focus %r" % (dev, title, focus))
+            assert title == "카드 3장을 모두 지울까요?", title
+            assert focus == "그만두기", focus
+            _keep(a, "clear-confirm-%s.png" % tag, sd)
+            _measure_ok(a, "clear-confirm", fails)
+            a.page.click(".modal .btn.ghost")
+            a.page.wait_for_selector(".modal", state="detached")
+            assert _placed(a, "where") == ["stock", "<", "1"]
+            assert a.page.query_selector(".sp-result .rtable"), "그만두면 시험 결과도 그대로"
+            # 지우기
+            a.page.click("#sp-clear")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".modal", state="detached")
+            assert _placed(a, "where") == []
+            fixed = a.page.inner_text(".sp-line .sp-fixed")
+            assert "SELECT name FROM items WHERE" in fixed, fixed
+            assert a.page.inner_text(".sp-preview").strip().endswith("WHERE [ ]"), a.page.inner_text(".sp-preview")
+            assert not a.page.query_selector(".sp-result .rtable"), "비우면 시험 결과 지움"
+            assert a.page.is_disabled("#sp-save") and "빈자리를 채워 주세요" in a.page.inner_text(".sp-dock")
+            c = _clear_state(a)
+            assert c["disabled"] and c["aria"] == "true", c
+            assert a.save()["stall"]["slots"] == saved0, "저장 전에는 가게에 반영되지 않음"
+            toast = a.page.inner_text("#toasts")
+            assert "카드를 모두 지웠어요" in toast and "되돌리기" in toast, toast
+            _keep(a, "clear-undo-toast-%s.png" % tag, sd)
+            m = _measure_ok(a, "clear-undo-toast", fails)
+            tb = a.js("() => { const r = document.querySelector('.toast-act').getBoundingClientRect(); return [r.width, r.height, r.left, r.right]; }")
+            assert tb[0] >= 44 and tb[1] >= 44, tb
+            # 되돌리기 → 정확히 같은 카드, 숫자 값까지
+            a.page.click(".toast-act")
+            assert _placed(a, "where") == ["stock", "<", "1"], _placed(a, "where")
+            assert not a.page.query_selector(".toast-act")
+            assert not _clear_state(a)["disabled"]
+            assert _save_label(a) == "그래도 저장", "되돌린 뒤에는 다시 시험해야"
+            # 숫자를 바꾼 뒤 비우기 → 다른 편집을 하면 되돌리기 사라짐
+            a.page.click(".sp-part[data-part='where'] .sp-bump[data-d='1']")
+            a.page.click("#sp-clear")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".modal", state="detached")
+            assert a.page.query_selector(".toast-act")
+            a.page.click(".sp-picker button.bcard[data-text='price']")
+            assert not a.page.query_selector(".toast-act"), "다른 편집 뒤에는 되돌리기 없음"
+            assert _placed(a, "where") == ["price"]
+            # 다시 비우고 5초 넘게 기다리면 알림이 사라지고 빈 채로
+            a.page.click("#sp-clear")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".toast-act")
+            a.page.wait_for_timeout(5300)
+            assert not a.page.query_selector(".toast-act"), "5초 뒤 사라짐"
+            assert _placed(a, "where") == []
+            # 나가면 묻고 버림 → 저장된 칸 그대로
+            a.page.click("#sp-close")
+            a.page.wait_for_selector(".modal")
+            a.page.click(".modal .btn.coral")
+            a.page.wait_for_selector(".screen.stall")
+            assert a.save()["stall"]["slots"] == saved0
+            assert not a.errors, a.errors
+    # 전체 조립 칸(7장 통과): full 한 자리만 비움, 저장하면 빈 칸은 막힘
+    with App("iPhone 17", save=_seed_through(7, {"v": 1, "seed": 7, "opened": True}), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        _to_editor(a, "report")
+        assert _clear_state(a)["disabled"], "빈 칸이면 흐림"
+        for t in ("SELECT", "COUNT(*)", "FROM", "items"):
+            a.page.click(".sp-picker button.bcard[data-text='%s']" % t)
+        a.page.click("#sp-clear")
+        a.page.wait_for_selector(".modal")
+        assert a.page.inner_text(".modal h2") == "카드 4장을 모두 지울까요?"
+        a.page.click(".modal .btn.coral")
+        a.page.wait_for_selector(".modal", state="detached")
+        assert _placed(a, "full") == []
+        a.page.click(".toast-act")
+        assert " ".join(_placed(a, "full")) == "SELECT COUNT(*) FROM items"
         assert not a.errors, a.errors
     assert not fails, "\n".join(fails)
 

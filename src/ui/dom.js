@@ -42,6 +42,9 @@ const P = {
   path: '<path d="M6 20c0-4 12-4 12-8S6 8 6 4"/><circle cx="6" cy="4" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="20" r="1.6"/>',
   badge: '<circle cx="12" cy="9" r="5.5"/><path d="M8.5 13.5L7 21l5-2.5 5 2.5-1.5-7.5"/>',
   hanger: '<path d="M12 7.5a2 2 0 1 1 2-2c0 1-2 1.5-2 3L3.5 15a1.3 1.3 0 0 0 .8 2.4h15.4a1.3 1.3 0 0 0 .8-2.4L12 8.5"/>',
+  shop: '<path d="M3.5 9.5l1.8-5h13.4l1.8 5M3.5 9.5a2.83 2.83 0 0 0 5.67 0a2.83 2.83 0 0 0 5.66 0a2.83 2.83 0 0 0 5.67 0M5 12.2V20h14v-7.8M10 20v-4.5h4V20"/>',   // 가게(차양 + 문, v0.3.2)
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>',
   chest: '<rect x="3.5" y="9.5" width="17" height="10" rx="1.5"/><path d="M3.5 9.5c0-3 2-5 8.5-5s8.5 2 8.5 5M3.5 13h17M10.5 12v3h3v-3"/>',
   chestOpen: '<rect x="3.5" y="11" width="17" height="8.5" rx="1.5"/><path d="M3.5 11l2-6.5h13l2 6.5M10.5 13.5v3h3v-3M12 2v1.5M7.5 2.8l.8 1.2M16.5 2.8l-.8 1.2"/>',
@@ -88,16 +91,20 @@ export function dialog({ title, body = "", buttons, cls = "" }) {
   });
 }
 
-/** 잠깐 뜨는 알림 */
-export function toast(msg, kind = "") {
+/** 잠깐 뜨는 알림. action: { label, onClick } → 알림 안 단추 하나(누르면 닫히고 onClick), ms: 떠 있는 시간(v0.3.2).
+ *  돌려줌: 닫는 함수(이미 닫혔으면 아무 일 없음) */
+export function toast(msg, kind = "", { action = null, ms = 4200 } = {}) {
   let box = document.getElementById("toasts");
   if (!box) {
     box = el('<div id="toasts" class="toasts" role="status" aria-live="polite"></div>');
     document.body.appendChild(box);
   }
-  const t = el(`<div class="toast ${kind}">${esc(msg)}</div>`);
+  const t = el(`<div class="toast ${kind}${action ? " has-act" : ""}"><span>${esc(msg)}</span>${action ? `<button class="toast-act">${esc(action.label)}</button>` : ""}</div>`);
+  const timer = setTimeout(() => t.remove(), ms);
+  const close = () => { clearTimeout(timer); t.remove(); };
+  if (action) t.querySelector(".toast-act").addEventListener("click", () => { close(); action.onClick(); });
   box.appendChild(t);
-  setTimeout(() => t.remove(), 4200);
+  return close;
 }
 
 /** 진행 막대 */

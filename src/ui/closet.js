@@ -6,7 +6,7 @@ import { checkBadges } from "../badges.js";
 import { dueogiSVG } from "../dueogi.js";
 import { FACES } from "../say.js";
 import { esc, icon, toast } from "./dom.js";
-import { tabBar, bindTabs, statusBar } from "./nav.js";
+import { tabBar, bindTabs, statusBar, stallTabOf } from "./nav.js";
 
 export function render(root, ctx, params = {}) {
   let sel = params.sel || ctx.save.outfit;
@@ -54,7 +54,7 @@ export function render(root, ctx, params = {}) {
           <button class="btn ghost" id="freeze"${s.freezes >= FREEZE_MAX || s.yeopjeon < FREEZE_PRICE ? " disabled" : ""}>${s.freezes >= FREEZE_MAX ? "가득 찼어요" : `${FREEZE_PRICE}엽전`}</button>
         </section>
       </main>
-      ${tabBar("closet")}
+      ${tabBar("closet", stallTabOf(ctx))}
     </div>`;
     bindTabs(root, ctx);
     root.querySelectorAll("[data-o]").forEach((b) => b.addEventListener("click", () => { sel = b.dataset.o; line = null; paint(); }));

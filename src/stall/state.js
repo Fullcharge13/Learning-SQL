@@ -1,9 +1,11 @@
 // 가게 상태: 만들기·정리(저장에서 읽을 때)·성장 사기·열림 판정. 순수 함수만.
 import {
   ITEMS, UPGRADES, SLOTS, CARDS, START_MONEY, STOCK_MAX, SHELF, SHELF_BIG, REGULARS, REGULARS_BIG,
-  KEEP_DAYS, LOG_DAYS, MONEY_MAX, UNLOCK_CHAPTER,
+  KEEP_DAYS, LOG_DAYS, MONEY_MAX, UNLOCK_CHAPTER, REQUESTS,
 } from "../../data/stall.js";
 import { examId } from "../advanced.js";
+import { gateCompleted } from "../devgate.js";
+import { currentRequest } from "./requests.js";
 
 const BASE_ITEMS = ITEMS.filter((it) => !it.upgrade);
 const NEW_ITEMS = ITEMS.filter((it) => it.upgrade === "newitems");
@@ -12,6 +14,7 @@ const BAD_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const CARD_BY_ID = new Map(CARDS.map((c) => [c.id, c]));
 const SLOT_BY_ID = new Map(SLOTS.map((s) => [s.id, s]));
 const UPGRADE_BY_ID = new Map(UPGRADES.map((u) => [u.id, u]));
+const REQUEST_IDS = new Set(REQUESTS.map((r) => r.id));
 
 const isPlain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isInt = (v) => Number.isInteger(v);
@@ -30,6 +33,7 @@ export function newStall(seed) {
     slots: { restock: { on: true, mode: "frame", parts: { where: [{ c: "col_stock" }, { c: "op_lt" }, { c: "num", n: 1 }] } } },
     orders: [], order: { idx: 0, done: [], progress: {} },
     log: [], last: null, opened: false,
+    seenOrder: null,   // v0.3.2: 가게 화면에서 마지막으로 본 「할 수 있는 의뢰」 id(아래 stallTab의 새 소식 점)
   };
 }
 
@@ -133,6 +137,7 @@ export function cleanStall(raw) {
     log: plainList(raw.log, LOG_DAYS),
     last: isPlain(raw.last) ? structuredClone(raw.last) : null,
     opened: raw.opened === true,
+    seenOrder: typeof raw.seenOrder === "string" && REQUEST_IDS.has(raw.seenOrder) ? raw.seenOrder : null,
   };
 }
 
@@ -163,3 +168,45 @@ export function passedChapters(chapters, completed) {
 }
 
 export const stallOpen = (passed) => !!passed && passed.has(UNLOCK_CHAPTER);
+
+/** 가게·칸·카드·의뢰 판정에 쓸 통과한 장(v0.3.2): 개발자 모드 저장이면 모든 장(devgate.gateCompleted), 아니면 실제 기록 */
+export function stallPassedFor(save, chapters) {
+  return passedChapters(chapters, gateCompleted(save, chapters));
+}
+
+// 지금 「할 수 있는」 의뢰 id: 남은 의뢰가 있고 장 기다림이 아닐 때만, 아니면 null
+function availableOrder(stall, passed) {
+  const { req, waiting } = currentRequest(stall, passed);
+  return req && !waiting ? req.id : null;
+}
+
+/**
+ * 하단 메뉴 「가게」 칸(v0.3.2): { open, dot }. 순수 함수.
+ * - open: 3장 평가 통과(stallOpen). 잠김이면 점도 없음.
+ * - dot(새 소식 점, open일 때만) — 아래 셋 중 하나라도 참:
+ *   (a) 아직 장을 한 번도 열어 보지 않음: stall이 없음, opened가 false, 또는 1일째인데 어제 장부(last)가 없음
+ *   (b) 가게 돈 ≥ 아직 안 산 성장 중 가장 싼 값(살 수 있는 성장이 있음)
+ *   (c) 지금 할 수 있는 의뢰(장 기다림이 아님)가 있고, 그 id가 가게 화면에서 마지막으로 본 의뢰(stall.seenOrder)와 다름
+ *       = 앞 의뢰를 끝냈거나 장 평가를 통과해 새 의뢰를 할 수 있게 됐는데 아직 가게에 들어가 보지 않음.
+ *       「지금 의뢰가 있다」만으로는 켜지 않는다(늘 켜지므로). 가게 화면을 그리면 markOrderSeen으로 적는다.
+ * @param save 앱 저장(save.stall을 봄)
+ * @param passed 통과한 장 번호(Set, 개발자 모드면 stallPassedFor가 모든 장)
+ */
+export function stallTab(save, passed) {
+  if (!stallOpen(passed)) return { open: false, dot: false };
+  const st = save && isPlain(save.stall) ? save.stall : null;
+  if (!st || st.opened !== true || (st.day === 1 && !st.last)) return { open: true, dot: true };
+  const owned = new Set(Array.isArray(st.upgrades) ? st.upgrades : []);
+  const left = UPGRADES.filter((u) => !owned.has(u.id)).map((u) => u.price);
+  if (left.length && Number(st.money) >= Math.min(...left)) return { open: true, dot: true };
+  const avail = availableOrder(st, passed);
+  return { open: true, dot: avail !== null && avail !== st.seenOrder };
+}
+
+/** 가게 화면을 그릴 때: 지금 할 수 있는 의뢰를 「봤음」으로 적은 새 가게. 바뀔 것이 없으면 같은 객체(저장하지 않아도 됨) */
+export function markOrderSeen(stall, passed) {
+  if (!isPlain(stall)) return stall;
+  const avail = availableOrder(stall, passed);
+  if (avail === null || avail === stall.seenOrder) return stall;
+  return { ...stall, seenOrder: avail };
+}

@@ -1,12 +1,13 @@
-// 설정: 소리, 하루 목표, 이름, 저장 내보내기·가져오기, 판 번호
+// 설정: 소리, 하루 목표, 이름, 저장 내보내기·가져오기, 홈 화면에 추가, 개발자 모드(맨 아래, v0.3.2), 판 번호
 import { DAILY_GOALS } from "../rules.js";
 import { esc, toast, dialog, celebrate, icon } from "./dom.js";
 import { collectOfflineStatus } from "../offline.js";
 import { curriculum, chapterWindow } from "../curriculum.js";
 import { applyGoalChange } from "../finish.js";
 import { checkImport } from "../save.js";
-import { tabBar, bindTabs, statusBar } from "./nav.js";
+import { tabBar, bindTabs, statusBar, stallTabOf } from "./nav.js";
 import { localDate } from "../today.js";
+import { isDev } from "../devgate.js";
 
 /** 이름: 앞뒤 빈칸과 끝의 「님」을 빼고 8자까지 */
 export function cleanName(v) {
@@ -22,7 +23,7 @@ const ST = {
 /** 학습 내용 카드 (C33): 요약 한 줄, 장마다 펼치기, 다음 업데이트 예정 */
 function courseCard(ctx) {
   const c = curriculum({ chapters: ctx.chapters, completed: ctx.save.completed_lessons, currentId: ctx.currentLessonId(),
-    seenUpdates: ctx.save.seen_updates });
+    seenUpdates: ctx.save.seen_updates, dev: isDev(ctx.save) });
   const dot = (l) => (l.isNew ? '<span class="new-dot inline" role="img" aria-label="새 내용 있음">새 내용</span>' : "");
   const first = c.upcoming.slice(0, 3);
   const rest = c.upcoming.slice(3);
@@ -56,8 +57,11 @@ function courseCard(ctx) {
   </section>`;
 }
 
+export const DEV_ON_NOTE = "켜져 있어요 · 끄면 학습 기록으로 돌아가요";
+
 export function render(root, ctx) {
   const s = ctx.save;
+  const dev = !!ctx.dev;
   const goal = DAILY_GOALS.includes(s.settings.dailyGoal) ? s.settings.dailyGoal : 20;
   root.innerHTML = `<div class="screen settings with-tabs">
     ${statusBar(s)}
@@ -94,9 +98,16 @@ export function render(root, ctx) {
         <p class="muted">홈 화면에 추가해 두면 앱처럼 바로 열리고, 인터넷이 없어도 열려요. 아이폰 사파리에서는 기록도 더 안전해요.</p>
         <button class="btn ghost wide" id="install">홈 화면에 추가 방법</button>
       </section>
+      <section class="panel devmode" aria-labelledby="dev-label">
+        <div class="row">
+          <p class="row-label" id="dev-label">개발자 모드<small>잠긴 곳을 모두 열어 검수해요. 학습 기록과 따로 저장돼요.</small></p>
+          <button class="switch" id="dev" role="switch" aria-checked="${dev}" aria-labelledby="dev-label"><span></span></button>
+        </div>
+        ${dev ? `<p class="dev-note" id="dev-note">${esc(DEV_ON_NOTE)}</p>` : ""}
+      </section>
       <p class="ver center">두억이와 SQL! ${esc(ctx.version)} · <a class="lic-link" href="licenses.txt" target="_blank" rel="noopener">사용한 프로그램</a></p>
     </main>
-    ${tabBar("settings")}
+    ${tabBar("settings", stallTabOf(ctx))}
   </div>`;
   bindTabs(root, ctx);
 
@@ -199,5 +210,24 @@ export function render(root, ctx) {
     ctx.dayStart(); // 가져온 저장의 날짜로 연속 기록·퀘스트를 오늘에 맞춤
     toast("저장을 가져왔어요.");
     ctx.show("home");
+  });
+
+  // 개발자 모드(검수용, v0.3.2): 켤 때만 확인 창. 켜고 끄면 저장 칸이 바뀌므로 설정 화면을 다시 그림
+  const devBtn = root.querySelector("#dev");
+  devBtn.addEventListener("click", async () => {
+    const on = !ctx.dev;
+    if (on) {
+      const ok = await dialog({
+        title: "개발자 모드를 켤까요?",
+        body: "<p>검수용 모드예요. 잠긴 레슨·가게가 모두 열리고, 켜 두는 동안의 진행은 학습 기록과 따로 저장돼요.</p>",
+        buttons: [{ label: "그만두기", value: false }, { label: "켜기", value: true, kind: "primary" }],
+      });
+      if (!ok) return;
+    }
+    ctx.setDev(on);
+    ctx.show("settings");
+    const sw = document.getElementById("dev");
+    if (sw) { sw.focus({ preventScroll: true }); sw.scrollIntoView({ block: "center" }); }
+    toast(on ? "개발자 모드를 켰어요. 잠긴 곳이 모두 열려요." : "개발자 모드를 껐어요. 학습 기록으로 돌아왔어요.");
   });
 }

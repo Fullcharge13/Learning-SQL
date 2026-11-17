@@ -6,6 +6,9 @@
 // - 「저장」은 마지막 시험 실행이 지금 SQL로 성공했을 때, 아니면 「그래도 저장」. 빈 틀 자리가 남으면 저장 못 함(「빈자리를 채워 주세요」).
 // - 7장 평가 뒤에는 「전체 조립」 바꾸기: 틀 → 전체는 toFull(지금 SQL이 카드로 풀림), 전체 → 틀은 확인 뒤 틀 카드를 되살림.
 // - 저장하지 않고 나가면 고친 것은 버림(바꾼 것이 있을 때만 묻는다).
+// - 「비우기」(v0.3.2): 조립 줄 옆 단추 → 「카드 N장을 모두 지울까요?」(처음 초점 그만두기) → 틀이면 빈자리마다, 전체면 그 한 자리를 비움
+//   (틀의 고정 낱말은 남음). 고친 것과 같아 시험 결과·미리 보기가 바뀌고 저장은 「저장」을 눌러야. 5초 동안 알림의 「되돌리기」가
+//   비우기 전 카드를 그대로 되살린다(그 사이 다른 편집·모드 바꾸기·나가기면 되돌리기는 사라짐). 놓인 카드가 없으면 흐림.
 // 게임 규칙(카드 → SQL, 결과 받기)은 src/stall/slots.js에 있고, 여기서는 순수 편집 함수와 그리기만 한다.
 import { SLOTS, CARDS } from "../../data/stall.js";
 import { newStall } from "../stall/state.js";
@@ -102,6 +105,26 @@ export function saveState(st, def, tested) {
     blocked: tooLong(st) ? TOO_MANY : slotSql(def, st) === null ? EMPTY_BLOCK : null,
   };
 }
+
+// ---- 비우기(v0.3.2) ----
+
+/** 지금 모드의 빈자리(틀이면 틀 자리들, 전체면 full)에 놓인 카드 수. 틀의 고정 낱말은 세지 않는다 */
+export function cardCount(def, st) {
+  const p = st && st.parts && typeof st.parts === "object" ? st.parts : {};
+  return partKeys(def, st && st.mode).reduce((n, k) => n + (Array.isArray(p[k]) ? p[k].length : 0), 0);
+}
+
+/** 모두 지운 새 칸 상태: 틀이면 빈자리마다 [](고정 낱말은 틀에 남음), 전체면 full 하나만 []. 켜짐·모드는 그대로, 원본은 그대로.
+ *  되돌리기는 화면이 비우기 전 상태(복사본)를 그대로 다시 쓴다 */
+export function clearParts(def, st) {
+  const parts = {};
+  for (const k of partKeys(def, st && st.mode)) parts[k] = [];
+  return { ...clone(st || {}), parts };
+}
+
+export const clearConfirmTitle = (n) => `카드 ${n}장을 모두 지울까요?`;
+export const CLEARED = "카드를 모두 지웠어요";
+export const UNDO_MS = 5000;   // 비우기 뒤 「되돌리기」 알림
 
 /** 저장 줄의 미리 보기: 지금 SQL 한 줄. 빈 자리는 「[ ]」 */
 export function previewSql(def, st) {
@@ -273,7 +296,10 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
         <main class="sp-body">
           <p class="sp-desc">${esc(def.desc)}${def.kind === "number" ? "" : ". 결과에 name이나 item_id 열이 있어야 해요."}</p>
           <section class="panel sp-build" aria-labelledby="sp-build-title">
-            <h2 id="sp-build-title">내 SQL <small>(놓인 카드를 누르면 빠져요)</small></h2>
+            <div class="sp-build-head">
+              <h2 id="sp-build-title">내 SQL <small>(놓인 카드를 누르면 빠져요)</small></h2>
+              <button class="btn ghost small sp-clear" id="sp-clear" aria-label="놓인 카드 모두 지우기">${icon("trash")}<span>비우기</span></button>
+            </div>
             <div class="sp-line" aria-label="조립 줄"></div>
           </section>
           <button class="btn ghost wide" id="sp-test">${icon("play")}<span>오늘 장부로 시험 실행</span></button>
@@ -296,6 +322,10 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
     }
     function paintLine() {
       root.querySelector(".sp-line").innerHTML = lineHTML();
+      const clr = root.querySelector("#sp-clear");
+      const empty = cardCount(def, cur) === 0;
+      clr.disabled = empty;
+      if (empty) clr.setAttribute("aria-disabled", "true"); else clr.removeAttribute("aria-disabled");
       root.querySelector(".sp-target").textContent = `(놓는 자리: ${PART_LABEL[active]})`;
     }
     function paintResult() {
@@ -313,8 +343,9 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       if (n) n.textContent = text || "";
     }
 
-    // 고침: 지난 시험 결과는 지금 SQL의 것이 아니므로 지운다
+    // 고침: 지난 시험 결과는 지금 SQL의 것이 아니므로 지운다. 비우기의 「되돌리기」도 없앤다(고친 것을 덮어쓰지 않게)
     function edited(next) {
+      dropUndo();
       cur = next;
       tested = null;
       resultHTML = "";
@@ -392,8 +423,46 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       refocus("#sp-mode");
     }
 
+    // 비우기: 확인 → 모두 지움(고침) → 5초 동안 「되돌리기」
+    let undoClose = null;
+    function dropUndo() { if (undoClose) { const c = undoClose; undoClose = null; c(); } }
+    async function clearAll() {
+      const n = cardCount(def, cur);
+      if (!n) return;
+      const before = cur;
+      const ok = await dialog({
+        title: clearConfirmTitle(n),
+        body: "<p>지운 뒤 잠깐 동안 「되돌리기」로 되살릴 수 있어요.</p>",
+        buttons: [{ label: "그만두기", value: false }, { label: "지우기", value: true, kind: "coral" }],
+      });
+      if (!ok || !alive || cur !== before) return;
+      const prev = clone(cur);
+      const prevActive = active;
+      edited(clearParts(def, cur));
+      active = firstActive();
+      paintLine();
+      note(CLEARED);
+      refocus(`[data-hole="${active}"]`);
+      undoClose = toast(CLEARED, "", {
+        ms: UNDO_MS,
+        action: {
+          label: "되돌리기",
+          onClick: () => {
+            undoClose = null;
+            if (!alive) return;
+            edited(prev);
+            active = prevActive;
+            paintLine();
+            note("카드를 되돌렸어요");
+            refocus("#sp-clear");
+          },
+        },
+      });
+    }
+
     function finish(v) {
       if (!alive) return;
+      dropUndo();
       alive = false;
       root.removeEventListener("click", onClick);
       resolve(v);
@@ -430,6 +499,7 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       if (b.id === "sp-test") { runTest(); return; }
       if (b.id === "sp-mode") { toggleMode(); return; }
       if (b.id === "sp-save") { save(); return; }
+      if (b.id === "sp-clear") { clearAll(); return; }
       if (b.dataset.hole) { active = b.dataset.hole; paintLine(); note(`${PART_LABEL[active]} 자리에 놓아요`); refocus(`[data-hole="${active}"]`); return; }
       const part = b.closest(".sp-part");
       if (part && b.dataset.b !== undefined) {
