@@ -33,7 +33,7 @@ import * as settings from "./ui/settings.js";
 import * as stall from "./ui/stall.js";
 import * as tutorial from "./ui/tutorial.js";
 
-export const VERSION = "v0.3.3";
+export const VERSION = "v0.3.4";
 const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall, tutorial };
 
 // ---- 저장소 (사파리 사생활 보호 모드 등에서 localStorage 접근이 막혀도 앱은 돈다) ----

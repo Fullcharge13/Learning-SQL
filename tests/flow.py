@@ -54,6 +54,8 @@
   칸 편집기가 열린 채 화면이 바뀐 경우(옛 편집기가 #app 눌림을 계속 받던 문제)도
 - test_xss_save_fields / test_xss_query_results(v0.3.3): 저장·가져온 저장의 글자 칸, SQL 결과 칸·열 이름·오류 글에 HTML → 요소·스크립트 0
 - test_csp_and_no_foreign_requests(v0.3.3): 배포 CSP 메타로 첫 레슨·가게 하루·칸 시험 실행 → 위반 0·바깥 요청 0, 넣은 on…/style 속성은 막힘
+- test_theme_*(v0.3.4 밤의 장터): 첫 그림부터 어둡게(번쩍임 없음)·시스템 따라가기·설정 세 단추(새로 고침·개발자 모드·가져오기 뒤 유지)·
+  어둡게 배포판 CSP 위반 0. 대비는 tests/contrast.py(어둡게 엄격·밝게 기준 비교)
 - test_tutorial_*(v0.3.3): 첫 사용 튜토리얼 카드 4장·직접 해 보기·건너뛰기·옛 저장/개발자 모드는 바로 홈·설정 다시 보기·아이폰 17/SE 화면
 """
 
@@ -4216,6 +4218,191 @@ def test_reentry_tutorial():
         assert a.js("() => window.__runs") == 1
         assert a.js("() => document.querySelectorAll('#tut-out .rtable').length") == 1
         assert a.save()["tutorial"] == "done" and a.save()["xp"] == 300
+        assert not a.errors, a.errors
+
+
+# ---------------------------------------------------------------- v0.3.4 화면 설정 「밤의 장터」
+
+THEME_KEY = "dueogi-sql.theme"
+THEME_STATE_JS = """() => ({ theme: document.documentElement.dataset.theme || null, scheme: document.documentElement.style.colorScheme || null,
+  meta: document.querySelector('meta[name="theme-color"]').getAttribute('content'),
+  bg: getComputedStyle(document.body).backgroundColor })"""
+THEME_PICKS_JS = """() => [...document.querySelectorAll('[data-theme-pick]')].map((b) => [b.dataset.themePick, b.getAttribute('aria-checked'), b.tabIndex])"""
+
+
+def _rel_lum(css):
+    v = [int(x) / 255 for x in re.findall(r"\d+", css)[:3]]
+    f = [(c / 12.92) if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in v]
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]
+
+
+def _theme_init(v):
+    return "try { if (!sessionStorage.getItem('theme-seeded')) { localStorage.setItem(%s, %s); sessionStorage.setItem('theme-seeded', '1'); } } catch (e) {}" % (
+        json.dumps(THEME_KEY), json.dumps(v))
+
+
+def test_theme_no_flash():
+    """v0.3.4: 「어둡게」로 저장된 기기에서 열면, 문서를 읽는 중 <body>가 생기는 순간(앱 스크립트가 돌기 전)과 첫 그림
+    (첫 requestAnimationFrame)에 이미 <html data-theme=dark>이고 body 바탕이 어두움(상대 밝기 < 0.2), theme-color도 어두운 종이색.
+    머리 스크립트가 스타일보다 먼저 돌기 때문(앱 스크립트의 applyTheme을 기다리지 않음)"""
+    init = _theme_init("dark") + (
+        "window.__first = null; window.__parse = null;"
+        "const snap = () => { const b = document.body; return { theme: document.documentElement.dataset.theme || null,"
+        " bg: b ? getComputedStyle(b).backgroundColor : null, app: !!window.__dueogi,"
+        " meta: (document.querySelector('meta[name=\"theme-color\"]') || {}).content || null }; };"
+        "new MutationObserver((ms, ob) => { if (document.body && !window.__parse) { window.__parse = snap(); ob.disconnect(); } })"
+        ".observe(document, { childList: true, subtree: true });"
+        "requestAnimationFrame(() => { window.__first = snap(); });")
+    with App("iPhone 17", init_js=init) as a:
+        parse, first = a.js("() => window.__parse"), a.js("() => window.__first")
+        print("    at <body> parse: %s | first frame: %s" % (parse, first))
+        for when, x in (("parse", parse), ("first frame", first)):
+            assert x and x["theme"] == "dark", (when, x)
+            assert x["bg"] and _rel_lum(x["bg"]) < 0.2, (when, x)
+            assert x["meta"] == "#141C2B", (when, x)
+        assert parse["app"] is False, "parse-time snapshot must be taken before the app script ran: %s" % parse
+        st = a.js(THEME_STATE_JS)
+        assert st["theme"] == "dark" and st["scheme"] == "dark" and st["meta"] == "#141C2B" and st["bg"] == "rgb(20, 28, 43)", st
+        assert not a.errors, a.errors
+
+
+def test_theme_follows_system():
+    """v0.3.4: 설정이 없으면(시스템 따라가기) 휴대폰 어두운 모드를 켜고 끄는 대로 켜진 채 따라감. 「밝게」로 고정하면 어두운 모드여도 밝게"""
+    with App("iPhone 17", color_scheme="dark", save={"saveVer": 1, "tutorial": "done", "completed_lessons": ["1-1"]}) as a:
+        assert a.js(THEME_STATE_JS)["theme"] == "dark", "system dark at open"
+        a.start()
+        a.page.emulate_media(color_scheme="light")
+        a.page.wait_for_function("() => document.documentElement.dataset.theme === 'light'", timeout=3000)
+        st = a.js(THEME_STATE_JS)
+        assert st == {"theme": "light", "scheme": "light", "meta": "#FBF6EA", "bg": "rgb(251, 246, 234)"}, st
+        a.page.emulate_media(color_scheme="dark")
+        a.page.wait_for_function("() => document.documentElement.dataset.theme === 'dark'", timeout=3000)
+        assert a.js(THEME_STATE_JS)["meta"] == "#141C2B"
+        assert a.js("(k) => localStorage.getItem(k)", THEME_KEY) is None, "following the system writes nothing"
+        _go_tab(a, "settings")
+        assert a.js(THEME_PICKS_JS)[0] == ["system", "true", 0]
+        a.page.click('[data-theme-pick="light"]')
+        assert a.js(THEME_STATE_JS)["theme"] == "light"
+        a.page.emulate_media(color_scheme="light")
+        a.page.emulate_media(color_scheme="dark")
+        a.page.wait_for_timeout(300)
+        assert a.js(THEME_STATE_JS)["theme"] == "light", "fixed light must not follow the system"
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go")
+        assert a.js(THEME_STATE_JS)["theme"] == "light", "fixed light survives reload in a dark system"
+        assert not a.errors, a.errors
+
+
+def test_theme_setting_persists():
+    """v0.3.4: 설정 「화면」 세 단추(라디오 묶음) — 누르면 바로 바뀌고 aria-checked·Tab 자리가 맞음, 화살표 키로 옮김, 알림 없음.
+    새로 고침·개발자 모드 켜고 끄기·저장 가져오기 뒤에도 그대로. 학습 기록 저장(saveVer 그대로)에는 화면 설정이 없음"""
+    seed = {"saveVer": 1, "xp": 40, "yeopjeon": 3, "tutorial": "done", "completed_lessons": ["1-1"]}
+    with App("iPhone 17", save=seed) as a:
+        a.start()
+        _go_tab(a, "settings")
+        grp = a.js("""() => { const g = document.getElementById('theme-seg'); const sec = g.closest('section');
+          const secs = [...document.querySelectorAll('.screen.settings main > section')];
+          return { role: g.getAttribute('role'), label: document.getElementById(g.getAttribute('aria-labelledby')).innerText,
+                   desc: sec.innerText, idx: secs.indexOf(sec), next: secs[secs.indexOf(sec) + 1].className,
+                   prev: secs[secs.indexOf(sec) - 1].innerText.includes('부를 이름'),
+                   roles: [...g.querySelectorAll('button')].map((b) => b.getAttribute('role')) }; }""")
+        print("    group: %s" % {k: grp[k] for k in ("role", "label", "next", "prev", "roles")})
+        assert grp["role"] == "radiogroup" and grp["label"] == "화면" and grp["roles"] == ["radio"] * 3, grp
+        assert "밤에는 어두운 화면이 눈이 편해요" in grp["desc"] and "시스템 따라가기" in grp["desc"], grp
+        assert grp["prev"] and "tut-again" in grp["next"], "화면 묶음은 이름 줄 다음, 사용법 다시 보기 앞: %s" % grp
+        assert a.js(THEME_PICKS_JS) == [["system", "true", 0], ["light", "false", -1], ["dark", "false", -1]]
+        a.page.locator("#theme-seg").scroll_into_view_if_needed()
+        a.page.click('[data-theme-pick="dark"]')
+        assert a.js(THEME_STATE_JS)["theme"] == "dark", "applies at once"
+        assert a.js(THEME_PICKS_JS) == [["system", "false", -1], ["light", "false", -1], ["dark", "true", 0]]
+        assert not a.page.query_selector("#toasts .toast"), "no toast for a theme pick"
+        assert a.js("(k) => localStorage.getItem(k)", THEME_KEY) == "dark"
+        m = measure(a, "settings-theme")
+        assert not m["problems"] and not m["small"], m
+        # 화살표 키: 어둡게 → (오른쪽) 시스템 따라가기 → (왼쪽) 어둡게 → 밝게
+        a.page.focus('[data-theme-pick="dark"]')
+        a.page.keyboard.press("ArrowRight")
+        assert a.js(THEME_PICKS_JS)[0] == ["system", "true", 0] and a.js("() => document.activeElement.dataset.themePick") == "system"
+        a.page.keyboard.press("ArrowLeft")
+        a.page.keyboard.press("ArrowLeft")
+        assert a.js("() => document.activeElement.dataset.themePick") == "light" and a.js(THEME_STATE_JS)["theme"] == "light"
+        a.page.click('[data-theme-pick="dark"]')
+        # 새로 고침
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go")
+        assert a.js(THEME_STATE_JS)["theme"] == "dark"
+        a.start()
+        _go_tab(a, "settings")
+        assert a.js(THEME_PICKS_JS)[2] == ["dark", "true", 0]
+        # 개발자 모드 켜기(확인) → 끄기
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        a.page.click("#dev")
+        a.page.wait_for_selector(".modal")
+        a.page.click(".modal .btn.primary")
+        a.page.wait_for_selector(".screen.settings #dev[aria-checked=true]")
+        assert a.js(THEME_STATE_JS)["theme"] == "dark" and a.js(THEME_PICKS_JS)[2][1] == "true", "dev on keeps the theme"
+        a.page.locator("#dev").scroll_into_view_if_needed()
+        a.page.click("#dev")
+        a.page.wait_for_selector(".screen.settings #dev[aria-checked=false]")
+        assert a.js(THEME_STATE_JS)["theme"] == "dark" and a.js(THEME_PICKS_JS)[2][1] == "true", "dev off keeps the theme"
+        # 저장 가져오기
+        mine = dict(a.save(), xp=99, yeopjeon=12)
+        a.page.set_input_files("#import", files=[{"name": "dueogi-sql-save.json", "mimeType": "application/json",
+                                                  "buffer": json.dumps(mine).encode()}])
+        a.page.wait_for_selector(".modal-back")
+        a.page.click(".modal .btn.primary")
+        a.page.wait_for_selector(".screen.home")
+        assert a.save()["xp"] == 99
+        assert a.js(THEME_STATE_JS)["theme"] == "dark", "import keeps the theme"
+        assert a.js("(k) => localStorage.getItem(k)", THEME_KEY) == "dark"
+        raw = a.js("(k) => localStorage.getItem(k)", SAVE_KEY)
+        assert "theme" not in json.loads(raw) and "dueogi-sql.theme" not in raw and json.loads(raw)["saveVer"] == seed["saveVer"], raw[:200]
+        assert not a.errors, a.errors
+
+
+def test_theme_dark_csp():
+    """v0.3.4: 배포판(엄격한 CSP 메타, 인라인 스크립트 지문 3개)을 「어둡게」로 열어 첫 레슨 1-1 끝까지 + 가게 하루·칸 시험 실행 →
+    CSP 위반 0, 앱 밖 주소 요청 0. 머리 스크립트가 막히면 data-theme가 비므로 첫 화면에서 dark인지도 봄"""
+    a, w = _csp_app(url=real_url(), init_js=_theme_init("dark"))
+    with a:
+        assert a.js(THEME_STATE_JS)["theme"] == "dark"
+        a.start()
+        a.page.click("#continue")
+        a.play("1-1")
+        a.dismiss()
+        a.page.click("#home")
+        a.page.wait_for_selector(".screen.home")
+        a.dismiss()
+        assert a.js(THEME_STATE_JS)["theme"] == "dark"
+        v = w.violations()
+        print("    dark first lesson: %d requests, foreign %s, violations %s" % (w.requests, w.foreign, v))
+        assert v == [] and w.foreign == [], (v, w.foreign)
+        assert not a.errors, a.errors
+    a, w = _csp_app(save=_reentry_seed(), url=real_url(), init_js=_theme_init("dark"))
+    with a:
+        a.start()
+        _to_stall(a)
+        a.wait_engine()
+        _to_editor(a, "restock")
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .rtable, .sp-result .err-panel", timeout=ENGINE_READY_MS)
+        a.page.click("#sp-close")
+        a.page.wait_for_selector(".screen.stall")
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay .replay-log li", timeout=30_000)
+        a.page.wait_for_timeout(1200)
+        a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        a.page.click("#stall-close")
+        a.page.wait_for_selector(".screen.home")
+        _go_tab(a, "settings")
+        a.page.click('[data-theme-pick="light"]')
+        a.page.click('[data-theme-pick="dark"]')
+        st = a.js(THEME_STATE_JS)
+        v = w.violations()
+        print("    dark stall day: %d requests, foreign %s, violations %s, state %s" % (w.requests, w.foreign, v, st))
+        assert st["theme"] == "dark" and st["scheme"] == "dark", st
+        assert v == [] and w.foreign == [], (v, w.foreign)
         assert not a.errors, a.errors
 
 

@@ -190,4 +190,11 @@ def test_stall_version_and_commands():
     """판 표시와 가게 시험 명령이 README에 있다"""
     text, _ = _built()
     assert "node tests/sim/stall.js" in text and "node tests/stall_requests.js" in text
-    assert _app_version() == "v0.3.3" and "# 두억이와 SQL! v0.3.3\n" in text
+    assert _app_version() == "v0.3.4" and "# 두억이와 SQL! v0.3.4\n" in text
+
+
+def test_theme_line():
+    """v0.3.4: README에 화면 설정(시스템 따라가기·밝게·어둡게) 한 줄과 대비 시험 명령"""
+    text, _ = _built()
+    assert "- **화면**(v0.3.4): 설정 「화면」에서 시스템 따라가기·밝게·어둡게" in text
+    assert "python3 tests/contrast.py --theme dark --strict --skip-art-text" in text
