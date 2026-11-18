@@ -725,3 +725,454 @@ export const TEMPLATES = [
     explain: "LEFT JOIN으로 손님을 모두 남겨야 취소 짝이 없는 손님이 빈칸으로 남아요. INNER면 그 손님이 먼저 빠져 0행이에요.",
   },
 ];
+
+// ---- 11장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 11장) ----
+// - 쓸 수 있는 것: 1~11장 낱말(11장 심화 전용 낱말 없음). 조립은 본 과정 11장과 같다(R45: 표와 별칭, ON 조건, ON에 붙는 AND 조건 카드).
+//   레슨마다 build 2개. 헷갈림은 모두 레슨이 설명한 까닭으로 틀린다(JOIN이면 짝 없는 행이 빠짐, COUNT(*)는 빈칸 행도 셈, 다른 조건).
+// - 11-A1 짝 있음·없음 이름표: 30·34·36번 손님 LEFT JOIN 주문 → 백설 완료, 표다솜 '주문 없음', 보람 완료 둘(4행).
+//   가게 LEFT JOIN 물건 AND price >= 300 → 9행(방망이 대장간 금방망이·도깨비방망이 두 행, 뚝딱 공방 장승, 나머지 6곳 '없음').
+//   AND price >= 350 → 가게마다 짝이 하나 이하(7번 금방망이, 8번 장승) 8행. AND stock IS NULL → 1·5·8번 '있음'(메밀전·한지·장승).
+//   AND stock = 0 → 5번(짚신)만 '있음'. 조건을 WHERE로 옮기면 짝 없는 가게 행이 빠진다(11-4).
+// - 11-A2 이으면 행이 불어나요(주제 바꿈, 디딤돌 §4: 잇달은 LEFT JOIN 함정은 11-4가 이미 가르침):
+//   손지우(2번) 주문 3건 → 내역과 이으면 6행, 박서연(1번) 32건 → 63행. 완료 주문 542건 → 내역과 이으면 1133행.
+//   가게마다 LEFT JOIN 내역: COUNT(oi.item_id) 1번 209·2번 186·3번 203·4번 221·5번 175·6번 134·7번 60·8번 53,
+//   COUNT(DISTINCT oi.item_id) 5·4·5·5·5·4·5·5(꿀떡·보따리 안 팔림), COUNT(DISTINCT i.item_id) 모두 5.
+//   마을마다 주문한 손님 COUNT(DISTINCT o.customer_id) 개울 7/8·느티 8/8·달빛 6/6·버드 6/6·솔 9/9·여우고개 3/3·은행 7/9·큰 11/11,
+//   COUNT(o.customer_id)는 주문 수(86 …). 종류마다 도깨비 23/24·사람 22/24·여우 12/12.
+// - 11-A3 의뢰(주제 바꿈, 디딤돌 §4): 도깨비 국밥집(shops 1번) 달래 할멈. 사연은 꾸민 이야기.
+//   「묶음 판매 점검」: 주문 내역(qty)을 이어야만 답할 수 있다(9-A3처럼 물건 표 하나로는 안 됨, 7~9장 내용 검토 지적).
+//   한 번에 3개씩(qty = 3) 팔린 줄 143. 가게마다 1번 29·2번 25·3번 29·4번 24·5번 18·6번 18·7번 0·8번 0(WHERE로 옮기면 6행).
+//   2번 가게 물건 인절미 10·송편 6·약과 4·식혜 5·꿀떡 0. 도라지 11(내역 66줄), 도깨비방망이 0.
+//   6·7번 가게에서 3개씩 팔린 적 없는 물건: 보따리·방망이 다섯(6가지). 8번 가게 물건 다섯 모두 짝 없음.
+//   2개 이상 팔린 적 없는 물건: 꿀떡·보따리·금방망이·은방망이. 3개씩 팔린 적 없는 물건 12가지(11-5-b3과 같은 수).
+export const ADVANCED = [
+  {
+    id: "11-A1", chapter: 11, isAdvanced: true, title: "짝 있음·없음 표시",
+    goal: "LEFT JOIN 뒤 빈칸에 COALESCE·CASE로 이름표를 단다",
+    summary: [
+      "COALESCE(오른쪽 열, '없음')로 빈칸 채우기",
+      "CASE WHEN 오른쪽 번호 IS NULL로 있음·없음",
+      "짝이 둘이면 행도 둘이에요",
+    ],
+    cards: [
+      {
+        say: "11장에서 짝 없는 행은 오른쪽 칸이 빈칸이었죠? 오늘은 한 걸음 더, 그 빈칸에 글자 이름표를 달아요. 6장 COALESCE로 o.status를 감싸면 주문 없는 표다솜 칸에 '주문 없음'이 보여요.",
+        sql: "SELECT c.name,\n  COALESCE(o.status, '주문 없음')\n    AS status\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.customer_id IN (30, 34, 36)",
+      },
+      {
+        say: "있다·없다만 보려면 9장 CASE로! 빈칸인지는 오른쪽 표의 번호 열로 봐요. 원래 빈칸이 없는 열이라 빈칸이면 짝이 없다는 뜻이죠(11-2). 아래는 350엽전 이상 물건이 있는 가게예요.",
+        sql: "SELECT s.name,\n  CASE WHEN i.item_id IS NULL\n  THEN '없음' ELSE '있음'\n  END AS has_350\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\n  AND i.price >= 350",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "LEFT JOIN 뒤 COALESCE(o.status, '주문 없음')은 무엇을 할까요?",
+        options: [
+          "짝 없는 행의 빈 status 칸에 '주문 없음'을 보여 준다",
+          "주문 없는 손님을 결과에서 뺀다",
+          "모든 status를 '주문 없음'으로 바꾼다",
+        ],
+        answer: 0,
+        explain: "COALESCE는 앞 값이 빈칸일 때만 뒤 값을 내요. 주문이 있는 행은 '완료'·'취소' 그대로예요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "카드 1의 SQL 결과는 몇 행일까요?",
+        code: "SELECT c.name,\n  COALESCE(o.status, '주문 없음')\n    AS status\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.customer_id IN (30, 34, 36)",
+        options: ["4행", "3행", "2행"],
+        answer: 0,
+        explain: "백설 1행, 표다솜 '주문 없음' 1행, 보람 주문 둘이라 2행, 모두 4행이에요. 이름표를 달아도 행 수는 LEFT JOIN 그대로예요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "있음·없음을 가릴 때 i.stock이 아니라 i.item_id가 빈칸인지 보는 까닭은?",
+        options: [
+          "물건 번호는 원래 빈칸이 없어, 빈칸이면 짝이 없다는 뜻이라서",
+          "i.stock은 IS NULL로 볼 수 없어서",
+          "i.item_id가 왼쪽 표의 열이라서",
+        ],
+        answer: 0,
+        explain: "재고 칸은 메밀전처럼 원래 빈칸인 행이 있어 짝이 있어도 빈칸일 수 있어요. 번호 열은 짝이 없을 때만 빈칸이에요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "가게마다 300엽전 이상 물건을 붙인 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT s.name,\n  COALESCE(i.name, '없음') AS pricey\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\n  AND i.price >= 300",
+        options: ["9행", "8행", "3행"],
+        answer: 0,
+        explain: "방망이 대장간은 금방망이·도깨비방망이 짝이 둘이라 두 행이에요. 장승의 뚝딱 공방 한 행, '없음' 6행까지 9행이에요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "그 SQL에서 LEFT JOIN을 JOIN으로 바꾸면 300엽전 이상 물건이 없는 가게는?",
+        options: ["결과에서 빠진다", "'없음'으로 남는다", "오류가 난다"],
+        answer: 0,
+        explain: "INNER JOIN은 짝 없는 행을 빼서 이름표를 달 행이 아예 없어요. '없음'을 보이려면 LEFT JOIN으로 남겨야 해요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "i.price >= 300 조건을 ON이 아니라 WHERE에 두면?",
+        options: [
+          "짝 없는 가게 행은 i.price가 빈칸이라 걸러져 '없음' 행이 사라진다",
+          "결과가 똑같다",
+          "오류가 난다",
+        ],
+        answer: 0,
+        explain: "11-4의 함정이에요. WHERE는 이은 뒤에 걸러서 빈칸 행이 빠져요. 오른쪽 표 조건은 ON에 AND로!",
+      },
+      {
+        type: "blank", concept: "adv_left_label",
+        q: "350엽전 이상 물건이 없는 가게에 '없음'이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT s.name,\n  CASE WHEN i.item_id ___\n  THEN '없음' ELSE '있음'\n  END AS has_350\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\n  AND i.price >= 350",
+        chips: ["IS NULL", "= NULL", "IS NOT NULL"],
+        answer: 0,
+        explain: "짝이 없으면 i.item_id가 빈칸이라 IS NULL이에요. = NULL은 늘 참이 아니라 모두 '있음', IS NOT NULL은 거꾸로예요.",
+      },
+      {
+        type: "order", concept: "adv_left_label",
+        q: "가게마다 350엽전 이상 물건 이름을, 없으면 '없음'으로 보게 줄을 놓아 보세요.",
+        lines: ["SELECT s.name,", "COALESCE(i.name, '없음') AS top", "FROM shops s", "LEFT JOIN items i", "ON s.shop_id = i.shop_id", "AND i.price >= 350"],
+        explain: "방망이 대장간 금방망이, 뚝딱 공방 장승, 나머지 6곳은 '없음'이에요. 오른쪽 조건은 ON 뒤에 AND로 붙여요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "가게마다 재고가 0인 물건이 있으면 '있음', 없으면 '없음'으로 보인 결과는?",
+        options: [
+          { sql: "SELECT s.name,\n  CASE WHEN i.item_id IS NULL\n  THEN '없음' ELSE '있음'\n  END AS zero\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\n  AND i.stock = 0" },
+          { sql: "SELECT s.name,\n  CASE WHEN i.item_id IS NULL\n  THEN '없음' ELSE '있음'\n  END AS zero\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\nWHERE i.stock = 0" },
+          { sql: "SELECT s.name,\n  CASE WHEN i.item_id IS NULL\n  THEN '없음' ELSE '있음'\n  END AS zero\nFROM shops s\nLEFT JOIN items i\n  ON s.shop_id = i.shop_id\n  AND i.stock < 5" },
+        ],
+        answer: 0, tables: ["shops", "items"],
+        explain: "가게 8곳 중 짚신이 있는 구름 잡화점만 '있음'인 표예요. 조건을 WHERE에 두면 구름 잡화점 한 행만 남고, < 5면 산삼 약방·뚝딱 공방도 '있음'이에요.",
+      },
+      {
+        type: "choice", concept: "adv_left_label",
+        q: "이름표를 달 때 한 가게에 조건에 맞는 물건이 둘이면?",
+        options: ["짝마다 한 행씩, 그 가게가 두 행 나온다", "한 행으로 합쳐진다", "오류가 난다"],
+        answer: 0,
+        explain: "LEFT JOIN도 짝마다 한 행이에요(10장). 가게마다 한 행만 보려면 짝이 하나뿐인 조건을 쓰거나 묶어서 세요.",
+      },
+      {
+        id: "11-A1-b1", type: "build", concept: "adv_left_label",
+        q: "가게마다 300엽전 이상 물건의 이름을 pricey라는 이름으로, 없으면 '없음'으로 보여 줘",
+        cards: ["SELECT", "s.name,", "COALESCE(i.name, '없음')", "AS pricey", "FROM", "shops s", "LEFT JOIN items i", "ON s.shop_id = i.shop_id", "AND i.price >= 300"],
+        extra: ["JOIN items i", "COALESCE(i.name, s.name)"],
+        tables: ["shops", "items"],
+        hints: [
+          "가게를 모두 남기고 300엽전 이상 물건만 짝지은 뒤, 짝 없는 빈칸을 '없음'으로 채워요.",
+          "LEFT JOIN items i, ON …, AND i.price >= 300, 그리고 COALESCE 카드예요.",
+        ],
+        explain: "9행이에요. 방망이 대장간은 두 물건이라 두 행! JOIN이면 '없음' 6곳이 빠지고, s.name으로 채우면 가게 이름이 물건 칸에 들어가요.",
+      },
+      {
+        id: "11-A1-b2", type: "build", concept: "adv_left_label",
+        q: "가게마다 재고를 모르는 물건이 있으면 '있음', 없으면 '없음'을 unknown_stock으로 보여 줘",
+        cards: ["SELECT", "s.name,", "CASE WHEN i.item_id IS NULL", "THEN '없음' ELSE '있음'", "END AS unknown_stock", "FROM", "shops s", "LEFT JOIN items i", "ON s.shop_id = i.shop_id", "AND i.stock IS NULL"],
+        extra: ["THEN '있음' ELSE '없음'", "AND i.stock = 0"],
+        tables: ["shops", "items"],
+        hints: [
+          "가게를 모두 남기고 재고 모르는 물건만 짝지은 뒤, 짝이 없으면 '없음'이에요.",
+          "ON 뒤에 AND i.stock IS NULL, CASE WHEN i.item_id IS NULL이에요.",
+        ],
+        explain: "도깨비 국밥집·구름 잡화점·뚝딱 공방이 '있음'이에요. 이름표를 거꾸로 달면 뜻이 뒤집히고, stock = 0이면 짚신의 가게만 '있음'이에요.",
+      },
+      {
+        type: "check", concept: "adv_left_label",
+        q: "LEFT JOIN 뒤 이름표에 대해 맞는 말은?",
+        options: [
+          "짝 없는 빈칸은 COALESCE로 채우거나, 오른쪽 번호 열 IS NULL을 CASE로 보아 있음·없음을 단다",
+          "LEFT JOIN 결과의 빈칸에는 이름표를 달 수 없다",
+          "짝이 여럿이어도 왼쪽 행은 늘 한 행이다",
+        ],
+        answer: 0,
+        explain: "빈칸은 짝이 없다는 단서예요. 사람이 읽기 좋게 '없음'으로 바꿔 보였어요. 짝이 여럿이면 행도 여럿이란 것도 기억해요.",
+      },
+    ],
+  },
+  {
+    id: "11-A2", chapter: 11, isAdvanced: true, title: "불어난 행 겹침 없이",
+    goal: "불어난 행을 COUNT(DISTINCT 오른쪽 열)로 바르게 센다",
+    summary: [
+      "짝이 여럿이면 행이 불어나요",
+      "가짓수·사람 수는 COUNT(DISTINCT 열)",
+      "오른쪽 열을 세야 짝 없으면 0",
+    ],
+    cards: [
+      {
+        say: "11장에서 LEFT JOIN 뒤 오른쪽 열을 셌죠? 오늘은 한 걸음 더. 손지우 님 주문 3건에 내역을 이으면 물건마다 한 행이라 6행으로 불어나요. 주문 건수를 세려면 COUNT(DISTINCT o.order_id)로 겹침을 빼요.",
+        sql: "SELECT COUNT(*) AS rows_n,\n  COUNT(DISTINCT o.order_id)\n    AS orders_n\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.customer_id = 2",
+      },
+      {
+        say: "가게마다 팔린 물건이 몇 가지인지도 같아요. 내역을 이으면 판 줄마다 한 행! COUNT(oi.item_id)는 줄 수예요. 오른쪽 열을 겹침 없이 세면 가짓수, 안 팔린 꿀떡·보따리는 빈칸이라 빠져서 4예요.",
+        sql: "SELECT i.shop_id,\n  COUNT(oi.item_id) AS lines,\n  COUNT(DISTINCT oi.item_id)\n    AS sold_kinds\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id IN (2, 6, 7)\nGROUP BY i.shop_id",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "주문 3건에 내역을 이었더니 6행이 된 까닭은?",
+        options: [
+          "주문 한 건에 물건이 여럿이라 물건마다 한 행씩 붙어서",
+          "JOIN이 같은 행을 두 번 써서",
+          "ON 조건이 빠져서",
+        ],
+        answer: 0,
+        explain: "주문 하나가 짝(내역) 둘과 붙으면 두 행이 돼요. ON이 빠졌다면 훨씬 많이 불어났을 거예요(10-3).",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "완료 주문에 내역을 이었어요. 이 SQL이 센 수는?",
+        code: "SELECT COUNT(*) AS n\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.status = '완료'",
+        options: ["1133", "542", "1712"],
+        answer: 0,
+        explain: "완료 주문 542건의 내역 줄이 1133줄이에요. 주문 수가 아니라 줄 수를 셌어요. 1712는 수량 합이에요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "같은 표에서 주문을 겹침 없이 센 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(DISTINCT o.order_id) AS n\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.status = '완료'",
+        options: ["542", "1133", "591"],
+        answer: 0,
+        explain: "불어난 1133행 속 주문 번호를 한 번씩만 세면 542건이에요. 591은 취소까지 센 주문 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "2번 가게 물건에 내역을 LEFT JOIN으로 이었어요. 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(oi.item_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2",
+        options: ["186", "4", "5"],
+        answer: 0,
+        explain: "2번 가게 물건이 팔린 줄 186줄이에요. 가짓수가 아니라 줄 수예요. 안 팔린 꿀떡 줄은 빈칸이라 세지 않았어요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "같은 이음에서 겹침 없이 센 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(DISTINCT oi.item_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE i.shop_id = 2",
+        options: ["4", "5", "186"],
+        answer: 0,
+        explain: "팔린 적 있는 물건 4가지예요. 꿀떡은 짝이 없어 oi.item_id가 빈칸이라 COUNT가 세지 않아요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "가게마다 팔린 가짓수를 셀 때 COUNT(DISTINCT i.item_id)가 늘 5인 까닭은?",
+        options: [
+          "왼쪽 물건 표 열이라, 안 팔린 물건도 LEFT JOIN이 남긴 행에 값이 있어서",
+          "DISTINCT가 빈칸을 5로 세서",
+          "가게마다 다 팔려서",
+        ],
+        answer: 0,
+        explain: "왼쪽 표의 열은 짝이 없어도 차 있어요. 짝이 있는지를 세려면 오른쪽 표의 열을 세요(11-3과 같은 까닭).",
+      },
+      {
+        type: "blank", concept: "adv_join_fanout",
+        q: "손님 종류마다 주문해 본 손님 수가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT c.kind,\n  COUNT(___ o.customer_id)\n    AS buyers\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind",
+        chips: ["DISTINCT", "*", "ORDER BY"],
+        answer: 0,
+        explain: "주문마다 한 행이라 겹침을 빼야 사람 수예요. 도깨비 23, 사람 22, 여우 12명이에요. 다른 칩은 그 자리에 올 수 없어 단서가 나와요.",
+      },
+      {
+        type: "order", concept: "adv_join_fanout",
+        q: "박서연 님(1번)의 주문 건수를, 내역과 이은 표에서 겹침 없이 세게 줄을 놓아 보세요.",
+        lines: ["SELECT COUNT(DISTINCT o.order_id)", "AS orders_n", "FROM orders o", "JOIN order_items oi", "ON o.order_id = oi.order_id", "WHERE o.customer_id = 1"],
+        expect: "orders_n\n32",
+        explain: "이은 표는 63행이지만 주문은 32건이에요. 겹침 없이 세서 불어난 행에 속지 않았어요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "손님 종류마다 손님 수 people과 주문해 본 손님 수 buyers를 보인 결과는?",
+        options: [
+          { sql: "SELECT c.kind,\n  COUNT(DISTINCT c.customer_id)\n    AS people,\n  COUNT(DISTINCT o.customer_id)\n    AS buyers\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind" },
+          { sql: "SELECT c.kind,\n  COUNT(*) AS people,\n  COUNT(o.customer_id) AS buyers\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind" },
+          { sql: "SELECT c.kind,\n  COUNT(DISTINCT c.customer_id)\n    AS people,\n  COUNT(DISTINCT c.customer_id)\n    AS buyers\nFROM customers c\nLEFT JOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind" },
+        ],
+        answer: 0, tables: ["customers", "orders"],
+        explain: "도깨비 24·23, 사람 24·22, 여우 12·12인 표예요. DISTINCT가 없으면 주문 수가 나오고, 왼쪽 열만 세면 안 산 손님도 세어져요.",
+      },
+      {
+        type: "choice", concept: "adv_join_fanout",
+        q: "LEFT JOIN 뒤 COUNT(DISTINCT c.customer_id)와 COUNT(DISTINCT o.customer_id)의 차이는?",
+        options: [
+          "앞은 손님 수, 뒤는 그중 주문한 손님 수(짝 없으면 빈칸이라 안 셈)",
+          "둘은 늘 같다",
+          "뒤는 주문 건수다",
+        ],
+        answer: 0,
+        explain: "c는 왼쪽 표라 모든 손님이, o는 오른쪽 표라 짝 있는 손님만 세어져요. 은행나무마을은 9명 중 7명이에요.",
+      },
+      {
+        id: "11-A2-b1", type: "build", concept: "adv_join_fanout",
+        q: "가게마다 팔린 적 있는 물건이 몇 가지인지 sold_kinds라는 이름으로 보여 줘",
+        cards: ["SELECT", "i.shop_id,", "COUNT(DISTINCT oi.item_id)", "AS sold_kinds", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "GROUP BY", "i.shop_id"],
+        extra: ["COUNT(oi.item_id)", "COUNT(DISTINCT i.item_id)"],
+        tables: ["items", "order_items"],
+        hints: [
+          "물건에 내역을 이으면 판 줄마다 행이 불어나니, 오른쪽 물건 번호를 겹침 없이 세요.",
+          "COUNT(DISTINCT oi.item_id) 카드에 이름을 붙이고 가게로 묶어요.",
+        ],
+        explain: "2·6번 4가지, 나머지 5가지예요. DISTINCT가 없으면 판 줄 수(209 …), 왼쪽 i.item_id를 세면 안 팔린 것까지 늘 5예요.",
+      },
+      {
+        id: "11-A2-b2", type: "build", concept: "adv_join_fanout",
+        q: "마을마다 주문해 본 손님이 몇 명인지 보여 줘(주문 없는 손님도 남겨 이어서)",
+        cards: ["SELECT", "c.village,", "COUNT(DISTINCT o.customer_id)", "FROM", "customers c", "LEFT JOIN orders o", "ON", "c.customer_id = o.customer_id", "GROUP BY", "c.village"],
+        extra: ["COUNT(o.customer_id)", "COUNT(DISTINCT c.customer_id)"],
+        tables: ["customers", "orders"],
+        hints: [
+          "주문마다 한 행으로 불어나니, 오른쪽 주문 표의 손님 번호를 겹침 없이 세요.",
+          "SELECT c.village, 다음에 COUNT(DISTINCT o.customer_id)를 놓아요.",
+        ],
+        explain: "개울마을 7명, 은행나무마을 7명처럼 나와요. DISTINCT가 없으면 주문 수(큰바위마을 123), 왼쪽 c를 세면 안 산 손님까지 세어져요.",
+      },
+      {
+        type: "check", concept: "adv_join_fanout",
+        q: "이어서 불어난 행을 셀 때 맞는 말은?",
+        options: [
+          "짝이 여럿이면 행이 불어나니, 가짓수·사람 수는 오른쪽 열을 COUNT(DISTINCT)로 센다",
+          "JOIN한 뒤 COUNT(*)는 늘 왼쪽 표의 행 수다",
+          "LEFT JOIN 뒤 COUNT(DISTINCT 왼쪽 열)이 짝 있는 것만 센다",
+        ],
+        answer: 0,
+        explain: "무엇을 세는지 먼저 정해요. 줄은 COUNT(*), 주문·물건·사람은 그 번호를 겹침 없이, 짝이 있는지는 오른쪽 열로!",
+      },
+    ],
+  },
+  {
+    id: "11-A3", chapter: 11, isAdvanced: true, title: "묶음 판매 점검",
+    goal: "주문 내역을 LEFT JOIN해 조건에 맞는 짝을 0까지 센다",
+    summary: [
+      "의뢰: 한 번에 3개씩 팔린 횟수",
+      "물건을 왼쪽에, 수량 조건은 ON에 AND",
+      "COUNT(오른쪽 열)로 세면 0도 보여요",
+    ],
+    cards: [
+      {
+        say: "11장에서 짝 없는 행을 0으로 셌죠? 오늘은 의뢰예요! 도깨비 국밥집 달래 할멈이 「한 번에 3개씩 묶어 팔린 게 몇 번인지, 한 번도 없으면 0으로 알려 주게」래요. 수량은 주문 내역에 있어 이어야 해요. 수량 조건은 ON에 AND로!",
+        sql: "SELECT i.name,\n  COUNT(oi.order_id) AS bulk\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty = 3\nWHERE i.shop_id = 2\nGROUP BY i.item_id, i.name",
+      },
+      {
+        say: "한 번도 3개씩 팔리지 않은 물건은 11-2처럼 오른쪽 번호 IS NULL로 찾아요. 아래는 바람 보따리와 방망이 대장간 물건이에요. 비싼 방망이는 3개씩 사 가지 않았네요. 물건 장부만으로는 알 수 없고, 내역을 이어야 보여요.",
+        sql: "SELECT i.name\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty = 3\nWHERE i.shop_id IN (6, 7)\n  AND oi.order_id IS NULL",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "「3개씩 팔린 횟수」를 물건 표만으로 셀 수 없는 까닭은?",
+        options: [
+          "한 번에 담긴 수량(qty)은 주문 내역 표에 있어서",
+          "물건 표에는 shop_id가 없어서",
+          "물건 표는 GROUP BY로 묶을 수 없어서",
+        ],
+        answer: 0,
+        explain: "물건 표에는 값과 재고뿐이에요. 팔린 수량은 주문 내역에 있어 물건 번호로 이어야 해요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "물건 표를 왼쪽(FROM)에, 주문 내역을 LEFT JOIN으로 잇는 까닭은?",
+        options: [
+          "3개씩 팔린 적이 없는 물건도 행으로 남겨 0으로 보이려고",
+          "주문 내역 표가 커서 빨라지려고",
+          "주문 내역에는 item_id가 없어서",
+        ],
+        answer: 0,
+        explain: "LEFT JOIN은 왼쪽 행을 모두 남겨요. JOIN이면 짝 없는 방망이들이 빠져 「0번」을 보일 수 없어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "COUNT(*) 대신 COUNT(oi.order_id)로 세는 까닭은?",
+        options: [
+          "짝 없는 물건도 빈칸 행 하나가 남아 COUNT(*)는 1로 세서",
+          "COUNT(*)는 GROUP BY와 함께 쓸 수 없어서",
+          "oi.order_id가 물건 번호라서",
+        ],
+        answer: 0,
+        explain: "11-3과 같아요. 오른쪽 열은 짝이 없으면 빈칸이라 0이 돼요. COUNT(*)면 한 번도 없는 물건이 1로 보여요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "수량 조건을 WHERE로 옮긴 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT i.shop_id,\n  COUNT(oi.order_id) AS bulk\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\nWHERE oi.qty = 3\nGROUP BY i.shop_id",
+        options: ["6행", "8행", "2행"],
+        answer: 0,
+        explain: "WHERE가 이은 뒤에 걸러 3개씩 팔린 줄이 없는 공방 7·8번이 사라져 6행이에요. 0인 가게를 보이려면 조건은 ON에(11-4).",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "도라지(16번 물건)가 3개씩 팔린 횟수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(oi.order_id) AS bulk\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty = 3\nWHERE i.item_id = 16",
+        options: ["11", "66", "0"],
+        answer: 0,
+        explain: "도라지는 66번 팔렸는데 그중 한 번에 3개씩은 11번이에요. 66은 수량 조건 없이 센 줄 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "도깨비방망이(31번 물건)로 바꾸면 결과 값은?",
+        code: "SELECT COUNT(oi.order_id) AS bulk\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty = 3\nWHERE i.item_id = 31",
+        options: ["0", "1", "NULL"],
+        answer: 0,
+        explain: "짝이 없어 빈칸 행 하나뿐이라 COUNT(oi.order_id)는 0이에요. NULL이 아니라 0! COUNT는 셀 게 없으면 0이에요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_11",
+        q: "바람 보따리·방망이 대장간 물건 중 한 번도 3개씩 팔리지 않은 것만 나오게 빈자리를 채워 보세요.",
+        code: "SELECT i.name\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty = 3\nWHERE i.shop_id IN (6, 7)\n  AND oi.order_id ___",
+        chips: ["IS NULL", "IS NOT NULL", "= NULL"],
+        answer: 0,
+        explain: "짝이 없어 빈칸인 물건이 IS NULL로 남아요. 보따리와 방망이 다섯, 6가지예요. IS NOT NULL은 3개씩 팔린 줄, = NULL은 0행이에요.",
+      },
+      {
+        type: "order", concept: "adv_apply_11",
+        q: "뚝딱 공방(8번) 물건에 3개씩 팔린 주문을 붙이되, 없는 물건도 남게 줄을 놓아 보세요.",
+        lines: ["SELECT i.name, oi.order_id", "FROM items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "AND oi.qty = 3", "WHERE i.shop_id = 8"],
+        explain: "공방 물건은 3개씩 팔린 적이 없어 다섯 모두 order_id가 빈칸인 한 행씩 남아요. 수량 조건은 ON 뒤 AND, 가게 고르기는 WHERE예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_11",
+        q: "가게마다 한 번에 2개 이상 팔린 횟수를 0까지 보인 결과는?",
+        options: [
+          { sql: "SELECT i.shop_id,\n  COUNT(oi.order_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty >= 2\nGROUP BY i.shop_id" },
+          { sql: "SELECT i.shop_id,\n  COUNT(*) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty >= 2\nGROUP BY i.shop_id" },
+          { sql: "SELECT i.shop_id,\n  COUNT(oi.order_id) AS n\nFROM items i\nLEFT JOIN order_items oi\n  ON i.item_id = oi.item_id\n  AND oi.qty >= 3\nGROUP BY i.shop_id" },
+        ],
+        answer: 0, tables: ["items", "order_items"],
+        explain: "2개 이상인 줄을 세고 짝 없는 줄은 세지 않은 표예요. COUNT(*)면 짝 없는 물건도 1로 세고, >= 3이면 공방 둘이 0이에요.",
+      },
+      {
+        id: "11-A3-b1", type: "build", concept: "adv_apply_11",
+        q: "가게마다 물건이 한 번에 3개씩 팔린 횟수를 bulk라는 이름으로, 없는 가게는 0으로 보여 줘",
+        cards: ["SELECT", "i.shop_id,", "COUNT(oi.order_id) AS bulk", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "AND oi.qty = 3", "GROUP BY", "i.shop_id"],
+        extra: ["COUNT(*) AS bulk", "JOIN order_items oi"],
+        tables: ["items", "order_items"],
+        hints: [
+          "물건을 모두 남기고 3개씩 담긴 내역만 짝지은 뒤, 오른쪽 열을 가게마다 세요.",
+          "ON 뒤에 AND oi.qty = 3, COUNT(oi.order_id)로 세요.",
+        ],
+        explain: "1·3번 29번, 2번 25번 … 공방 7·8번은 0번이에요. COUNT(*)면 공방이 물건 수 5로, JOIN이면 공방 두 곳이 빠져요.",
+      },
+      {
+        id: "11-A3-b2", type: "build", concept: "adv_apply_11",
+        q: "한 번에 2개 이상 팔린 적이 한 번도 없는 물건의 이름을 보여 줘",
+        cards: ["SELECT", "i.name", "FROM", "items i", "LEFT JOIN order_items oi", "ON i.item_id = oi.item_id", "AND oi.qty >= 2", "WHERE", "oi.order_id IS NULL"],
+        extra: ["oi.order_id IS NOT NULL", "AND oi.qty > 2"],
+        tables: ["items", "order_items"],
+        hints: [
+          "물건을 모두 남기고 2개 이상 담긴 내역만 짝지은 뒤, 짝이 없는 물건만 골라요.",
+          "ON 뒤에 AND oi.qty >= 2, WHERE 뒤에 oi.order_id IS NULL이에요.",
+        ],
+        explain: "꿀떡·보따리·금방망이·은방망이예요. 안 팔린 둘에 비싼 방망이 둘이 더해졌어요. > 2면 3개씩 판 적 없는 물건 12가지예요.",
+      },
+      {
+        type: "check", concept: "adv_apply_11",
+        q: "달래 할멈의 묶음 판매 점검 SQL에 대해 맞는 말은?",
+        options: [
+          "물건을 왼쪽에 두고 수량 조건은 ON에, 세기는 오른쪽 열로 해서 0인 것까지 보인다",
+          "수량 조건은 WHERE에 둬야 0인 물건이 보인다",
+          "COUNT(*)로 세도 짝 없는 물건이 0으로 나온다",
+        ],
+        answer: 0,
+        explain: "LEFT JOIN·ON의 AND·COUNT(오른쪽 열), 11장 세 가지를 함께 썼어요. 다른 장부를 이어야만 답할 수 있는 「없는 것」까지 셌어요.",
+      },
+    ],
+  },
+];

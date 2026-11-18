@@ -115,4 +115,16 @@ export const CONCEPTS = [
   { id: "adv_case_count", name: "CASE로 조건 세기", chapter: 9, advanced: true },
   { id: "adv_group_case", name: "CASE 갈래로 묶기", chapter: 9, advanced: true },
   { id: "adv_apply_9", name: "가게별 재고 안내판", chapter: 9, advanced: true },
+  // 10장 심화
+  { id: "adv_self_join", name: "같은 표 두 번 잇기", chapter: 10, advanced: true },
+  { id: "adv_join_group", name: "이은 표의 열로 묶기", chapter: 10, advanced: true },
+  { id: "adv_apply_10", name: "단골 영수증", chapter: 10, advanced: true },
+  // 11장 심화
+  { id: "adv_left_label", name: "짝 있음·없음 표시", chapter: 11, advanced: true },
+  { id: "adv_join_fanout", name: "불어난 행 겹침 없이", chapter: 11, advanced: true },
+  { id: "adv_apply_11", name: "묶음 판매 점검", chapter: 11, advanced: true },
+  // 12장 심화
+  { id: "adv_correlated", name: "바깥 행마다 묻기", chapter: 12, advanced: true },
+  { id: "adv_scalar_select", name: "SELECT 줄 서브쿼리", chapter: 12, advanced: true },
+  { id: "adv_apply_12", name: "자주 오는 손님", chapter: 12, advanced: true },
 ];

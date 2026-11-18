@@ -756,3 +756,436 @@ export const TEMPLATES = [
     explain: "EXISTS는 괄호 안에 그 손님의 주문이 한 행이라도 있으면 참이라, {V} 손님 중 주문한 적 있는 손님이 나와요. NOT EXISTS면 주문 없는 손님이에요.",
   },
 ];
+
+// ---- 12장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 12장) ----
+// - 쓸 수 있는 것: 1~12장 낱말(12장 심화 전용 낱말 없음). FROM (SELECT·WITH는 13장이라 쓰지 않는다(점검기가 막음).
+//   조립은 본 과정 12장과 같다(R44: 서브쿼리 여는 카드 "(SELECT …", 닫는 카드 "… )", 괄호 안 WHERE는 한 장). 레슨마다 build 2개.
+// - 12-A1 상관 서브쿼리(바깥 행을 부르는 값 자리 서브쿼리, 12-4 카드 2의 EXISTS가 디딤돌):
+//   자기 가게 평균보다 비싼 물건 14(1·2번 가게 중 수육·약과·꿀떡), 장터 평균과 견주면 12(12-1). 2번 가게 평균 7, 7번 266.
+//   가게마다 가장 비싼 물건 8(수육·약과·산삼·약초 주머니·비단 주머니·갓·금방망이·장승), 가장 싼 물건 8(도토리묵·식혜·감초·도라지·한지·보따리·방망이 손잡이·빨래방망이).
+//   종류마다 평균보다 나이 많은 손님 28(장터 평균과 견주면 26, 사람 평균 43.5와 견주면 24). 종류마다 가장 나이 많은 손님 7(도깨비 73살 넷, 여우 59살 둘, 사람 75살 하나).
+//   x.shop_id = x.shop_id면 장터 전체 MIN(식혜 하나), = 7이면 7번 가게 MIN(방망이 손잡이 하나).
+// - 12-A2 SELECT 줄 서브쿼리: 3번 가게 price - 평균(79.525) 40.475·-49.525 …, 7번 가게 400 - price 80·0·120·250·220(도깨비방망이 80).
+//   가게마다 MAX 25·9·120·35·40·110·400·350, MIN 8·5·12·15·6·16·150·130. 가게마다 100엽전 이상 0·0·1·0·0·1·5·5(바깥을 안 부르면 모두 12).
+//   손님마다 주문 수 은행나무마을 박서연 32·남이슬 23·소란이 28·오이든 14·백설 1·표다솜 0·보람 2·돌쇠 0·산돌이 3(COUNT는 0, LEFT JOIN 뒤 COUNT(*)는 1).
+//   열 자리 서브쿼리가 여러 행을 내는 것은 12-1처럼 말로만(「많은 데이터베이스는 오류, 이 장터에서는 한 값만」, R36).
+// - 12-A3 의뢰: 바람 보따리(shops 6번) 오영감. 사연은 꾸민 이야기.
+//   주문 591건·주문한 손님 57명, 591 ÷ 57 = 10.3684(* 1.0 없이 나누면 이 장터에서는 10, 9-4). 60명으로 나누면 9.85.
+//   주문 11번 이상(> 10) 20명, 10번 이상 21명(33번 손님이 딱 10번), 30번 이상 3명(박서연·쇠뭉치·여름이).
+//   주문 수는 정수라 「10.3684보다 많다」 = 「10보다 많다」. 두 걸음은 5-A3과 같은 모양(첫 걸음에서 구한 값을 둘째 걸음에 씀).
+//   한 문장(HAVING 안에 평균 서브쿼리)은 빈자리 문제로 보인다.
+export const ADVANCED = [
+  {
+    id: "12-A1", chapter: 12, isAdvanced: true, title: "바깥 행마다 다시 묻기",
+    goal: "바깥 행을 부르는 서브쿼리로 행마다 다른 값과 견준다",
+    summary: [
+      "괄호 안이 바깥 별칭을 부르면 행마다 다시 계산",
+      "자기 가게 평균·가장 비싼 값과 견주기",
+      "안팎에 같은 표면 별칭을 달리",
+    ],
+    cards: [
+      {
+        say: "12장에서 평균보다 비싼 물건을 찾았죠? 그건 장터 평균 하나와 견줬어요. 오늘은 한 걸음 더, 자기 가게 평균과! 괄호 안이 바깥 행 i의 가게 번호를 불러, 물건마다 그 가게 평균을 다시 구해요. 12-4 EXISTS처럼요.",
+        sql: "SELECT name, price, shop_id\nFROM items i\nWHERE i.shop_id IN (1, 2)\n  AND price >\n  (SELECT AVG(price)\n   FROM items x\n   WHERE x.shop_id = i.shop_id)",
+      },
+      {
+        say: "바깥 행이 꿀떡(2번 가게)일 때 괄호 안은 아래처럼 돌아요. 2번 가게 평균 7엽전! 꿀떡 8 > 7이라 남아요. 국밥(1번 가게)일 때는 12.8과 견줘요. 안팎에 같은 표를 쓰니 별칭을 i·x로 달리 붙여 가려요.",
+        sql: "SELECT AVG(price) AS avg_price\nFROM items x\nWHERE x.shop_id = 2",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "괄호 안의 x.shop_id = i.shop_id에서 i는 무엇일까요?",
+        options: ["바깥 FROM의 물건, 지금 살펴보는 행", "괄호 안의 물건 표", "아무 물건이나 하나"],
+        answer: 0,
+        explain: "바깥 행 하나를 i에 놓고 괄호 안이 그 가게 평균을 구해요. 다음 행으로 가면 다시 구해요. 12-4의 c와 같아요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "이 서브쿼리가 12-1의 (SELECT AVG(price) FROM items)와 다른 점은?",
+        options: [
+          "바깥 행마다 그 가게의 평균을 다시 구한다",
+          "평균을 한 번만 구해 모든 행에 쓴다",
+          "평균 대신 합을 구한다",
+        ],
+        answer: 0,
+        explain: "12-1은 장터 평균 79.525 하나였어요. 바깥을 부르면 1번 가게 물건은 12.8, 7번 가게 물건은 266과 견줘요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "자기 가게 평균보다 비싼 물건 수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM items i\nWHERE price >\n  (SELECT AVG(price)\n   FROM items x\n   WHERE x.shop_id = i.shop_id)",
+        options: ["14", "12", "40"],
+        answer: 0,
+        explain: "가게마다 평균보다 비싼 물건을 모으면 14가지예요. 12는 장터 평균과 견줬을 때(12-1), 40은 물건 전체예요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "바깥 행이 방망이 대장간(7번) 물건일 때 괄호 안의 값은?",
+        code: "SELECT AVG(price) AS avg_price\nFROM items x\nWHERE x.shop_id = 7",
+        options: ["266", "79.525", "400"],
+        answer: 0,
+        explain: "7번 가게 평균 266엽전이에요. 그래서 금방망이 400·도깨비방망이 320·은방망이 280이 남아요. 79.525는 장터 평균이에요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "여우골 떡방의 꿀떡(8엽전)이 결과에 나오는 까닭은?",
+        options: ["2번 가게 평균 7엽전보다 비싸서", "장터 평균보다 비싸서", "2번 가게에서 가장 비싸서"],
+        answer: 0,
+        explain: "꿀떡은 장터 평균 79.525보다 훨씬 싸지만 자기 가게 평균 7보다는 비싸요. 2번 가게에서 가장 비싼 건 약과 9엽전이에요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "손님 종류마다 그 종류 평균보다 나이 많은 손님 수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM customers c\nWHERE age >\n  (SELECT AVG(age)\n   FROM customers x\n   WHERE x.kind = c.kind)",
+        options: ["28", "26", "60"],
+        answer: 0,
+        explain: "도깨비는 도깨비 평균, 여우는 여우 평균과 견줘 28명이에요. 장터 평균 하나와 견주면 26명(12-1)이에요.",
+      },
+      {
+        type: "blank", concept: "adv_correlated",
+        q: "손님마다 자기 종류의 평균 나이와 견주게 빈자리를 채워 보세요.",
+        code: "SELECT COUNT(*) AS n\nFROM customers c\nWHERE age >\n  (SELECT AVG(age)\n   FROM customers x\n   WHERE x.kind = ___)",
+        chips: ["c.kind", "x.kind", "'사람'"],
+        answer: 0,
+        explain: "바깥 손님 c의 종류를 불러야 해요. 그래서 28명이에요. x.kind면 늘 참이라 장터 평균과 견줘 26명, '사람'이면 모두 사람 평균과 견줘 24명이에요.",
+      },
+      {
+        type: "order", concept: "adv_correlated",
+        q: "가게마다 가장 싼 물건의 이름과 값을 보게 줄을 놓아 보세요.",
+        lines: ["SELECT name, price", "FROM items i", "WHERE price =", "(SELECT MIN(price) FROM items x", "WHERE x.shop_id = i.shop_id)"],
+        explain: "물건마다 자기 가게의 가장 싼 값과 견줘 같으면 남아요. 도토리묵·식혜·감초 … 가게마다 하나씩 8행이에요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "손님 종류마다 가장 나이 많은 손님을 보인 결과는?",
+        options: [
+          { sql: "SELECT name, age\nFROM customers c\nWHERE age =\n  (SELECT MAX(age)\n   FROM customers x\n   WHERE x.kind = c.kind)" },
+          { sql: "SELECT name, age\nFROM customers c\nWHERE age =\n  (SELECT MAX(age)\n   FROM customers x)" },
+          { sql: "SELECT name, age\nFROM customers c\nWHERE age =\n  (SELECT MIN(age)\n   FROM customers x\n   WHERE x.kind = c.kind)" },
+        ],
+        answer: 0, tables: ["customers"],
+        explain: "도깨비 73살 넷, 여우 59살 둘, 사람 75살 하나, 7행이에요. 같은 값이면 모두 나와요. 바깥을 안 부르면 75살 하나, MIN이면 가장 어린 손님이에요.",
+      },
+      {
+        type: "choice", concept: "adv_correlated",
+        q: "안팎에 같은 물건 표를 쓸 때 별칭을 i와 x로 달리 붙이는 까닭은?",
+        options: [
+          "shop_id가 바깥 행의 것인지 괄호 안 행의 것인지 가리려고",
+          "같은 표는 별칭 없이 두 번 쓰면 더 느려서",
+          "괄호 안에서는 별칭이 꼭 x여야 해서",
+        ],
+        answer: 0,
+        explain: "둘 다 items라 별칭이 같으면 어느 쪽 shop_id인지 알 수 없어요. 10-A1처럼 다른 이름으로 가려요. 이름은 i·x가 아니어도 돼요.",
+      },
+      {
+        id: "12-A1-b1", type: "build", concept: "adv_correlated",
+        q: "자기 가게의 평균 값보다 비싼 물건의 이름을 보여 줘",
+        cards: ["SELECT", "name", "FROM", "items i", "WHERE", "price >", "(SELECT AVG(price)", "FROM items x", "WHERE", "x.shop_id = i.shop_id)"],
+        extra: ["price <", "x.item_id = i.item_id)"],
+        tables: ["items"],
+        hints: [
+          "물건마다 괄호 안에서 그 물건 가게의 평균을 다시 구해 견줘요.",
+          "괄호 안 WHERE 뒤에 x.shop_id = i.shop_id)를 놓아요.",
+        ],
+        explain: "14가지예요. 꿀떡처럼 싸도 자기 가게에선 비싼 물건이 들어왔어요. <면 싼 쪽, 물건 번호로 맞대면 자기 자신의 값이라 0행이에요.",
+      },
+      {
+        id: "12-A1-b2", type: "build", concept: "adv_correlated",
+        q: "가게마다 가장 비싼 물건의 이름과 값을 보여 줘",
+        cards: ["SELECT", "name, price", "FROM", "items i", "WHERE", "price =", "(SELECT MAX(price)", "FROM items x", "WHERE", "x.shop_id = i.shop_id)"],
+        extra: ["(SELECT MIN(price)", "x.shop_id = 7)"],
+        tables: ["items"],
+        hints: [
+          "물건마다 괄호 안에서 그 가게의 가장 비싼 값을 구해 같은지 견줘요.",
+          "= 뒤에 (SELECT MAX(price), FROM items x, WHERE x.shop_id = i.shop_id)예요.",
+        ],
+        explain: "수육·약과·산삼·약초 주머니·비단 주머니·갓·금방망이·장승, 8가지예요. MIN이면 가장 싼 물건, = 7이면 금방망이 하나예요.",
+      },
+      {
+        type: "check", concept: "adv_correlated",
+        q: "바깥 행을 부르는 서브쿼리에 대해 맞는 말은?",
+        options: [
+          "바깥 행마다 괄호 안을 다시 돌려 행마다 다른 값과 견준다",
+          "괄호 안은 처음 한 번만 돌고 그 값을 모든 행이 쓴다",
+          "바깥 표의 열은 괄호 안에서 부를 수 없다",
+        ],
+        answer: 0,
+        explain: "EXISTS에서 본 「손님마다 다시 묻기」를 값 자리에 썼어요. 자기 가게·자기 종류처럼 무리 안에서 견줄 때 써요.",
+      },
+    ],
+  },
+  {
+    id: "12-A2", chapter: 12, isAdvanced: true, title: "SELECT 줄 서브쿼리",
+    goal: "값 하나를 내는 서브쿼리를 SELECT의 열 자리에 둔다",
+    summary: [
+      "열 자리 서브쿼리도 값 하나(1행 1열)",
+      "바깥을 안 부르면 모든 행에 같은 값",
+      "바깥을 부르면 행마다 다른 값",
+    ],
+    cards: [
+      {
+        say: "12장에서 서브쿼리를 WHERE 값 자리에 뒀죠? 오늘은 한 걸음 더, SELECT 줄의 열 자리에 둬요. 장터 평균 하나가 행마다 붙고, 값에서 빼면 평균과의 차예요. 열 자리도 값 하나, 1행 1열이어야 해요.",
+        sql: "SELECT name, price,\n  price - (SELECT AVG(price)\n    FROM items) AS diff\nFROM items\nWHERE shop_id = 3",
+      },
+      {
+        say: "괄호 안이 바깥 행을 부르면 행마다 다른 값이 나와요. 가게마다 가장 비싼 값! 짝이 없으면 COUNT는 0, MAX·SUM은 빈칸이에요. LEFT JOIN 없이도 0까지 셀 수 있어요.",
+        sql: "SELECT s.name,\n  (SELECT MAX(price) FROM items i\n   WHERE i.shop_id = s.shop_id)\n    AS top\nFROM shops s",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "SELECT 줄 안의 서브쿼리가 돌려줘야 하는 것은?",
+        options: ["값 하나(1행 1열)", "열 하나, 행은 여럿", "표 전체"],
+        answer: 0,
+        explain: "열 한 칸에 들어갈 값이라 하나여야 해요. WHERE 값 자리(12-1)와 같은 규칙이에요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "카드 1의 SQL 결과는 몇 행일까요?",
+        code: "SELECT name, price,\n  price - (SELECT AVG(price)\n    FROM items) AS diff\nFROM items\nWHERE shop_id = 3",
+        options: ["5행", "1행", "40행"],
+        answer: 0,
+        explain: "바깥이 3번 가게 물건 5행이라 5행이에요. 열 자리 서브쿼리는 행 수를 바꾸지 않고 칸만 채워요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "도깨비방망이(31번 물건, 320엽전)의 gap, 이 SQL의 결과 값은?",
+        code: "SELECT (SELECT MAX(price)\n  FROM items) - price AS gap\nFROM items\nWHERE item_id = 31",
+        options: ["80", "400", "320"],
+        answer: 0,
+        explain: "장터에서 가장 비싼 400에서 320을 빼 80엽전이에요. 400은 괄호 안 값, 320은 도깨비방망이 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "카드 1에서 (SELECT AVG(price) FROM items)가 모든 행에서 같은 값인 까닭은?",
+        options: [
+          "바깥 행을 부르지 않아 장터 평균 하나가 모든 행에 쓰여서",
+          "3번 가게 물건 값이 모두 같아서",
+          "SELECT 줄 서브쿼리는 늘 같은 값이라서",
+        ],
+        answer: 0,
+        explain: "괄호 안에 바깥 별칭이 없으니 79.525 하나예요. 카드 2처럼 바깥을 부르면 행마다 달라져요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "주문이 없는 표다솜(34번)의 n, 이 SQL의 결과 값은?",
+        code: "SELECT (SELECT COUNT(*) FROM orders o\n  WHERE o.customer_id = c.customer_id)\n    AS n\nFROM customers c\nWHERE c.customer_id = 34",
+        options: ["0", "NULL", "1"],
+        answer: 0,
+        explain: "괄호 안이 셀 행이 없어 COUNT는 0이에요. 11-3에서 LEFT JOIN 뒤 COUNT(*)는 빈칸 행을 세어 1이었죠? 이 길은 처음부터 0이에요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "달빛 약초방(4번 가게)의 top, 이 SQL의 결과 값은?",
+        code: "SELECT (SELECT MAX(price) FROM items i\n  WHERE i.shop_id = s.shop_id) AS top\nFROM shops s\nWHERE s.shop_id = 4",
+        options: ["35", "400", "15"],
+        answer: 0,
+        explain: "4번 가게에서 가장 비싼 약초 주머니 35엽전이에요. 400은 장터 전체 MAX, 15는 4번 가게의 MIN이에요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "SELECT 줄 서브쿼리가 여러 행을 내면 어떻게 될까요?",
+        options: [
+          "많은 데이터베이스는 오류, 이 장터에서는 한 값만 써서 엉뚱한 답이 된다",
+          "행마다 모든 값이 이어 붙는다",
+          "바깥 행이 그만큼 늘어난다",
+        ],
+        answer: 0,
+        explain: "12-1의 값 자리와 같아요. 그래서 AVG·MAX·COUNT처럼 값 하나를 내게 쓰거나, 바깥 행으로 하나를 골라요.",
+      },
+      {
+        type: "blank", concept: "adv_scalar_select",
+        q: "여우고개 손님마다 자기 주문 수가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT c.name,\n  (SELECT COUNT(*) FROM orders o\n  WHERE o.customer_id = ___)\n    AS n\nFROM customers c\nWHERE c.village = '여우고개'",
+        chips: ["c.customer_id", "o.customer_id", "c.name"],
+        answer: 0,
+        explain: "바깥 손님 c의 번호와 맞대요. 신아람 16, 해랑 2, 방실이 22건이에요. o.customer_id면 늘 참이라 모두 591, c.name이면 모두 0이에요.",
+      },
+      {
+        type: "order", concept: "adv_scalar_select",
+        q: "가게마다 가장 싼 물건 값을 low라는 이름으로 보게 줄을 놓아 보세요.",
+        lines: ["SELECT s.name,", "(SELECT MIN(price) FROM items i", "WHERE i.shop_id = s.shop_id)", "AS low", "FROM shops s"],
+        explain: "가게 8곳마다 괄호 안이 다시 돌아 가장 싼 값을 내요. 여우골 떡방 5, 방망이 대장간 150엽전이에요.",
+      },
+      {
+        type: "choice", concept: "adv_scalar_select",
+        q: "가게마다 100엽전 이상 물건 수를 보인 결과는?",
+        options: [
+          { sql: "SELECT s.name,\n  (SELECT COUNT(*) FROM items i\n   WHERE i.shop_id = s.shop_id\n   AND i.price >= 100) AS n\nFROM shops s" },
+          { sql: "SELECT s.name,\n  (SELECT COUNT(*) FROM items i\n   WHERE i.price >= 100) AS n\nFROM shops s" },
+          { sql: "SELECT s.name,\n  (SELECT COUNT(*) FROM items i\n   WHERE i.shop_id = s.shop_id) AS n\nFROM shops s" },
+        ],
+        answer: 0, tables: ["shops", "items"],
+        explain: "공방 둘 5, 산삼 약방·바람 보따리 1, 나머지 0인 표예요. 바깥을 안 부르면 모두 12, 값 조건이 없으면 모두 5예요.",
+      },
+      {
+        id: "12-A2-b1", type: "build", concept: "adv_scalar_select",
+        q: "방망이 대장간(7번 가게) 물건마다 이름과, 장터 최고값과의 차를 gap이라는 이름으로 보여 줘",
+        cards: ["SELECT", "name,", "(SELECT MAX(price)", "FROM items)", "- price AS gap", "FROM", "items", "WHERE", "shop_id = 7"],
+        extra: ["(SELECT MIN(price)", "+ price AS gap"],
+        tables: ["items"],
+        hints: [
+          "장터에서 가장 비싼 값 하나를 괄호 안에서 구해 물건 값을 빼요.",
+          "name, 다음에 (SELECT MAX(price), FROM items), - price AS gap이에요.",
+        ],
+        explain: "금방망이 0, 도깨비방망이 80, 은방망이 120엽전처럼 나와요. MIN이면 가장 싼 값에서 빼 음수, +면 더한 값이에요.",
+      },
+      {
+        id: "12-A2-b2", type: "build", concept: "adv_scalar_select",
+        q: "은행나무마을 손님마다 이름과 주문 수를 n이라는 이름으로, 주문 없으면 0으로 보여 줘",
+        cards: ["SELECT", "c.name,", "(SELECT COUNT(*) FROM orders o", "WHERE", "o.customer_id = c.customer_id)", "AS n", "FROM", "customers c", "WHERE", "c.village = '은행나무마을'"],
+        extra: ["o.order_id = c.customer_id)", "c.village = '여우고개'"],
+        tables: ["customers", "orders"],
+        hints: [
+          "손님마다 괄호 안에서 그 손님 번호의 주문을 세요.",
+          "괄호 안 WHERE 뒤에 o.customer_id = c.customer_id)를 놓아요.",
+        ],
+        explain: "박서연 32건부터 표다솜·돌쇠 0건까지 9명이에요. 주문 번호와 맞대면 엉뚱한 주문 하나씩, 여우고개면 다른 마을이에요.",
+      },
+      {
+        type: "check", concept: "adv_scalar_select",
+        q: "SELECT 줄 서브쿼리에 대해 맞는 말은?",
+        options: [
+          "열 자리에 값 하나를 내고, 바깥을 부르면 행마다 다른 값이 된다",
+          "SELECT 줄 서브쿼리는 행을 늘린다",
+          "SELECT 줄에는 서브쿼리를 쓸 수 없다",
+        ],
+        answer: 0,
+        explain: "평균과의 차, 가게마다 최고값, 손님마다 주문 수까지 열 하나로 붙였어요. 값 하나 규칙만 지키면 돼요.",
+      },
+    ],
+  },
+  {
+    id: "12-A3", chapter: 12, isAdvanced: true, title: "자주 오는 손님",
+    goal: "평균 주문 수를 구하고 그보다 자주 온 손님을 찾는다",
+    summary: [
+      "의뢰: 평균보다 자주 오는 단골",
+      "평균 = 주문 수 ÷ 주문한 손님 수",
+      "IN (SELECT … HAVING …)으로 손님 고르기",
+    ],
+    cards: [
+      {
+        say: "12장에서 IN (SELECT …)과 HAVING을 함께 썼죠? 오늘은 의뢰예요! 바람 보따리 오영감이 「평균보다 자주 오는 단골에게 덤을 주고 싶네」래요. 첫 걸음은 한 명당 평균 주문 수. 591 ÷ 57은 이 장터에서는 정수끼리라 10이에요.",
+        sql: "SELECT COUNT(*) AS orders,\n  COUNT(DISTINCT customer_id)\n    AS buyers,\n  COUNT(*)\n    / COUNT(DISTINCT customer_id)\n    AS by_hand\nFROM orders",
+      },
+      {
+        say: "9장처럼 1.0을 곱해 나누면 10.3684예요. 둘째 걸음: 그보다 많이 온 손님! 주문 수는 정수라 10.37보다 많다 = 10보다 많다예요. 12-3처럼 괄호 안에서 손님마다 묶어 HAVING으로 고르면 20명이에요.",
+        sql: "SELECT COUNT(*) AS n\nFROM customers\nWHERE customer_id IN\n  (SELECT customer_id FROM orders\n   GROUP BY customer_id\n   HAVING COUNT(*) > 10)",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "평균 주문 수를 COUNT(*) / COUNT(DISTINCT customer_id)로 내면 이 장터에서는?",
+        options: ["10 (정수끼리 나눠 소수점을 버림)", "10.3684", "591"],
+        answer: 0,
+        explain: "591 ÷ 57은 10.37…이지만 이 장터에서는 정수끼리 나누면 소수점 아래를 버려 10이에요. 1.0을 곱해야 10.3684(9-4).",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "이 SQL의 결과 값은 무엇일까요?",
+        code: "SELECT COUNT(DISTINCT customer_id)\n  AS buyers\nFROM orders",
+        options: ["57", "60", "591"],
+        answer: 0,
+        explain: "주문한 적 있는 손님은 57명이에요. 60은 손님 장부 전체, 591은 주문 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "평균을 낼 때 손님 60명이 아니라 주문한 손님 57명으로 나눈 것에 대해 맞는 말은?",
+        options: [
+          "「주문한 손님 한 명당」 평균이라 57로 나눴다. 60으로 나누면 안 온 3명까지 넣은 평균(9.85)이다",
+          "60으로 나눠야만 맞다",
+          "둘은 늘 같은 값이다",
+        ],
+        answer: 0,
+        explain: "무엇의 평균인지 먼저 정해요. 덤은 단골을 고르는 일이라 산 손님끼리의 평균을 썼어요. 정하는 일은 의뢰인과 함께예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "주문 수가 10.3684보다 많은 손님을 HAVING COUNT(*) > 10으로 골라도 되는 까닭은?",
+        options: [
+          "주문 수는 정수라 10.37보다 많으면 11 이상, 곧 10보다 많은 것과 같아서",
+          "HAVING은 소수를 쓸 수 없어서",
+          "평균은 늘 정수라서",
+        ],
+        answer: 0,
+        explain: "주문은 1건, 2건처럼 정수로만 세어져요. 그래서 경계 10.37과 10 사이에 들어갈 주문 수가 없어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "카드 2의 SQL 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM customers\nWHERE customer_id IN\n  (SELECT customer_id FROM orders\n   GROUP BY customer_id\n   HAVING COUNT(*) > 10)",
+        options: ["20", "57", "10"],
+        answer: 0,
+        explain: "11번 이상 주문한 손님 20명이에요. 57은 주문한 손님 전체, 10은 경계 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "> 10을 >= 10으로 바꾼 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM customers\nWHERE customer_id IN\n  (SELECT customer_id FROM orders\n   GROUP BY customer_id\n   HAVING COUNT(*) >= 10)",
+        options: ["21", "20", "57"],
+        answer: 0,
+        explain: "딱 10번 주문한 손님 한 명이 더해져 21명이에요. 그 손님은 평균 10.37보다 적게 왔으니 덤 명단에는 안 들어가요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_12",
+        q: "평균을 한 문장 안에서 구해 그보다 자주 온 손님이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT name FROM customers\nWHERE customer_id IN\n  (SELECT customer_id FROM orders\n   GROUP BY customer_id\n   HAVING COUNT(*) ___\n     (SELECT COUNT(*) * 1.0\n      / COUNT(DISTINCT customer_id)\n      FROM orders))",
+        chips: [">", "<", "="],
+        answer: 0,
+        explain: "HAVING 값 자리에 평균 서브쿼리를 넣으면 한 문장이 돼요. >면 20명, <면 평균보다 덜 온 37명, =면 10.37번 온 손님이 없어 0행이에요.",
+      },
+      {
+        type: "order", concept: "adv_apply_12",
+        q: "주문을 30번 이상 한 손님의 이름을 보게 줄을 놓아 보세요.",
+        lines: ["SELECT name", "FROM customers", "WHERE customer_id IN", "(SELECT customer_id FROM orders", "GROUP BY customer_id", "HAVING COUNT(*) >= 30)"],
+        explain: "박서연·쇠뭉치·여름이, 세 명이에요. 괄호 안에서 손님마다 묶어 30번 이상만 고르고, 바깥이 이름을 보여요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_12",
+        q: "덤 명단을 IN (SELECT …)으로 고르면 손님마다 몇 번 나올까요?",
+        options: ["한 번씩", "주문한 수만큼", "주문 내역 줄 수만큼"],
+        answer: 0,
+        explain: "바깥은 손님 표의 행을 거르기만 해서 손님마다 한 번이에요(12-3). 주문 표와 JOIN하면 주문마다 한 행이라 DISTINCT가 필요해요.",
+      },
+      {
+        id: "12-A3-b1", type: "build", concept: "adv_apply_12",
+        q: "주문한 손님 한 명당 평균 주문 수를 소수까지 avg_orders라는 이름으로 보여 줘",
+        cards: ["SELECT", "COUNT(*) * 1.0", "/ COUNT(DISTINCT customer_id)", "AS avg_orders", "FROM", "orders"],
+        extra: ["/ COUNT(customer_id)", "COUNT(*)"],
+        tables: ["orders"],
+        hints: [
+          "주문 수를 실수로 바꾼 뒤, 겹치지 않게 센 손님 수로 나눠요.",
+          "COUNT(*) * 1.0 다음에 / COUNT(DISTINCT customer_id)예요.",
+        ],
+        explain: "10.3684번이에요. DISTINCT가 없으면 주문마다 손님을 세어 1, * 1.0이 없으면 이 장터에서는 10이에요.",
+      },
+      {
+        id: "12-A3-b2", type: "build", concept: "adv_apply_12",
+        q: "주문을 평균(10.37번)보다 많이, 곧 10번 넘게 한 손님의 이름을 보여 줘",
+        cards: ["SELECT", "name", "FROM", "customers", "WHERE", "customer_id IN", "(SELECT customer_id", "FROM orders", "GROUP BY customer_id", "HAVING COUNT(*) > 10)"],
+        extra: ["HAVING COUNT(*) >= 10)", "customer_id NOT IN"],
+        tables: ["customers", "orders"],
+        hints: [
+          "괄호 안에서 손님마다 주문을 묶어 10번 넘는 손님 번호 목록을 만들어요.",
+          "customer_id IN 다음에 (SELECT customer_id, FROM orders, GROUP BY customer_id, HAVING …)예요.",
+        ],
+        explain: "박서연·쇠뭉치 같은 20명이에요. >= 10이면 딱 10번인 손님까지 21명, NOT IN이면 덜 온 손님(안 온 3명 포함) 40명이에요.",
+      },
+      {
+        type: "check", concept: "adv_apply_12",
+        q: "오영감의 단골 명단 SQL에 대해 맞는 말은?",
+        options: [
+          "평균은 1.0을 곱해 나누고, 손님은 IN (SELECT … GROUP BY … HAVING …)으로 한 번씩 고른다",
+          "COUNT(*) / COUNT(DISTINCT customer_id)는 어디서나 10.3684다",
+          "HAVING에는 서브쿼리를 쓸 수 없다",
+        ],
+        answer: 0,
+        explain: "평균을 바르게 구하고, 그보다 많이 온 손님을 목록으로 골랐어요. 무엇의 평균인지 정하는 것부터가 분석이에요.",
+      },
+    ],
+  },
+];

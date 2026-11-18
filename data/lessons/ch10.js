@@ -742,3 +742,439 @@ export const TEMPLATES = [
     explain: "물건 표를 이어 {S}번 가게 물건의 주문 내역만 남기고 수량을 더해요(취소된 주문 포함). COUNT(*)면 내역 행 수예요.",
   },
 ];
+
+// ---- 10장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 10장) ----
+// - 쓸 수 있는 것: 1~10장 낱말(10장 심화 전용 낱말 없음). 조립은 본 과정 10장과 같다(R45: 표와 별칭 한 장, ON 조건 한 장, 30칸을 넘으면
+//   "ON"과 조건 둘). "ON c.customer_id = o.customer_id"는 32칸이라 늘 둘로 나눈다. 레슨마다 build 2개.
+// - 10-A1 셀프 조인: items a·b, a.shop_id = b.shop_id는 가게마다 5 × 5 = 25짝, 모두 200행(자기 자신 포함).
+//   국밥보다 싼 같은 가게 물건 도토리묵·막걸리·메밀전, 수육보다 싼 것 국밥·도토리묵·막걸리·메밀전(<=면 수육까지 5), 갓보다 싼 것 노리개·담뱃대·보따리·복주머니,
+//   산삼보다 싼 것 4(> 0행, = 산삼 하나). 같은 날 처음 온 손님 짝 8(<> 16, 조건 없으면 76). 나이가 같은 손님 짝 23(나이 모르는 손님은 짝이 되지 않음).
+//   ON에 AND로 짝 조건을 더하는 것은 본 과정 11-4가 뒷장이라 카드 2에서 처음부터 가르친다(통제자 판정: 새 낱말 없는 JOIN 주제의 심화).
+// - 10-A2 이은 표의 열로 묶기(주제 바꿈, 디딤돌 §4: 10-4가 JOIN + GROUP BY i.shop_id를 이미 보임):
+//   손님 종류마다 주문 도깨비 293·사람 203·여우 95, 마을마다 큰바위마을 123·은행나무마을 103·솔바위골 90·개울마을 86·느티나무골 62·
+//   버드나무고개 49·여우고개 40·달빛마을 38. 취소 주문 마을 은행나무마을 11·느티나무골 10·큰바위마을 9·솔바위골 7·개울마을 5·여우고개 4·
+//   버드나무고개 2·달빛마을 1(>= 9 → 3곳). 가게 분류 평균 값 공방 243·먹거리 9.9·약재 32.5·잡화 32.7, MAX 400·25·120·110, MIN 130·5·12·6.
+// - 10-A3 의뢰: 달빛마을 도래미(customers 38번) 손님. 사연은 꾸민 이야기. 주문 22건 모두 완료(취소 0), 내역 41줄, 수량 59, 수량 × 값 1625엽전.
+//   264번 주문: 감초 1 × 12, 수육 1 × 25, 인삼차 2 × 30.
+// - 헷갈림 카드는 모두 레슨이 설명한 까닭으로 틀린다(짝 조건이 다름, 다른 표의 번호와 맞댐, 셈이 다름). 묶지 않은 열이 묶음 안 아무 행을 보이는 것에
+//   기대는 헷갈림은 쓰지 않는다(통제자 판정).
+export const ADVANCED = [
+  {
+    id: "10-A1", chapter: 10, isAdvanced: true, title: "같은 표 두 번 잇기",
+    goal: "한 표에 별칭 둘을 붙여 이어 같은 표의 행끼리 견준다",
+    summary: [
+      "items a JOIN items b = 같은 표 두 벌",
+      "별칭으로 어느 쪽 열인지 가려요",
+      "짝 조건 둘은 ON 뒤에 AND로 이어요",
+    ],
+    cards: [
+      {
+        say: "10장에서 두 표를 별칭으로 이었죠? 오늘은 한 걸음 더, 같은 표를 두 번 이어요. items에 별칭 a와 b를 붙이면 장부 두 벌처럼 써요. a는 국밥 행, b는 같은 가게 물건이에요. 국밥보다 싼 같은 가게 물건 셋!",
+        sql: "SELECT b.name, b.price\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '국밥'\n  AND b.price < a.price",
+      },
+      {
+        say: "짝 조건이 둘이면 ON 뒤에 AND로 이어요. WHERE에서 AND를 쓰듯이요. 같은 날 처음 온 손님 짝을 찾는데, a.customer_id < b.customer_id를 더해 자기 자신과의 짝과 앞뒤만 바뀐 짝을 뺐어요. 8짝!",
+        sql: "SELECT a.name, b.name AS partner,\n  a.first_visit\nFROM customers a\nJOIN customers b\n  ON a.first_visit = b.first_visit\n  AND a.customer_id < b.customer_id",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "FROM items a JOIN items b에서 a와 b는 무엇일까요?",
+        options: ["같은 물건 표에 붙인 별칭 둘(장부 두 벌처럼 씀)", "서로 다른 두 표", "items 표의 a 열과 b 열"],
+        answer: 0,
+        explain: "표는 하나지만 별칭이 둘이라 두 벌처럼 이어요. a.price는 a 쪽 행의 값, b.price는 b 쪽 행의 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "같은 표를 두 번 이을 때 별칭이 꼭 있어야 하는 까닭은?",
+        options: [
+          "열이 어느 쪽 행의 것인지 가려야 해서",
+          "별칭이 없으면 표가 두 개로 늘어나서",
+          "별칭이 있어야 ON을 쓸 수 있어서",
+        ],
+        answer: 0,
+        explain: "두 벌이 열 이름이 모두 같아요. 10-2에서 겹치는 열은 표를 밝혔듯, 여기서는 a.·b.로 어느 쪽인지 밝혀요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "갓보다 싼, 갓과 같은 가게 물건을 찾은 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT b.name\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '갓'\n  AND b.price < a.price",
+        options: ["4행", "5행", "1행"],
+        answer: 0,
+        explain: "바람 보따리 물건 5가지 중 갓(110엽전)보다 싼 노리개·담뱃대·보따리·복주머니, 4행이에요. 갓 자신은 같은 값이라 빠져요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "같은 가게끼리만 이은 이 SQL이 센 수는?",
+        code: "SELECT COUNT(*) AS n\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id",
+        options: ["200", "40", "1600"],
+        answer: 0,
+        explain: "가게마다 물건 5 × 5 = 25짝, 가게 8곳이라 200행이에요. 자기 자신과의 짝도 들어 있어요. ON이 없으면 40 × 40 = 1600이에요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "b.price < a.price 조건이 없으면 국밥 행(a)에 붙는 b는?",
+        options: ["국밥 자신을 포함한 1번 가게 물건 5가지", "국밥보다 싼 물건만", "아무것도 붙지 않는다"],
+        answer: 0,
+        explain: "짝 조건은 같은 가게뿐이라 같은 가게 물건이 모두 붙어요. 자기 자신도 같은 가게라서 붙어요. 값 견주기 조건이 있어야 걸러져요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "손님 짝을 찾을 때 ON에 AND a.customer_id < b.customer_id를 더하는 까닭은?",
+        options: [
+          "자기 자신과의 짝과, 앞뒤만 바뀌어 두 번 나오는 짝을 빼려고",
+          "번호가 작은 손님만 결과에 남기려고",
+          "ON에는 조건이 둘 있어야 해서",
+        ],
+        answer: 0,
+        explain: "무쇠·바람돌이와 바람돌이·무쇠는 같은 짝이에요. 번호가 작은 쪽을 a로 정하면 한 번씩만, 자기 자신과는 짝이 안 돼요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "< 대신 <>로 이은 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT a.name, b.name AS partner\nFROM customers a\nJOIN customers b\n  ON a.first_visit = b.first_visit\n  AND a.customer_id <> b.customer_id",
+        options: ["16행", "8행", "76행"],
+        answer: 0,
+        explain: "자기 자신과의 짝은 빠졌지만 짝마다 앞뒤를 바꾼 것이 한 번 더 나와 8 × 2 = 16행이에요. AND 조건이 없으면 자기 자신까지 붙어 76행이에요.",
+      },
+      {
+        type: "blank", concept: "adv_self_join",
+        q: "산삼보다 싼, 산삼과 같은 가게 물건이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT b.name\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '산삼'\n  AND b.price ___ a.price",
+        chips: ["<", ">", "="],
+        answer: 0,
+        explain: "b가 a(산삼)보다 싸야 하니 <예요. 산삼 약방 나머지 4가지가 나와요. >면 산삼보다 비싼 게 없어 0행, =면 산삼 자신이에요.",
+      },
+      {
+        type: "order", concept: "adv_self_join",
+        q: "나이가 같은 손님 짝을 한 번씩 보게 줄을 놓아 보세요.",
+        lines: ["SELECT a.name, b.name AS partner", "FROM customers a", "JOIN customers b", "ON a.age = b.age", "AND a.customer_id < b.customer_id"],
+        explain: "나이가 같은 짝 23쌍이에요. 짝 조건 둘은 ON 뒤에 AND로 이어요. 나이 모르는 손님은 = 비교에 걸리지 않아 짝이 되지 않아요.",
+      },
+      {
+        type: "choice", concept: "adv_self_join",
+        q: "수육보다 싼, 수육과 같은 가게 물건의 이름을 보인 결과는?",
+        options: [
+          { sql: "SELECT b.name\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '수육'\n  AND b.price < a.price" },
+          { sql: "SELECT b.name\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '수육'\n  AND b.price <= a.price" },
+          { sql: "SELECT a.name\nFROM items a\nJOIN items b\n  ON a.shop_id = b.shop_id\nWHERE a.name = '수육'\n  AND b.price < a.price" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "국밥·도토리묵·막걸리·메밀전 4행이 정답이에요. <=면 수육 자신까지 5행, a.name을 보이면 수육만 네 번 나와요.",
+      },
+      {
+        id: "10-A1-b1", type: "build", concept: "adv_self_join",
+        q: "갓보다 싼, 갓과 같은 가게 물건의 이름을 보여 줘",
+        cards: ["SELECT", "b.name", "FROM", "items a", "JOIN items b", "ON a.shop_id = b.shop_id", "WHERE", "a.name = '갓'", "AND", "b.price < a.price"],
+        extra: ["b.price > a.price", "a.name"],
+        tables: ["items"],
+        hints: [
+          "물건 표를 a·b 두 벌로 같은 가게끼리 잇고, a를 갓으로 정한 뒤 b가 더 싼 것만 남겨요.",
+          "JOIN items b, ON a.shop_id = b.shop_id, WHERE a.name = '갓' AND b.price < a.price예요.",
+        ],
+        explain: "노리개·담뱃대·보따리·복주머니예요. >면 갓보다 비싼 게 없어 0행, a.name을 보이면 갓만 네 번 나와요.",
+      },
+      {
+        id: "10-A1-b2", type: "build", concept: "adv_self_join",
+        q: "같은 날 처음 온 손님 짝을 한 번씩만 보여 줘(이름과 짝 partner)",
+        cards: ["SELECT", "a.name, b.name AS partner", "FROM", "customers a", "JOIN customers b", "ON", "a.first_visit = b.first_visit", "AND", "a.customer_id < b.customer_id"],
+        extra: ["a.customer_id <> b.customer_id", "a.village = b.village"],
+        tables: ["customers"],
+        hints: [
+          "손님 표를 두 벌로 처음 온 날이 같은 행끼리 잇고, 번호가 작은 쪽을 a로 정해요.",
+          "ON 뒤에 날짜 조건, AND 뒤에 a.customer_id < b.customer_id를 놓아요.",
+        ],
+        explain: "8짝이에요. <>면 앞뒤를 바꾼 짝이 또 나와 16행, 마을로 맞대면 같은 날이 아니라 같은 마을 짝이에요.",
+      },
+      {
+        type: "check", concept: "adv_self_join",
+        q: "같은 표 두 번 잇기에 대해 맞는 말은?",
+        options: [
+          "별칭 둘로 같은 표를 잇고, 짝 조건이 둘이면 ON 뒤에 AND로 잇는다",
+          "같은 표는 한 SQL에서 두 번 쓸 수 없다",
+          "같은 표를 이으면 자기 자신과의 짝은 저절로 빠진다",
+        ],
+        answer: 0,
+        explain: "a·b 두 벌을 같은 가게·같은 날로 이어 행끼리 견줬어요. 자기 자신과의 짝은 저절로 빠지지 않으니 조건으로 빼요.",
+      },
+    ],
+  },
+  {
+    id: "10-A2", chapter: 10, isAdvanced: true, title: "이은 표의 열로 묶기",
+    goal: "이어 온 표에만 있는 열로 묶고 HAVING으로 거른다",
+    summary: [
+      "묶을 열이 다른 표에 있으면 먼저 이어요",
+      "JOIN 뒤 GROUP BY 이은 표.열",
+      "묶은 뒤 거르기는 HAVING",
+    ],
+    cards: [
+      {
+        say: "10-4에서 가게별 매출을 묶었죠? 그때 묶은 i.shop_id는 물건 표에 있었어요. 오늘은 한 걸음 더, 이어 온 표에만 있는 열로 묶어요. 주문 표엔 손님 종류가 없지만, 손님 표를 이으면 c.kind로 주문을 묶어요.",
+        sql: "SELECT c.kind, COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind",
+      },
+      {
+        say: "묶은 다음 8장 HAVING으로 걸러요. 차례는 그대로예요: 잇고, WHERE로 행을 거르고, 묶고, HAVING으로 묶음을 걸러요. 취소 주문이 9건 이상인 마을, 셋이에요.",
+        sql: "SELECT c.village, COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE o.status = '취소'\nGROUP BY c.village\nHAVING COUNT(*) >= 9",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "주문을 손님 마을로 묶으려면 손님 표를 이어야 하는 까닭은?",
+        options: ["마을(village)은 손님 표에만 있어서", "주문 표가 너무 커서", "GROUP BY는 JOIN이 있을 때만 쓸 수 있어서"],
+        answer: 0,
+        explain: "주문 표에는 손님 번호뿐이에요. 번호로 손님 표를 이어야 c.village가 생기고, 그 열로 묶을 수 있어요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "카드 1의 SQL 결과에서 도깨비 묶음의 n은?",
+        code: "SELECT c.kind, COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.kind",
+        options: ["293", "24", "591"],
+        answer: 0,
+        explain: "도깨비 손님들이 한 주문 293건이에요. 24는 도깨비 손님 수, 591은 주문 전체예요. 이어서 주문마다 한 행이라 주문을 세요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "주문을 손님 마을로 묶은 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT c.village, COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nGROUP BY c.village",
+        options: ["8행", "591행", "60행"],
+        answer: 0,
+        explain: "마을이 8곳이라 8행이에요. 주문 591건이 마을마다 하나로 모였어요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "큰바위마을 손님들의 주문 수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.village = '큰바위마을'",
+        options: ["123", "11", "591"],
+        answer: 0,
+        explain: "큰바위마을 손님 11명의 주문이 123건이에요. 마을마다 묶은 결과의 큰바위마을 n과 같아요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "카드 2의 SQL은 몇 행일까요?",
+        code: "SELECT c.village, COUNT(*) AS n\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE o.status = '취소'\nGROUP BY c.village\nHAVING COUNT(*) >= 9",
+        options: ["3행", "8행", "1행"],
+        answer: 0,
+        explain: "취소가 은행나무마을 11, 느티나무골 10, 큰바위마을 9건이라 3행이에요. WHERE는 묶기 전 취소 주문만, HAVING은 묶은 뒤 9건 이상만 남겨요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "GROUP BY s.category를 쓴 SQL의 SELECT에 i.name을 그냥 놓으면?",
+        options: [
+          "이 장터에서는 돌지만 많은 데이터베이스에서 오류라 쓰지 않는다",
+          "분류마다 물건 이름이 모두 나온다",
+          "분류마다 가장 비싼 물건 이름이 나온다",
+        ],
+        answer: 0,
+        explain: "표를 이어도 8장 규칙은 그대로예요. 한 분류에 물건이 10가지라 이름 하나로 정해지지 않아요. SELECT에는 묶은 열과 셈만!",
+      },
+      {
+        type: "blank", concept: "adv_join_group",
+        q: "가게 분류마다 가장 비싼 물건 값이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT s.category,\n  MAX(i.price) AS top\nFROM items i\nJOIN shops s\n  ON i.shop_id = s.shop_id\nGROUP BY ___",
+        chips: ["s.category", "i.shop_id", "top"],
+        answer: 0,
+        explain: "SELECT에 놓은 분류로 묶어요. 공방 400, 먹거리 25, 약재 120, 잡화 110엽전이에요. i.shop_id면 가게 8곳으로 나뉘고, top은 셈이라 묶을 수 없어요.",
+      },
+      {
+        type: "order", concept: "adv_join_group",
+        q: "손님 종류마다 취소 주문 수를 보게 줄을 놓아 보세요.",
+        lines: ["SELECT c.kind, COUNT(*) AS n", "FROM customers c", "JOIN orders o", "ON c.customer_id = o.customer_id", "WHERE o.status = '취소'", "GROUP BY c.kind"],
+        explain: "잇고, 취소 주문만 남기고, 손님 종류로 묶어요. 도깨비 25, 사람 15, 여우 9건이에요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "가게 분류마다 가장 싼 물건 값을 보인 결과는?",
+        options: [
+          { sql: "SELECT s.category,\n  MIN(i.price) AS low\nFROM items i\nJOIN shops s\n  ON i.shop_id = s.shop_id\nGROUP BY s.category" },
+          { sql: "SELECT i.shop_id,\n  MIN(i.price) AS low\nFROM items i\nJOIN shops s\n  ON i.shop_id = s.shop_id\nGROUP BY i.shop_id" },
+          { sql: "SELECT s.category,\n  MAX(i.price) AS low\nFROM items i\nJOIN shops s\n  ON i.shop_id = s.shop_id\nGROUP BY s.category" },
+        ],
+        answer: 0, tables: ["items", "shops"],
+        explain: "공방 130, 먹거리 5, 약재 12, 잡화 6엽전인 4행이 정답이에요. 가게 번호로 묶으면 8행, MAX면 가장 비싼 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_join_group",
+        q: "주문이 100건 넘는 마을만 남기려면 GROUP BY c.village 뒤에 무엇을 둘까요?",
+        options: ["HAVING COUNT(*) > 100", "WHERE COUNT(*) > 100", "ORDER BY COUNT(*) > 100"],
+        answer: 0,
+        explain: "묶은 뒤 셈으로 거르니 HAVING이에요. 큰바위마을 123, 은행나무마을 103건이 남아요. WHERE에는 셈을 못 써요.",
+      },
+      {
+        id: "10-A2-b1", type: "build", concept: "adv_join_group",
+        q: "손님이 사는 마을마다 주문이 몇 건인지 n이라는 이름으로 보여 줘",
+        cards: ["SELECT", "c.village,", "COUNT(*) AS n", "FROM", "customers c", "JOIN orders o", "ON", "c.customer_id = o.customer_id", "GROUP BY", "c.village"],
+        extra: ["c.customer_id = o.order_id", "COUNT(DISTINCT o.customer_id)"],
+        tables: ["customers", "orders"],
+        hints: [
+          "주문에 손님 표를 이어 마을을 붙인 뒤, 마을로 묶어 주문을 세요.",
+          "ON 뒤에 손님 번호끼리 맞댄 카드, GROUP BY 뒤에 c.village예요.",
+        ],
+        explain: "큰바위마을 123건부터 달빛마을 38건까지 8행이에요. 주문 번호와 맞대면 엉뚱한 짝, COUNT(DISTINCT o.customer_id)면 주문이 아니라 주문한 손님 수예요.",
+      },
+      {
+        id: "10-A2-b2", type: "build", concept: "adv_join_group",
+        q: "물건 평균 값이 30엽전 넘는 가게 분류를 보여 줘",
+        cards: ["SELECT", "s.category", "FROM", "items i", "JOIN shops s", "ON i.shop_id = s.shop_id", "GROUP BY", "s.category", "HAVING", "AVG(i.price) > 30"],
+        extra: ["AVG(i.price) > 40", "WHERE"],
+        tables: ["items", "shops"],
+        hints: [
+          "물건에 가게 표를 이어 분류로 묶고, 평균 값으로 묶음을 걸러요.",
+          "GROUP BY s.category 다음에 HAVING AVG(i.price) > 30이에요.",
+        ],
+        explain: "공방 243, 약재 32.5, 잡화 32.7엽전이에요. 먹거리는 9.9라 빠졌어요. > 40이면 공방만, WHERE로는 셈을 거를 수 없어요.",
+      },
+      {
+        type: "check", concept: "adv_join_group",
+        q: "이은 표의 열로 묶기에 대해 맞는 말은?",
+        options: [
+          "다른 표에만 있는 열로 묶으려면 먼저 잇고, 묶은 뒤 셈으로는 HAVING으로 거른다",
+          "GROUP BY에는 FROM 뒤 첫 표의 열만 쓸 수 있다",
+          "표를 이으면 SELECT에 아무 열이나 놓아도 된다",
+        ],
+        answer: 0,
+        explain: "잇기 → WHERE → GROUP BY → HAVING 차례예요. 어느 표의 열이든 이어 놓으면 묶을 수 있고, 8장 SELECT 규칙은 그대로예요.",
+      },
+    ],
+  },
+  {
+    id: "10-A3", chapter: 10, isAdvanced: true, title: "단골 영수증",
+    goal: "이름으로 손님을 찾고 세 표를 이어 쓴 엽전을 더한다",
+    summary: [
+      "의뢰: 단골 손님의 한 해 영수증",
+      "이름으로 찾고, 번호로 다시 이어요",
+      "세 표를 이어 수량 × 값을 더해요",
+    ],
+    cards: [
+      {
+        say: "10장에서 주문에 손님 이름을 붙였죠? 오늘은 의뢰예요! 달빛마을 도래미 손님이 「올해 장터에서 쓴 엽전을 영수증으로 뽑아 주게」래요. 먼저 이름으로 주문을 찾아요. 22건 모두 완료, 손님 번호는 38번!",
+        sql: "SELECT c.customer_id, o.order_id,\n  o.ordered_on, o.status\nFROM customers c\nJOIN orders o\n  ON c.customer_id = o.customer_id\nWHERE c.name = '도래미'",
+      },
+      {
+        say: "번호를 알았으니 세 표를 이어요. 주문 → 주문 내역 → 물건. 아래는 264번 주문 영수증이에요. 줄마다 수량 × 값을 모두 더하면 한 해 합계! 도래미 님 주문은 모두 완료라 취소를 거르지 않아도 돼요.",
+        sql: "SELECT i.name, oi.qty, i.price,\n  oi.qty * i.price AS amount\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nJOIN items i\n  ON oi.item_id = i.item_id\nWHERE o.order_id = 264",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "이름으로 손님을 찾은 뒤, 영수증은 손님 번호(38)로 다시 잇는 까닭은?",
+        options: [
+          "주문 표에는 이름이 없고 번호만 있어서",
+          "번호로 이으면 취소 주문이 저절로 빠져서",
+          "이름은 SQL에 쓸 수 없어서",
+        ],
+        answer: 0,
+        explain: "주문 표는 손님 번호로 손님을 가리켜요. 그래서 이름은 손님 표에서 찾고, 번호를 알면 그 번호로 주문을 이어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "도래미 님(38번)의 주문 수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM orders\nWHERE customer_id = 38",
+        options: ["22", "41", "38"],
+        answer: 0,
+        explain: "주문 22건이에요. 41은 내역 줄 수, 38은 손님 번호예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "도래미 님의 취소 주문 수, 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(*) AS n\nFROM orders\nWHERE customer_id = 38\n  AND status = '취소'",
+        options: ["0", "22", "1"],
+        answer: 0,
+        explain: "취소가 하나도 없어요. 그래서 이번 영수증은 상태를 거르지 않아도 돼요. 다른 손님이면 꼭 확인해요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "도래미 님 주문에 내역을 이었어요. 이 SQL이 센 수는?",
+        code: "SELECT COUNT(*) AS n\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.customer_id = 38",
+        options: ["41", "22", "59"],
+        answer: 0,
+        explain: "주문 하나에 물건이 여럿이라 내역 줄마다 한 행, 41행이에요. 22는 주문 수, 59는 수량 합이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "세 표를 이을 때 order_items를 가운데 잇는 까닭은?",
+        options: [
+          "주문 번호로 주문 표와, 물건 번호로 물건 표와 이어 주는 표라서",
+          "가장 큰 표를 가운데 두어야 빨라서",
+          "물건 표는 맨 뒤에만 이을 수 있어서",
+        ],
+        answer: 0,
+        explain: "주문 표와 물건 표에는 서로 맞댈 열이 없어요. 둘 다와 맞댈 번호를 가진 주문 내역이 다리예요(10-4).",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "영수증 합계에서 WHERE o.status = '완료'를 빼도 되는 까닭은?",
+        options: [
+          "도래미 님 주문에는 취소가 없어서(다른 손님이면 꼭 거른다)",
+          "수량 × 값에는 상태가 상관없어서",
+          "주문 표를 이으면 저절로 완료만 남아서",
+        ],
+        answer: 0,
+        explain: "확인해 보니 취소 0건이라 결과가 같아요. 매출(10-4)처럼 취소가 섞일 수 있으면 완료만 남겨야 해요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_10",
+        q: "주문 내역에 물건 값이 짝 맞게 붙도록 빈자리를 채워 보세요.",
+        code: "SELECT SUM(oi.qty * i.price) AS spent\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nJOIN items i\n  ON oi.item_id = ___\nWHERE o.customer_id = 38",
+        chips: ["i.item_id", "i.shop_id", "oi.order_id"],
+        answer: 0,
+        explain: "물건 번호끼리 맞대요. 그래야 1625엽전이 나와요. 가게 번호나 주문 번호와 맞대면 엉뚱한 물건 값이 붙어요.",
+      },
+      {
+        type: "order", concept: "adv_apply_10",
+        q: "도래미 님 주문의 내역 줄 수와 수량 합을 보게 줄을 놓아 보세요.",
+        lines: ["SELECT COUNT(*) AS lines,", "SUM(oi.qty) AS qty", "FROM orders o", "JOIN order_items oi", "ON o.order_id = oi.order_id", "WHERE o.customer_id = 38"],
+        expect: "lines | qty\n41 | 59",
+        explain: "내역 41줄에 물건 59개예요. 값을 곱해 더하려면 물건 표를 한 번 더 이어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_10",
+        q: "도래미 님이 한 해 동안 산 물건 수량의 합을 보인 결과는?",
+        options: [
+          { sql: "SELECT SUM(oi.qty) AS qty\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.customer_id = 38" },
+          { sql: "SELECT SUM(oi.qty) AS qty\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.order_id = 38" },
+          { sql: "SELECT COUNT(*) AS qty\nFROM orders o\nJOIN order_items oi\n  ON o.order_id = oi.order_id\nWHERE o.customer_id = 38" },
+        ],
+        answer: 0, tables: ["orders", "order_items"],
+        explain: "59개인 표가 정답이에요. 주문 번호 38은 다른 손님의 주문 한 건이고, COUNT(*)는 수량이 아니라 줄 수 41이에요.",
+      },
+      {
+        id: "10-A3-b1", type: "build", concept: "adv_apply_10",
+        q: "도래미 손님의 주문 번호와 주문 날짜를 이름으로 찾아 보여 줘",
+        cards: ["SELECT", "o.order_id, o.ordered_on", "FROM", "customers c", "JOIN orders o", "ON", "c.customer_id = o.customer_id", "WHERE", "c.name = '도래미'"],
+        extra: ["c.name = '초롱'", "c.customer_id = o.order_id"],
+        tables: ["customers", "orders"],
+        hints: [
+          "주문 표에는 이름이 없으니 손님 표를 이어 이름으로 걸러요.",
+          "ON 뒤에 손님 번호끼리 맞댄 카드, WHERE 뒤에 c.name = '도래미'예요.",
+        ],
+        explain: "22건이에요. 초롱이면 다른 손님의 18건, 주문 번호와 맞대면 엉뚱한 주문이 붙어요.",
+      },
+      {
+        id: "10-A3-b2", type: "build", concept: "adv_apply_10",
+        q: "38번 손님(도래미)이 쓴 엽전, 곧 수량 × 값의 합을 spent라는 이름으로 보여 줘",
+        cards: ["SELECT", "SUM(oi.qty * i.price) AS spent", "FROM", "orders o", "JOIN order_items oi", "ON o.order_id = oi.order_id", "JOIN items i", "ON oi.item_id = i.item_id", "WHERE", "o.customer_id = 38"],
+        extra: ["SUM(oi.qty) AS spent", "o.order_id = 38"],
+        tables: ["orders", "order_items", "items"],
+        hints: [
+          "주문 → 주문 내역 → 물건 차례로 이어, 38번 손님 줄의 수량 × 값을 더해요.",
+          "JOIN … ON을 두 번, WHERE o.customer_id = 38이에요.",
+        ],
+        explain: "1625엽전이에요! SUM(oi.qty)면 엽전이 아니라 개수 59, 주문 번호 38이면 다른 손님의 주문 한 건이에요.",
+      },
+      {
+        type: "check", concept: "adv_apply_10",
+        q: "도래미 님 영수증 SQL에 대해 맞는 말은?",
+        options: [
+          "이름은 손님 표에서 찾고, 주문·주문 내역·물건 세 표를 이어 수량 × 값을 더한다",
+          "주문 표 하나만으로 쓴 엽전을 구할 수 있다",
+          "취소된 주문은 이으면 늘 저절로 빠진다",
+        ],
+        answer: 0,
+        explain: "이름 → 번호 → 주문 → 내역 → 값, 나뉜 장부를 이어 한 장의 영수증이 됐어요. 취소는 늘 직접 확인해요.",
+      },
+    ],
+  },
+];
