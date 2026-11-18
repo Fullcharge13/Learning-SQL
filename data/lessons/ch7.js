@@ -801,3 +801,448 @@ export const TEMPLATES = [
     explain: "COUNT(age)는 나이를 아는 {K} 손님 수, AVG(age)는 그 손님들만으로 낸 평균이에요. 빈칸은 둘 다 건너뛰어요.",
   },
 ];
+
+// ---- 7장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 7장) ----
+// - 쓸 수 있는 것: 1~7장 낱말(7장 심화 전용 낱말 없음). 조립은 본 과정 7장과 같다(R38 구절 카드, SELECT·FROM·WHERE 한 장씩). 레슨마다 build 2개.
+// - 7-A1 빈칸을 몇으로 칠까(주제 바꿈, 디딤돌 §4: SUM(price * stock)은 7-4가 이미 가르침):
+//   1번 가게 AVG(stock) 30.5(122 ÷ 4), AVG(COALESCE(stock, 0)) 24.4(122 ÷ 5), 100으로 채우면 44.4, COUNT(COALESCE(stock, 0)) 5,
+//   MIN(COALESCE(stock, 0)) 0(MIN(stock) 18), SUM(COALESCE(stock, 0)) 122(= SUM(stock)). 5번 가게 15(75 ÷ 5, AVG(stock) 18.75).
+//   8번 가게 AVG 20.5 → 16.4, SUM 82, MIN(stock) 2(놋그릇) → 0(장승). 전체 AVG(COALESCE(stock, 0)) 24.175(AVG(stock) 26.1351).
+//   손님 COUNT(COALESCE(age, 0)) 60, 사람 손님 AVG(COALESCE(age, 0)) 36.25(870 ÷ 24, AVG(age) 43.5).
+//   「모르는 나이를 0살로」는 틀린 판단의 예로만 쓴다(7-2가 말로 한 36.25를 실제로 돌려 봄).
+// - 7-A2 모은 값끼리 셈: MAX(price) - MIN(price) 395, 3번 가게 108, 6번 가게 94(MAX - AVG 63.6), COUNT(*) - COUNT(stock) 3,
+//   8번 가게 1, COUNT(*) - COUNT(age) 5, MAX(age) - MIN(age) 67(+ 83, / 9).
+//   SUM(price) / COUNT(*) 79(이 장터의 정수 나눗셈, AVG 79.525), 1번 가게 12(AVG 12.8), SUM(age) / COUNT(*) 39(AVG 42.7091, 빈칸까지 나눔).
+//   정수 나눗셈은 「이 장터에서는」(R36, 2-4). 평균은 AVG로 내고, CAST·1.0은 9장이라 이름만 말한다.
+// - 7-A3 의뢰: 달빛 약초방(shops 4번) 송약초(1~6장 의뢰인과 겹치지 않음). 사연은 꾸민 이야기.
+//   완료 주문 542건·주문한 손님 57명·2026-01-14 ~ 2026-12-28. 취소 49건·28명·2026-01-22 ~ 2026-12-28.
+//   주문 내역 1241줄·SUM(qty) 1882·SUM(qty) / COUNT(*) 1(이 장터)·AVG(qty) 1.5165·MAX(qty) 3. 내역에는 취소된 주문도 들어 있다.
+//   A3는 A1·A2를 했다고 기대하지 않아 SUM / COUNT의 정수 나눗셈을 카드 2에서 다시 보인다.
+export const ADVANCED = [
+  {
+    id: "7-A1", chapter: 7, isAdvanced: true, title: "빈칸을 몇으로 칠까",
+    goal: "모아 세기 안에 COALESCE를 넣어 빈칸도 셈에 넣을 수 있다",
+    summary: [
+      "모아 세기는 빈칸을 건너뛰어요",
+      "COALESCE로 채우면 빈칸도 셈에 들어요",
+      "그 값으로 쳐도 되는지 먼저 따져요",
+    ],
+    cards: [
+      {
+        say: "7장에서 AVG는 빈칸을 건너뛰고 나눴죠? 오늘은 한 걸음 더, 빈칸도 셈에 넣어 봐요. 괄호 안에 6장 COALESCE를 넣어요. 1번 가게 메밀전은 재고를 몰라요. 그냥 평균은 넷으로 나눠 30.5, 0으로 치면 다섯으로 나눠 24.4예요.",
+        sql: "SELECT AVG(stock) AS skip_blank,\n  AVG(COALESCE(stock, 0))\n    AS blank_zero\nFROM items\nWHERE shop_id = 1",
+      },
+      {
+        say: "셈마다 바뀌는 게 달라요. COUNT는 빈칸도 세어 5, MIN은 채운 0이 가장 작아져요. 0을 더해도 합은 같아 SUM은 122 그대로! 채운 값은 진짜 재고가 아니니, 그 값으로 쳐도 되는지 먼저 따져요.",
+        sql: "SELECT\n  COUNT(COALESCE(stock, 0)) AS n,\n  MIN(COALESCE(stock, 0)) AS low,\n  SUM(COALESCE(stock, 0)) AS total\nFROM items\nWHERE shop_id = 1",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "구름 잡화점(5번 가게)의 한지는 재고를 몰라요. 이 SQL의 결과 값은?",
+        code: "SELECT AVG(COALESCE(stock, 0))\n  AS avg_stock\nFROM items\nWHERE shop_id = 5",
+        options: ["15", "18.75", "75"],
+        answer: 0,
+        explain: "한지를 0개로 쳐서 75 ÷ 5 = 15예요. COALESCE가 없으면 한지를 빼고 75 ÷ 4 = 18.75, 75는 재고 합이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "AVG(stock)과 AVG(COALESCE(stock, 0))의 결과가 다른 까닭은?",
+        options: [
+          "빈칸이 0이 되면 나누는 수(셈에 드는 칸 수)가 늘어서",
+          "COALESCE가 장부의 재고 칸을 0으로 고쳐 적어서",
+          "COALESCE 안에서는 AVG가 소수를 버려서",
+        ],
+        answer: 0,
+        explain: "더하는 값은 0이라 그대로지만, 0도 값이라 나누는 수가 하나 늘어 평균이 작아져요. 장부의 빈칸은 그대로 남아 있어요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "도깨비 국밥집(1번 가게)의 메밀전은 재고를 몰라요. 이 SQL의 결과 값은?",
+        code: "SELECT SUM(COALESCE(stock, 0))\n  AS total\nFROM items\nWHERE shop_id = 1",
+        options: ["122", "0", "NULL"],
+        answer: 0,
+        explain: "0을 더해도 합은 같아서 SUM(stock)과 같은 122예요. 빈칸 하나 때문에 합이 NULL이 되지도 않아요(7장).",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "나이를 모르는 손님이 5명이에요. 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(COALESCE(age, 0))\n  AS n\nFROM customers",
+        options: ["60", "55", "5"],
+        answer: 0,
+        explain: "빈칸이 0이라는 값이 되어 60명이 모두 세어져요. COUNT(*)와 같아요. COUNT(age)면 55, 5는 나이 모르는 손님 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "사람 손님 24명 중 4명은 나이를 몰라요. 이 SQL의 결과 값은?",
+        code: "SELECT AVG(COALESCE(age, 0))\n  AS avg_age\nFROM customers\nWHERE kind = '사람'",
+        options: ["36.25", "43.5", "870"],
+        answer: 0,
+        explain: "4명을 0살로 쳐서 870 ÷ 24 = 36.25예요. 7장에서 말로만 본 그 값이에요! AVG(age)는 20명으로 나눠 43.5예요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "나이 모르는 손님을 0살로 쳐서 낸 평균 36.25는 믿을 만할까요?",
+        options: [
+          "아니다. 모르는 나이는 0살이 아니라서 평균이 잘못 낮아졌다",
+          "그렇다. 빈칸은 늘 0으로 쳐야 맞다",
+          "그렇다. 나누는 손님이 많을수록 늘 정확하다",
+        ],
+        answer: 0,
+        explain: "모르는 나이를 0살로 치면 없는 아기 손님이 생긴 셈이에요. 이럴 땐 AVG(age)처럼 건너뛰어요. 0으로 칠 때는 「모름 = 0」이 확실할 때뿐이에요.",
+      },
+      {
+        type: "blank", concept: "adv_agg_coalesce",
+        q: "모르는 재고를 0으로 쳐서 1번 가게 평균 재고가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT AVG(COALESCE(stock, ___))\n  AS avg_stock\nFROM items\nWHERE shop_id = 1",
+        chips: ["0", "NULL", "100"],
+        answer: 0,
+        explain: "0을 넣으면 메밀전이 0개로 세어져 24.4예요. NULL이면 빈칸 그대로라 30.5, 100이면 100개로 쳐서 44.4예요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "뚝딱 공방(8번 가게)의 평균 재고를, 모르는 재고는 0으로 쳐서 보인 결과는?",
+        options: [
+          { sql: "SELECT AVG(COALESCE(stock, 0))\n  AS avg_stock\nFROM items\nWHERE shop_id = 8" },
+          { sql: "SELECT AVG(stock) AS avg_stock\nFROM items\nWHERE shop_id = 8" },
+          { sql: "SELECT SUM(COALESCE(stock, 0))\n  AS avg_stock\nFROM items\nWHERE shop_id = 8" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "장승을 0개로 쳐서 82 ÷ 5 = 16.4인 표예요. COALESCE가 없으면 넷으로 나눠 20.5, SUM이면 합 82예요.",
+      },
+      {
+        type: "order", concept: "adv_agg_coalesce",
+        q: "모르는 재고를 0개로 쳐서 장터 물건의 평균 재고를 보게 줄을 놓아 보세요.",
+        lines: ["SELECT AVG(COALESCE(stock, 0))", "AS avg_stock", "FROM items"],
+        expect: "avg_stock\n24.175",
+        explain: "재고 합 967을 물건 40가지로 나눠 24.175예요. COALESCE가 없으면 재고를 아는 37가지로 나눠 약 26.1이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_coalesce",
+        q: "모아 세기 안에서 빈칸을 0으로 채워도 결과가 그대로인 셈은? (값이 하나라도 있을 때)",
+        options: ["SUM", "AVG", "COUNT"],
+        answer: 0,
+        explain: "0을 더해도 합은 같아서 SUM은 그대로예요. AVG는 나누는 수가, COUNT는 세는 수가 늘어요. MIN도 0이 가장 작은 값이 될 수 있어요.",
+      },
+      {
+        id: "7-A1-b1", type: "build", concept: "adv_agg_coalesce",
+        q: "구름 잡화점(5번 가게)의 평균 재고를, 모르는 재고는 0으로 쳐서 avg_stock이라는 이름으로 보여 줘",
+        cards: ["SELECT", "AVG(COALESCE(stock, 0))", "AS avg_stock", "FROM", "items", "WHERE", "shop_id = 5"],
+        extra: ["AVG(stock)", "SUM(COALESCE(stock, 0))"],
+        tables: ["items"],
+        hints: [
+          "한지의 빈칸을 0으로 바꾼 다음 평균을 내요.",
+          "AVG 괄호 안에 COALESCE(stock, 0)이 든 카드를 놓아요.",
+        ],
+        explain: "15개예요! 한지를 0개로 쳐서 다섯으로 나눴어요. AVG(stock)이면 한지를 빼고 18.75, SUM이면 재고 합 75예요.",
+      },
+      {
+        id: "7-A1-b2", type: "build", concept: "adv_agg_coalesce",
+        q: "뚝딱 공방(8번 가게)의 가장 적은 재고를, 모르는 재고는 0으로 쳐서 low_stock이라는 이름으로 보여 줘",
+        cards: ["SELECT", "MIN(COALESCE(stock, 0))", "AS low_stock", "FROM", "items", "WHERE", "shop_id = 8"],
+        extra: ["MIN(stock)", "MAX(COALESCE(stock, 0))"],
+        tables: ["items"],
+        hints: [
+          "재고를 모르는 장승을 0개로 친 다음 가장 작은 값을 골라요.",
+          "MIN 괄호 안에 COALESCE(stock, 0)이 든 카드를 놓아요.",
+        ],
+        explain: "0이에요. 재고를 모르는 장승이 0개로 쳐져 가장 작아졌어요. MIN(stock)이면 장승을 건너뛰어 놋그릇의 2, MAX면 56이에요.",
+      },
+      {
+        type: "check", concept: "adv_agg_coalesce",
+        q: "모아 세기 안의 COALESCE에 대해 맞는 말은?",
+        options: [
+          "빈칸이 정한 값이 되어 셈에 들어가므로, 그 값으로 쳐도 되는지 먼저 따진다",
+          "COALESCE를 넣어도 모아 세기 결과는 언제나 같다",
+          "COALESCE는 모아 세기 괄호 안에 쓸 수 없다",
+        ],
+        answer: 0,
+        explain: "COALESCE가 먼저 빈칸을 값으로 바꾸고, 모아 세기가 그 값까지 셈해요. 모르는 재고가 정말 0개인지처럼, 채운 값이 맞는지 먼저 따져요.",
+      },
+    ],
+  },
+  {
+    id: "7-A2", chapter: 7, isAdvanced: true, title: "모은 값끼리 셈하기",
+    goal: "모아 세기 결과끼리 빼고 나누어 새 값을 만든다",
+    summary: [
+      "MAX(price) - MIN(price) = 값의 폭",
+      "COUNT(*) - COUNT(열) = 빈칸 수",
+      "평균은 손으로 나누지 말고 AVG로",
+    ],
+    cards: [
+      {
+        say: "7장에서 MIN과 MAX를 한 행에 나란히 봤죠? 오늘은 한 걸음 더, 모은 값끼리 셈해요. 가장 비싼 400에서 가장 싼 5를 빼면 값의 폭 395엽전! 행을 모두 센 40에서 재고가 적힌 37을 빼면 재고 모르는 물건 3가지예요.",
+        sql: "SELECT MAX(price) - MIN(price)\n    AS price_gap,\n  COUNT(*) - COUNT(stock)\n    AS unknown_stock\nFROM items",
+      },
+      {
+        say: "평균도 손으로 내 볼까요? 값 합 3181을 40으로 나누면 79.525인데, 이 장터에서는 정수끼리 나누면 소수점 아래를 버려서(2장) 79예요. 나눗셈은 데이터베이스마다 달라서 평균은 AVG로 내요.",
+        sql: "SELECT SUM(price) / COUNT(*)\n    AS by_hand,\n  AVG(price) AS avg_price\nFROM items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "산삼 약방(3번 가게)에서, 이 SQL의 결과 값은?",
+        code: "SELECT MAX(price) - MIN(price)\n  AS price_gap\nFROM items\nWHERE shop_id = 3",
+        options: ["108", "120", "12"],
+        answer: 0,
+        explain: "가장 비싼 산삼 120에서 가장 싼 감초 12를 빼 108엽전이에요. 120은 MAX, 12는 MIN만 본 값이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "이 SQL의 결과 값은 무엇일까요?",
+        code: "SELECT COUNT(*) - COUNT(age)\n  AS unknown_age\nFROM customers",
+        options: ["5", "55", "60"],
+        answer: 0,
+        explain: "COUNT(*)는 60, COUNT(age)는 빈칸을 빼고 55라 차는 5예요. 나이를 모르는 손님 수죠.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "COUNT(*) - COUNT(stock)이 재고 모르는 물건 수가 되는 까닭은?",
+        options: [
+          "COUNT(*)는 모든 행을, COUNT(stock)은 빈칸이 아닌 행만 세서",
+          "COUNT(stock)이 빈칸인 행만 세서",
+          "재고가 0인 물건을 빼서",
+        ],
+        answer: 0,
+        explain: "둘의 차가 빈칸인 행이에요. 재고가 0인 짚신은 아는 값이라 COUNT(stock)에도 세어져서 차에 들지 않아요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "도깨비 국밥집(1번 가게) 값 합은 64, 물건은 5가지예요. 이 장터에서 결과 값은?",
+        code: "SELECT SUM(price) / COUNT(*)\n  AS by_hand\nFROM items\nWHERE shop_id = 1",
+        options: ["12", "12.8", "64"],
+        answer: 0,
+        explain: "이 장터에서는 정수끼리 나누면 소수점 아래를 버려 12예요. AVG(price)면 12.8, 64는 합이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "평균 값을 SUM(price) / COUNT(*) 대신 AVG(price)로 내는 까닭은?",
+        options: [
+          "이 장터처럼 정수끼리 나누면 소수를 버리는 데이터베이스가 있어서",
+          "AVG는 빈칸을 0으로 쳐서",
+          "SUM과 COUNT는 한 SELECT에 함께 쓸 수 없어서",
+        ],
+        answer: 0,
+        explain: "나눗셈은 데이터베이스마다 달라요. 평균은 AVG가 어디서나 내 줘요. 직접 소수까지 나누는 법(CAST)은 9장에서 배워요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "손님 나이 합 2349를 COUNT(*) 60으로 나누면 39, AVG(age)는 약 42.7이에요. 소수점 말고 또 다른 까닭은?",
+        options: [
+          "COUNT(*)는 나이 모르는 5명까지 세어 60으로 나눠서",
+          "AVG가 나이를 반올림해서",
+          "AVG가 나이 많은 손님을 두 번 세서",
+        ],
+        answer: 0,
+        explain: "AVG는 나이를 아는 55명으로 나눠요. 손으로 나눌 때 같은 뜻이 되려면 COUNT(age)로 나눠야 해요.",
+      },
+      {
+        type: "blank", concept: "adv_agg_arith",
+        q: "가장 나이 많은 손님과 가장 어린 손님의 나이 차가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT MAX(age) ___ MIN(age)\n  AS age_gap\nFROM customers",
+        chips: ["-", "+", "/"],
+        answer: 0,
+        explain: "75살에서 8살을 빼 67살이에요. +면 83, /면 이 장터에서는 9가 나와요.",
+      },
+      {
+        type: "order", concept: "adv_agg_arith",
+        q: "뚝딱 공방(8번 가게)에서 재고 모르는 물건 수를 보게 줄을 놓아 보세요.",
+        lines: ["SELECT COUNT(*) - COUNT(stock)", "AS unknown_stock", "FROM items", "WHERE shop_id = 8"],
+        expect: "unknown_stock\n1",
+        explain: "장승 하나예요. 물건 5가지 중 재고가 적힌 건 4가지라 5 − 4 = 1이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "바람 보따리(6번 가게) 물건 값의 폭(가장 비싼 값 − 가장 싼 값)을 보인 결과는?",
+        options: [
+          { sql: "SELECT MAX(price) - MIN(price)\n  AS gap\nFROM items\nWHERE shop_id = 6" },
+          { sql: "SELECT MIN(price) - MAX(price)\n  AS gap\nFROM items\nWHERE shop_id = 6" },
+          { sql: "SELECT MAX(price) - AVG(price)\n  AS gap\nFROM items\nWHERE shop_id = 6" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "갓 110 − 보따리 16 = 94인 표예요. 거꾸로 빼면 −94, AVG를 빼면 평균과의 차 63.6이에요.",
+      },
+      {
+        type: "choice", concept: "adv_agg_arith",
+        q: "이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT MAX(price) - MIN(price)\n    AS gap,\n  COUNT(*) AS n\nFROM items",
+        options: ["1행", "2행", "40행"],
+        answer: 0,
+        explain: "모은 값끼리 셈해도 묶지 않으면 결과는 1행이에요. 395와 40이 한 행에 나란히 나와요.",
+      },
+      {
+        id: "7-A2-b1", type: "build", concept: "adv_agg_arith",
+        q: "물건 값의 폭(가장 비싼 값 − 가장 싼 값)을 price_gap이라는 이름으로 보여 줘",
+        cards: ["SELECT", "MAX(price)", "-", "MIN(price)", "AS price_gap", "FROM", "items"],
+        extra: ["+", "AVG(price)"],
+        tables: ["items"],
+        hints: [
+          "가장 비싼 값과 가장 싼 값을 모은 다음, 앞에서 뒤를 빼요.",
+          "MAX(price), -, MIN(price) 카드를 차례로 놓아요.",
+        ],
+        explain: "395엽전이에요. 금방망이 400 − 식혜 5! +면 405, 거꾸로 빼면 −395예요. 큰 값에서 작은 값을 빼야 폭이에요.",
+      },
+      {
+        id: "7-A2-b2", type: "build", concept: "adv_agg_arith",
+        q: "재고를 모르는 물건이 몇 가지인지, 행 수에서 재고 적힌 수를 빼 unknown_stock으로 보여 줘",
+        cards: ["SELECT", "COUNT(*)", "-", "COUNT(stock)", "AS unknown_stock", "FROM", "items"],
+        extra: ["+", "SUM(stock)"],
+        tables: ["items"],
+        hints: [
+          "모든 행 수에서, 재고 칸에 값이 있는 행 수를 빼요.",
+          "COUNT(*)와 COUNT(stock) 사이에 - 카드를 놓아요.",
+        ],
+        explain: "3가지예요(메밀전·한지·장승). SUM(stock)을 놓으면 재고 합 967이 끼어들고, +면 77이 돼요.",
+      },
+      {
+        type: "check", concept: "adv_agg_arith",
+        q: "모은 값끼리 셈하는 것에 대해 맞는 말은?",
+        options: [
+          "MAX - MIN처럼 셈할 수 있고, 평균은 나눗셈 대신 AVG로 낸다",
+          "모아 세기끼리는 셈할 수 없다",
+          "SUM / COUNT는 어느 데이터베이스에서나 AVG와 같다",
+        ],
+        answer: 0,
+        explain: "모은 값도 숫자라 빼고 나눌 수 있어요. 다만 이 장터에서는 정수 나눗셈이 소수를 버리고, COUNT(*)는 빈칸까지 세니 평균은 AVG로 내요.",
+      },
+    ],
+  },
+  {
+    id: "7-A3", chapter: 7, isAdvanced: true, title: "장터 결산 한 줄",
+    goal: "모아 세기 여럿으로 장터의 한 해를 한 줄에 요약한다",
+    summary: [
+      "의뢰: 한 해 장사를 한 줄로",
+      "손님 수는 COUNT(DISTINCT 열)",
+      "한 줄 평균은 SUM / COUNT 말고 AVG",
+    ],
+    cards: [
+      {
+        say: "7장에서 COUNT·MIN·MAX를 배웠죠? 오늘은 의뢰예요! 달빛 약초방 송약초 님이 「한 해 장사를 한 줄로 안내판에 붙여 주게」래요. 완료 주문 542건, 산 손님 57명, 첫날과 끝날까지 한 행에 나왔어요.",
+        sql: "SELECT COUNT(*) AS n,\n  COUNT(DISTINCT customer_id)\n    AS buyers,\n  MIN(ordered_on) AS first_day,\n  MAX(ordered_on) AS last_day\nFROM orders\nWHERE status = '완료'",
+      },
+      {
+        say: "내역 한 줄에 평균 몇 개씩 담겼을까요? 송약초 님이 합 1882를 줄 수 1241로 나눴더니 1이래요. 이 장터에서는 정수끼리 나누면 소수점을 버려서예요. AVG로 내면 1.5165개! 이 장부엔 취소된 주문의 내역도 있어요.",
+        sql: "SELECT COUNT(*) AS lines,\n  SUM(qty) / COUNT(*) AS by_hand,\n  AVG(qty) AS avg_qty\nFROM order_items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "안내판의 「산 손님 수」를 COUNT(DISTINCT customer_id)로 세는 까닭은?",
+        options: [
+          "한 손님이 여러 번 주문해서, 겹친 손님을 한 번씩만 세려고",
+          "손님 번호 칸에 빈칸이 있어서",
+          "주문 번호와 손님 번호를 함께 세려고",
+        ],
+        answer: 0,
+        explain: "주문 장부에는 한 손님이 여러 줄 나와요. DISTINCT가 겹침을 빼서 사람 수가 돼요. 없으면 주문 건수와 같아져요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "이 SQL의 결과 값은 무엇일까요?",
+        code: "SELECT COUNT(DISTINCT customer_id)\n  AS buyers\nFROM orders\nWHERE status = '완료'",
+        options: ["57", "542", "60"],
+        answer: 0,
+        explain: "완료 주문이 있는 손님은 57명이에요. 주문이 없는 손님 3명은 주문 장부에 아예 없어요. 542는 주문 건수예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "안내판의 끝날, 이 SQL의 결과 값은?",
+        code: "SELECT MAX(ordered_on) AS last_day\nFROM orders\nWHERE status = '완료'",
+        options: ["2026-12-28", "2026-01-14", "542"],
+        answer: 0,
+        explain: "완료 주문 중 가장 늦은 날이에요. 이 장터의 날짜는 연-월-일 글자라 MAX가 가장 늦은 날이에요. 2026-01-14는 첫날이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "송약초 님이 손으로 낸 한 줄 평균 수량이에요. 이 장터에서 결과 값은?",
+        code: "SELECT SUM(qty) / COUNT(*)\n  AS by_hand\nFROM order_items",
+        options: ["1", "1.5165", "1882"],
+        answer: 0,
+        explain: "1882 ÷ 1241은 1.5…이지만 이 장터에서는 정수끼리 나누면 소수점 아래를 버려 1이에요. 1882는 수량 합이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "AVG로 고친 이 SQL의 결과 값은?",
+        code: "SELECT AVG(qty) AS avg_qty\nFROM order_items",
+        options: ["1.5165", "1", "3"],
+        answer: 0,
+        explain: "AVG는 소수까지 내서 한 줄에 평균 1.5165개예요. 1은 손으로 나눈 값, 3은 한 줄에 가장 많이 담은 수량(MAX)이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "안내판의 「한 줄 평균 1.5165개」에 대해 맞는 말은?",
+        options: [
+          "취소된 주문의 내역까지 넣어 센 값이다",
+          "완료된 주문의 내역만 센 값이다",
+          "손님 한 명이 산 평균 개수다",
+        ],
+        answer: 0,
+        explain: "주문 내역 표에는 상태 칸이 없어 취소된 주문의 내역도 들어 있어요. 완료만 세려면 10장에서 주문 표를 이어요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_7",
+        q: "완료 주문을 한 손님마다 한 번씩만 세게 빈자리를 채워 보세요.",
+        code: "SELECT COUNT(___ customer_id)\n  AS buyers\nFROM orders\nWHERE status = '완료'",
+        chips: ["DISTINCT", "ORDER BY", "WHERE"],
+        answer: 0,
+        explain: "COUNT 괄호 안 열 앞에 DISTINCT를 놓으면 겹친 손님을 한 번만 세어 57명이에요. 다른 낱말은 그 자리에 올 수 없어 단서가 나와요.",
+      },
+      {
+        type: "order", concept: "adv_apply_7",
+        q: "취소된 주문의 건수와 그 손님 수를 한 줄로 보게 줄을 놓아 보세요.",
+        lines: ["SELECT COUNT(*) AS n,", "COUNT(DISTINCT customer_id)", "AS cancel_buyers", "FROM orders", "WHERE status = '취소'"],
+        expect: "n | cancel_buyers\n49 | 28",
+        explain: "취소 49건을 28명이 했어요. 여러 번 취소한 손님이 있어 건수보다 사람 수가 적어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_7",
+        q: "취소된 주문의 첫날과 끝날을 한 줄로 보인 결과는?",
+        options: [
+          { sql: "SELECT MIN(ordered_on) AS first_day,\n  MAX(ordered_on) AS last_day\nFROM orders\nWHERE status = '취소'" },
+          { sql: "SELECT MIN(ordered_on) AS first_day,\n  MAX(ordered_on) AS last_day\nFROM orders" },
+          { sql: "SELECT MAX(ordered_on) AS first_day,\n  MIN(ordered_on) AS last_day\nFROM orders\nWHERE status = '취소'" },
+        ],
+        answer: 0, tables: ["orders"],
+        explain: "2026-01-22부터 2026-12-28까지인 표예요. WHERE가 없으면 첫날이 2026-01-14, MIN·MAX를 바꾸면 첫날과 끝날이 뒤집혀요.",
+      },
+      {
+        id: "7-A3-b1", type: "build", concept: "adv_apply_7",
+        q: "완료된 주문 건수 n과, 그 주문을 한 손님 수 buyers를 한 줄로 보여 줘",
+        cards: ["SELECT", "COUNT(*) AS n", ",", "COUNT(DISTINCT customer_id)", "AS buyers", "FROM", "orders", "WHERE", "status = '완료'"],
+        extra: ["COUNT(customer_id)", "status = '취소'"],
+        tables: ["orders"],
+        hints: [
+          "주문은 행을 세고, 손님은 겹치지 않게 세어 쉼표로 나란히 놓아요.",
+          "COUNT(*)와 COUNT(DISTINCT customer_id), WHERE 조건 카드를 써요.",
+        ],
+        explain: "542건, 57명이에요. COUNT(customer_id)면 손님을 주문마다 세어 542, 취소로 거르면 49건·28명이에요.",
+      },
+      {
+        id: "7-A3-b2", type: "build", concept: "adv_apply_7",
+        q: "주문 내역 줄 수 lines와, 한 줄에 담긴 평균 수량 avg_qty를 한 줄로 보여 줘",
+        cards: ["SELECT", "COUNT(*)", "AS lines", ",", "AVG(qty)", "AS avg_qty", "FROM", "order_items"],
+        extra: ["SUM(qty) / COUNT(*)", "MAX(qty)"],
+        tables: ["order_items"],
+        hints: [
+          "줄 수는 행을 세고, 평균은 손으로 나누지 말고 모아 세기로 내요.",
+          "COUNT(*)와 AVG(qty)에 이름을 붙여 쉼표로 이어요.",
+        ],
+        explain: "1241줄, 평균 1.5165개예요. SUM(qty) / COUNT(*)를 놓으면 이 장터에서는 1, MAX면 가장 많이 담은 3이에요.",
+      },
+      {
+        type: "check", concept: "adv_apply_7",
+        q: "송약초 님의 안내판 SQL에 대해 맞는 말은?",
+        options: [
+          "모아 세기를 여럿 놓아도 결과는 1행이고, 평균은 AVG로 낸다",
+          "COUNT(customer_id)가 손님을 한 번씩만 센다",
+          "SUM(qty) / COUNT(*)는 어느 데이터베이스에서나 1.5165다",
+        ],
+        answer: 0,
+        explain: "세고, 겹침 없이 세고, 처음과 끝을 보고, 평균을 냈어요. 모두 한 행이라 안내판 한 줄이 됐어요. 손님 수는 DISTINCT로, 평균은 AVG로!",
+      },
+    ],
+  },
+];

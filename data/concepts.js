@@ -102,4 +102,17 @@ export const CONCEPTS = [
   { id: "adv_coalesce_where", name: "COALESCE 거르기·정렬", chapter: 6, advanced: true },
   { id: "adv_nullif", name: "NULLIF", chapter: 6, advanced: true },
   { id: "adv_apply_6", name: "빈칸 점검", chapter: 6, advanced: true },
+  // ---- 심화 (v0.4, 설계 「심화 7~12장」 §2, 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md) ----
+  // 7장 심화
+  { id: "adv_agg_coalesce", name: "빈칸 채워 모아 세기", chapter: 7, advanced: true },
+  { id: "adv_agg_arith", name: "모은 값끼리 셈", chapter: 7, advanced: true },
+  { id: "adv_apply_7", name: "장터 결산 한 줄", chapter: 7, advanced: true },
+  // 8장 심화
+  { id: "adv_group_two", name: "두 열로 묶기", chapter: 8, advanced: true },
+  { id: "adv_having_two", name: "HAVING 조건 둘", chapter: 8, advanced: true },
+  { id: "adv_apply_8", name: "가게별 성적표", chapter: 8, advanced: true },
+  // 9장 심화
+  { id: "adv_case_count", name: "CASE로 조건 세기", chapter: 9, advanced: true },
+  { id: "adv_group_case", name: "CASE 갈래로 묶기", chapter: 9, advanced: true },
+  { id: "adv_apply_9", name: "가게별 재고 안내판", chapter: 9, advanced: true },
 ];

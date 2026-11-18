@@ -300,7 +300,7 @@ test("adv_old_save: 심화 진도가 없는 옛 저장도 그대로 열림(saveV
 });
 
 // ---- v0.2 작업 2: 심화를 건너뛴 학습자의 진도 (설계 「심화 1~6장」 §1 성공 기준, 계획 Review Focus 1) ----
-// 실제 장 파일 17개 + 1~6장 심화 18개(장 파일에 아직 없으면 시험용 심화를 끼움). 앱의 「다음 레슨」은
+// 실제 장 파일 17개 + 장 파일의 심화(1~6장 18개, v0.4부터 7장 이후도. 1~6장에 아직 없으면 시험용 심화를 끼움). 앱의 「다음 레슨」은
 // app.js finish()와 같은 규칙: 본 과정 목록(chapters.flatMap(c => c.lessons))에서 아직 안 끝낸 첫 레슨.
 test("skip advanced keeps progress: 1-1~6-5를 끝내면 지금 레슨 7-1, 완주는 본 과정 85개, 심화를 끝내도 지금 레슨 그대로", async () => {
   const real = await Promise.all(Array.from({ length: 17 }, (_, i) => import(`../../data/lessons/ch${i + 1}.js`)));
@@ -311,7 +311,10 @@ test("skip advanced keeps progress: 1-1~6-5를 끝내면 지금 레슨 7-1, 완�
   const main = idx.flatMap((c) => c.lessons.map((l) => l.id));
   assert.equal(main.length, 85, "본 과정 레슨 85개");
   assert.ok(main.every((id) => !isAdvancedId(id)), "본 과정 목록에 심화가 섞이지 않음");
-  assert.equal(advancedIds(idx).length, 18, "1~6장 심화 18개");
+  // v0.4: 7장부터의 심화가 장 파일에 들어오면 늘어난다(장마다 3개). 1~6장 심화는 18개 그대로
+  const advN = advancedIds(idx).length;
+  assert.ok(advN >= 18 && advN % 3 === 0, `심화는 장마다 3개(지금 ${advN}개)`);
+  assert.equal(advancedIds(idx).filter((id) => Number(id.split("-")[0]) <= 6).length, 18, "1~6장 심화 18개");
   const nextOf = (completed) => {
     const done = new Set(completed);
     const l = idx.flatMap((c) => c.lessons).find((x) => !done.has(x.id));
@@ -328,7 +331,7 @@ test("skip advanced keeps progress: 1-1~6-5를 끝내면 지금 레슨 7-1, 완�
   assert.equal(save.current_lesson, "7-1");
   assert.equal(save.current_chapter, 7);
   const c0 = curriculum({ chapters: idx, completed: save.completed_lessons, currentId: save.current_lesson });
-  assert.deepEqual([c0.done, c0.total, c0.advDone, c0.advTotal], [30, 85, 0, 18]);
+  assert.deepEqual([c0.done, c0.total, c0.advDone, c0.advTotal], [30, 85, 0, advN]);
   assert.deepEqual(c0.current, { id: "7-1", title: idx[6].lessons[0].title });
   for (const k of [1, 2, 3, 4, 5, 6]) assert.ok(c0.chapters[k - 1].advanced.every((l) => l.status === "open"), `${k}장 심화는 열림(선택)`);
 

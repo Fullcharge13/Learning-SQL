@@ -776,3 +776,438 @@ export const TEMPLATES = [
     explain: "마을로 묶은 뒤 HAVING이 손님이 {N}명 이상인 마을 묶음만 남겨요. HAVING이 없으면 마을 8곳이 모두 나와요.",
   },
 ];
+
+// ---- 8장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 8장) ----
+// - 쓸 수 있는 것: 1~8장 낱말(8장 심화 전용 낱말 없음). 조립은 본 과정 8장과 같다(R38·R40: GROUP BY·ORDER BY 한 장,
+//   SELECT·FROM·WHERE·HAVING 한 장씩). 둘째 열·둘째 기준의 쉼표는 앞 카드에 붙인다(빼면 오류가 나게). 레슨마다 build 2개.
+// - 8-A1 두 열로 묶기: 손님 마을 × 종류 24짝이 모두 있다(GROUP BY village, kind 24행). 큰바위마을 도깨비 5·사람 3·여우 3,
+//   솔바위골 5·3·1. 60살 이상은 8짝, 70살 이상은 6짝(도깨비 느티나무골 1·솔바위골 1·은행나무마을 1·큰바위마을 2, 사람 버드나무고개 2·큰바위마을 1).
+//   나이 모르는 손님: 사람 느티나무골 2·솔바위골 1·은행나무마을 1, 도깨비 은행나무마을 1. 손님 1~4번 주문: 1번 완료 29·취소 3, 2번 완료 3,
+//   3번 완료 39·취소 5, 4번 완료 37·취소 2. 두 열을 바꿔 적어도 묶음은 같다(ORDER BY가 없으니 차례는 말하지 않음).
+// - 8-A2 HAVING에 조건 둘(주제 바꿈, 디딤돌 §4: 묶음을 셈 결과로 줄 세우기는 8-3이 별칭으로 이미 가르침):
+//   마을 손님 수 개울 8·느티 8·달빛 6·버드 6·솔 9·여우고개 3·은행 9·큰 11, 평균 나이 39.625·42.6667·32.5·52·37.125·33.3333·43.5714·51.5455,
+//   가장 어린 13·9·13·27·12·18·8·11, 가장 많은 68·73·52·75·72·48·73·73.
+//   COUNT(*) >= 8 AND AVG(age) > 40 → 느티·은행·큰(3), OR → 6(달빛·여우고개 빠짐). COUNT(*) > 8 AND … → 은행·큰.
+//   COUNT(*) >= 8 AND MIN(age) < 10 → 느티·은행. MIN(age) < 10 OR MAX(age) >= 70 → 5(느티·버드·솔·은행·큰), AND → 느티·은행.
+//   사람 손님만(WHERE) COUNT(*) >= 4 OR MAX(age) >= 70 → 버드나무고개 4·은행나무마을 4·큰바위마을 3(72살).
+//   가게: MAX(price) > 100 AND MIN(price) < 20 → 3·6번, OR → 8곳 모두. MIN(price) >= 100 OR MAX(price) < 10 → 2·7·8번.
+// - 8-A3 의뢰: 방망이 대장간(shops 7번) 쇠돌. 사연은 꾸민 이야기. 가게마다 물건 5가지.
+//   평균 값 7번 266·8번 220·6번 46.4·3번 41.8·4번 23.2·5번 19·1번 12.8·2번 7(모두 다름), MIN·MAX 1번 8·25, 2번 5·9, 3번 12·120,
+//   4번 15·35, 5번 6·40, 6번 16·110, 7번 150·400, 8번 130·350. 값의 폭 17·4·108·20·34·94·250·220.
+//   폭 > 50 → 3·6·7·8번, > 100 → 3·7·8번, > 200 → 7·8번. AVG(price) > 40 → 3·6·7·8번, < 20 → 1·2·5번.
+//   A3는 A1·A2를 했다고 기대하지 않는다. 셈끼리 셈(7-A2 모양)은 카드 2에서 다시 보인다.
+export const ADVANCED = [
+  {
+    id: "8-A1", chapter: 8, isAdvanced: true, title: "두 열로 묶기",
+    goal: "GROUP BY에 열 둘을 놓아 두 값의 짝마다 묶어 센다",
+    summary: [
+      "GROUP BY 열1, 열2 = 두 값의 짝마다",
+      "있는 짝만 묶음이 되어 행이 돼요",
+      "묶은 두 열을 SELECT에도 놓아요",
+    ],
+    cards: [
+      {
+        say: "8장에서 한 열로 묶었죠? 오늘은 한 걸음 더, 두 열로 묶어요. GROUP BY village, kind는 마을과 종류가 둘 다 같은 행끼리 한 묶음이에요. 두 마을 × 세 종류, 6묶음! 묶은 두 열을 SELECT에도 놓아 이름표로 써요.",
+        sql: "SELECT village, kind,\n  COUNT(*) AS n\nFROM customers\nWHERE village IN ('큰바위마을',\n  '솔바위골')\nGROUP BY village, kind",
+      },
+      {
+        say: "묶음은 실제로 있는 짝만 생겨요. 60살 이상만 남기면 여우 손님이 없어 여우 짝은 하나도 없어요. 그래서 8행! 두 열의 차례를 바꿔 적어도 묶음은 같아요.",
+        sql: "SELECT kind, village,\n  COUNT(*) AS n\nFROM customers\nWHERE age >= 60\nGROUP BY kind, village",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "GROUP BY village, kind는 어떤 행끼리 한 묶음으로 모을까요?",
+        options: [
+          "마을과 종류가 둘 다 같은 행끼리",
+          "마을이나 종류 중 하나라도 같은 행끼리",
+          "마을로 한 번, 종류로 한 번 따로따로",
+        ],
+        answer: 0,
+        explain: "두 값의 짝이 같아야 한 묶음이에요. 큰바위마을 도깨비와 큰바위마을 사람은 다른 묶음이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "큰바위마을 손님을 마을과 종류로 묶었어요. 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT village, kind,\n  COUNT(*) AS n\nFROM customers\nWHERE village = '큰바위마을'\nGROUP BY village, kind",
+        options: ["3행", "1행", "11행"],
+        answer: 0,
+        explain: "마을은 하나뿐이고 종류가 도깨비·사람·여우라 짝이 3개, 3행이에요. 11은 큰바위마을 손님 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "손님 전체를 마을과 종류로 묶었어요. 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT village, kind,\n  COUNT(*) AS n\nFROM customers\nGROUP BY village, kind",
+        options: ["24행", "11행", "60행"],
+        answer: 0,
+        explain: "마을 8곳 × 종류 3가지 = 24짝이 이 장터에는 모두 있어서 24행이에요. 8 + 3 = 11이 아니에요. 60은 손님 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "70살 이상 손님만 종류와 마을로 묶었어요. 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT kind, village,\n  COUNT(*) AS n\nFROM customers\nWHERE age >= 70\nGROUP BY kind, village",
+        options: ["6행", "16행", "2행"],
+        answer: 0,
+        explain: "남은 손님이 이룬 짝만 묶음이 돼요. 도깨비 4곳, 사람 2곳이라 6행이에요. 짝이 없는 마을은 행이 생기지 않아요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "GROUP BY village, kind를 GROUP BY kind, village로 바꾸면?",
+        options: [
+          "묶음은 같다(ORDER BY가 없으니 행의 차례는 정해지지 않는다)",
+          "묶음 수가 절반으로 준다",
+          "오류가 난다",
+        ],
+        answer: 0,
+        explain: "짝이 같으면 한 묶음이라 어느 열을 먼저 적든 묶음은 같아요. 차례가 필요하면 ORDER BY를 붙여요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "이 SQL 결과에서 사람 묶음의 n은?",
+        code: "SELECT village, kind,\n  COUNT(*) AS n\nFROM customers\nWHERE village = '솔바위골'\nGROUP BY village, kind",
+        options: ["3", "9", "5"],
+        answer: 0,
+        explain: "솔바위골 사람 손님은 3명이에요. 9는 솔바위골 손님 전체, 5는 솔바위골 도깨비 묶음의 n이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "GROUP BY village, kind를 쓴 SQL의 SELECT에 놓아도 되는 것끼리 고르면?",
+        options: ["village, kind, COUNT(*)", "village, name, COUNT(*)", "kind, age"],
+        answer: 0,
+        explain: "묶은 두 열과 모아 세기는 묶음마다 값이 하나예요. name·age는 한 묶음에 여럿이라 8장 규칙대로 놓지 않아요.",
+      },
+      {
+        type: "blank", concept: "adv_group_two",
+        q: "나이 모르는 손님을 종류와 마을의 짝마다 세게 빈자리를 채워 보세요.",
+        code: "SELECT kind, village,\n  COUNT(*) AS n\nFROM customers\nWHERE age IS NULL\nGROUP BY kind, ___",
+        chips: ["village", "n", "age"],
+        answer: 0,
+        explain: "SELECT에 놓은 두 열로 묶어야 해요. 사람 느티나무골 2명 같은 4묶음이 나와요. n은 셈이라 묶을 수 없고, age면 마을이 섞여요.",
+      },
+      {
+        type: "order", concept: "adv_group_two",
+        q: "70살 이상 손님을 종류와 마을의 짝마다 세게 줄을 놓아 보세요.",
+        lines: ["SELECT kind, village,", "COUNT(*) AS n", "FROM customers", "WHERE age >= 70", "GROUP BY kind, village"],
+        explain: "WHERE가 먼저 거르고 두 열로 묶어요. 큰바위마을 도깨비 2명, 버드나무고개 사람 2명 같은 6묶음이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_two",
+        q: "60살 이상 손님을 종류와 마을의 짝마다 센 결과는?",
+        options: [
+          { sql: "SELECT kind, village,\n  COUNT(*) AS n\nFROM customers\nWHERE age >= 60\nGROUP BY kind, village" },
+          { sql: "SELECT kind, COUNT(*) AS n\nFROM customers\nWHERE age >= 60\nGROUP BY kind" },
+          { sql: "SELECT village, COUNT(*) AS n\nFROM customers\nWHERE age >= 60\nGROUP BY village" },
+        ],
+        answer: 0, tables: ["customers"],
+        explain: "종류와 마을이 함께 보이는 8행 표가 정답이에요. 종류로만 묶으면 도깨비·사람 2행, 마을로만 묶으면 종류가 섞여요.",
+      },
+      {
+        id: "8-A1-b1", type: "build", concept: "adv_group_two",
+        q: "마을마다, 손님 종류마다 몇 명인지 n이라는 이름으로 세어 줘",
+        cards: ["SELECT", "village, kind,", "COUNT(*) AS n", "FROM", "customers", "GROUP BY", "village,", "kind"],
+        extra: ["COUNT(age) AS n", "kind,"],
+        tables: ["customers"],
+        hints: [
+          "마을과 종류의 짝마다 한 묶음이 되게 두 열로 묶어요.",
+          "GROUP BY 뒤에 village, 와 kind 카드를 놓아요.",
+        ],
+        explain: "24묶음이에요. 큰바위마을 도깨비 5명처럼 짝마다 나왔어요. COUNT(age)면 나이 모르는 손님이 빠지고, kind 하나로 묶으면 3행이에요.",
+      },
+      {
+        id: "8-A1-b2", type: "build", concept: "adv_group_two",
+        q: "손님 1~4번의 주문을 손님마다, 상태마다 몇 건인지 n이라는 이름으로 세어 줘",
+        cards: ["SELECT", "customer_id, status,", "COUNT(*) AS n", "FROM", "orders", "WHERE", "customer_id <= 4", "GROUP BY", "customer_id,", "status"],
+        extra: ["customer_id < 4", "status,"],
+        tables: ["orders"],
+        hints: [
+          "손님 1~4번만 남긴 뒤 손님 번호와 상태의 짝마다 세요.",
+          "WHERE customer_id <= 4 다음에 GROUP BY customer_id, status예요.",
+        ],
+        explain: "7행이에요. 2번 손지우는 취소가 없어 완료 한 행뿐이에요. < 4면 4번 손님이 빠지고, status로만 묶으면 2행이에요.",
+      },
+      {
+        type: "check", concept: "adv_group_two",
+        q: "두 열로 묶기에 대해 맞는 말은?",
+        options: [
+          "두 값의 짝마다 한 묶음이고, 실제로 있는 짝만 행이 된다",
+          "결과는 늘 첫 열의 값 수 × 둘째 열의 값 수만큼 나온다",
+          "두 열을 적은 차례에 따라 묶음이 달라진다",
+        ],
+        answer: 0,
+        explain: "짝이 없으면 묶음도 없어요. 그래서 70살 이상은 6행뿐이었죠. 두 열을 SELECT에도 놓아 어느 짝인지 보여요.",
+      },
+    ],
+  },
+  {
+    id: "8-A2", chapter: 8, isAdvanced: true, title: "HAVING에 조건 둘",
+    goal: "HAVING에 셈 조건 둘을 AND·OR로 이어 묶음을 거른다",
+    summary: [
+      "HAVING 조건1 AND 조건2로 묶음 거르기",
+      "OR면 하나만 맞아도, 섞으면 괄호",
+      "행 조건은 WHERE, 묶음 조건은 HAVING",
+    ],
+    cards: [
+      {
+        say: "8장에서 HAVING으로 묶음을 걸렀죠? 오늘은 한 걸음 더, 조건 둘이에요. WHERE처럼 AND로 이어요. 손님이 8명 이상이고 평균 나이가 40살 넘는 마을, 셋이에요. AVG(age)는 SELECT에 없어도 HAVING에 써요.",
+        sql: "SELECT village, COUNT(*) AS n\nFROM customers\nGROUP BY village\nHAVING COUNT(*) >= 8\n  AND AVG(age) > 40",
+      },
+      {
+        say: "OR면 둘 중 하나만 맞아도 남아요. AND·OR를 섞으면 4장처럼 AND가 먼저라 괄호로 묶어요. 아래는 사람 손님만 남겨(WHERE) 마을로 묶고, 4명 이상이거나 70살 이상 손님이 있는 마을이에요.",
+        sql: "SELECT village, COUNT(*) AS n\nFROM customers\nWHERE kind = '사람'\nGROUP BY village\nHAVING COUNT(*) >= 4\n  OR MAX(age) >= 70",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "HAVING COUNT(*) >= 8 AND AVG(age) > 40은 어떤 묶음을 남길까요?",
+        options: [
+          "두 조건에 모두 맞는 묶음",
+          "둘 중 하나라도 맞는 묶음",
+          "두 조건에 모두 안 맞는 묶음",
+        ],
+        answer: 0,
+        explain: "AND는 WHERE에서처럼 둘 다 참이어야 해요. 손님 9명이어도 평균 37살인 솔바위골은 빠져요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "AND를 OR로 바꾼 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT village\nFROM customers\nGROUP BY village\nHAVING COUNT(*) >= 8\n  OR AVG(age) > 40",
+        options: ["6행", "3행", "8행"],
+        answer: 0,
+        explain: "8명 이상인 5곳에 평균 52살인 버드나무고개가 더해져 6행이에요. 둘 다 아닌 달빛마을·여우고개만 빠져요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "HAVING에서 AND 대신 OR를 쓰면 남는 묶음은?",
+        options: ["같거나 늘어난다", "같거나 줄어든다", "늘 똑같다"],
+        answer: 0,
+        explain: "OR는 하나만 맞아도 남기니까 AND로 남던 묶음은 그대로 남고 더 붙을 수 있어요. WHERE의 AND·OR와 같아요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "가게 중 가장 싼 물건이 100엽전 이상이거나, 가장 비싼 물건이 10엽전 밑인 곳은 몇 곳?",
+        code: "SELECT shop_id\nFROM items\nGROUP BY shop_id\nHAVING MIN(price) >= 100\n  OR MAX(price) < 10",
+        options: ["3행", "2행", "8행"],
+        answer: 0,
+        explain: "공방 7·8번(가장 싼 것도 130엽전 이상)과 여우골 떡방 2번(가장 비싼 약과 9엽전), 3행이에요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "HAVING COUNT(*) >= 9 OR COUNT(*) <= 3 AND AVG(age) > 40에서 먼저 묶이는 것은?",
+        options: [
+          "COUNT(*) <= 3 AND AVG(age) > 40",
+          "COUNT(*) >= 9 OR COUNT(*) <= 3",
+          "왼쪽부터 차례로 묶인다",
+        ],
+        answer: 0,
+        explain: "4장처럼 AND가 OR보다 먼저 묶여요. 뜻이 다르면 괄호로 먼저 묶을 것을 감싸요. HAVING도 WHERE와 같은 규칙이에요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "사람 손님만 세면서 4명 이상인 마을을 고를 때, kind = '사람'은 어디에 둘까요?",
+        options: [
+          "WHERE, 묶기 전에 행을 거르는 조건이라서",
+          "HAVING, 묶음을 거르는 조건이라서",
+          "GROUP BY 바로 뒤에 AND로",
+        ],
+        answer: 0,
+        explain: "한 행의 값으로 거르는 건 WHERE, 셈으로 거르는 건 HAVING이에요. 조건이 둘이어도 성질에 따라 나눠 둬요.",
+      },
+      {
+        type: "blank", concept: "adv_having_two",
+        q: "가장 어린 손님이 10살 밑이거나, 가장 나이 많은 손님이 70살 이상인 마을이 나오게 빈자리를 채워 보세요.",
+        code: "SELECT village\nFROM customers\nGROUP BY village\nHAVING MIN(age) < 10\n  ___ MAX(age) >= 70",
+        chips: ["OR", "AND", "WHERE"],
+        answer: 0,
+        explain: "「이거나」는 OR예요. 느티나무골·버드나무고개·솔바위골·은행나무마을·큰바위마을, 5곳이에요. AND면 느티나무골·은행나무마을 2곳뿐이에요.",
+      },
+      {
+        type: "order", concept: "adv_having_two",
+        q: "가장 싼 물건이 100엽전 이상이거나 가장 비싼 물건이 10엽전 밑인 가게를 보게 줄을 놓아 보세요.",
+        lines: ["SELECT shop_id", "FROM items", "GROUP BY shop_id", "HAVING MIN(price) >= 100", "OR MAX(price) < 10"],
+        explain: "HAVING 뒤에 첫 조건, OR 뒤에 둘째 조건이에요. 2·7·8번 가게가 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_having_two",
+        q: "손님이 8명 이상이고, 가장 어린 손님이 10살 밑인 마을을 고른 결과는?",
+        options: [
+          { sql: "SELECT village\nFROM customers\nGROUP BY village\nHAVING COUNT(*) >= 8\n  AND MIN(age) < 10" },
+          { sql: "SELECT village\nFROM customers\nGROUP BY village\nHAVING COUNT(*) >= 8\n  OR MIN(age) < 10" },
+          { sql: "SELECT village\nFROM customers\nGROUP BY village\nHAVING COUNT(*) >= 9\n  AND MIN(age) < 10" },
+        ],
+        answer: 0, tables: ["customers"],
+        explain: "느티나무골(9살)·은행나무마을(8살) 2행이 정답이에요. OR면 8명 이상인 5곳이 다 들어오고, 9명 이상이면 딱 8명인 느티나무골이 빠져요.",
+      },
+      {
+        id: "8-A2-b1", type: "build", concept: "adv_having_two",
+        q: "손님이 8명 이상이고, 평균 나이가 40살 넘는 마을을 보여 줘",
+        cards: ["SELECT", "village", "FROM", "customers", "GROUP BY", "village", "HAVING", "COUNT(*) >= 8", "AND", "AVG(age) > 40"],
+        extra: ["OR", "COUNT(*) > 8"],
+        tables: ["customers"],
+        hints: [
+          "마을로 묶은 뒤, 손님 수와 평균 나이 두 조건에 모두 맞는 묶음만 남겨요.",
+          "HAVING 뒤에 COUNT(*) >= 8, AND, AVG(age) > 40을 놓아요.",
+        ],
+        explain: "느티나무골·은행나무마을·큰바위마을이에요. OR면 6곳, > 8이면 딱 8명인 느티나무골이 빠져요.",
+      },
+      {
+        id: "8-A2-b2", type: "build", concept: "adv_having_two",
+        q: "가장 비싼 물건이 100엽전 넘고, 가장 싼 물건은 20엽전 밑인 가게 번호를 보여 줘",
+        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP BY", "shop_id", "HAVING", "MAX(price) > 100", "AND", "MIN(price) < 20"],
+        extra: ["OR", "MIN(price) > 20"],
+        tables: ["items"],
+        hints: [
+          "가게로 묶은 뒤, 가장 비싼 값과 가장 싼 값 두 조건에 모두 맞는 가게를 남겨요.",
+          "HAVING 뒤에 MAX(price) > 100, AND, MIN(price) < 20을 놓아요.",
+        ],
+        explain: "산삼 약방(3번)과 바람 보따리(6번)예요. 비싼 물건과 싼 물건을 함께 파네요. OR면 8곳이 모두 나와요.",
+      },
+      {
+        type: "check", concept: "adv_having_two",
+        q: "HAVING에 조건 둘을 쓰는 것에 대해 맞는 말은?",
+        options: [
+          "AND·OR로 셈 조건을 잇고, 섞을 때는 괄호로 묶으며, 행 조건은 WHERE에 둔다",
+          "HAVING에는 조건을 하나만 쓸 수 있다",
+          "HAVING에 쓴 셈은 반드시 SELECT에도 있어야 한다",
+        ],
+        answer: 0,
+        explain: "HAVING도 WHERE처럼 AND·OR·괄호를 써요. 다만 묶음을 거르니 셈으로 거르고, 행 하나의 값은 묶기 전 WHERE에서 걸러요.",
+      },
+    ],
+  },
+  {
+    id: "8-A3", chapter: 8, isAdvanced: true, title: "가게별 성적표",
+    goal: "묶음마다 셈 여럿을 내고 줄 세우고 걸러 성적표를 만든다",
+    summary: [
+      "의뢰: 가게마다 성적표",
+      "묶음마다 셈 여럿, 줄 세우기는 둘째 기준까지",
+      "값의 폭 = MAX - MIN, HAVING엔 다시 적기",
+    ],
+    cards: [
+      {
+        say: "8장에서 묶음마다 셈하고 줄 세웠죠? 오늘은 의뢰예요! 방망이 대장간 쇠돌 님이 「가게마다 성적표를 만들어 주게. 물건 값이 비싼 가게부터」래요. 가게마다 물건 수, 평균 값, 가장 싼 값과 비싼 값이에요.",
+        sql: "SELECT shop_id, COUNT(*) AS n,\n  AVG(price) AS avg_price,\n  MIN(price) AS low,\n  MAX(price) AS high\nFROM items\nGROUP BY shop_id\nORDER BY avg_price DESC, shop_id",
+      },
+      {
+        say: "「값의 폭」 칸도 원하셨어요. 모은 값끼리 빼면 돼요: 가장 비싼 값 − 가장 싼 값. 폭이 50엽전 넘는 가게만 남기려면 HAVING에 그 셈을 다시 적어요. 별칭 gap은 HAVING에 쓰지 않아요(8-4).",
+        sql: "SELECT shop_id,\n  MAX(price) - MIN(price) AS gap\nFROM items\nGROUP BY shop_id\nHAVING MAX(price) - MIN(price) > 50",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "성적표 SQL 결과에서 방망이 대장간(7번)의 avg_price는?",
+        code: "SELECT shop_id, COUNT(*) AS n,\n  AVG(price) AS avg_price\nFROM items\nGROUP BY shop_id",
+        options: ["266", "1330", "400"],
+        answer: 0,
+        explain: "7번 가게 물건 값 합 1330을 5가지로 나눠 266엽전이에요. 1330은 합, 400은 가장 비싼 금방망이예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "성적표를 ORDER BY avg_price DESC 하나로만 세우면?",
+        options: [
+          "지금은 평균이 모두 달라 괜찮지만, 같은 평균이 생기면 그 가게들의 차례가 정해지지 않는다",
+          "오류가 난다",
+          "평균이 같은 가게는 하나만 나온다",
+        ],
+        answer: 0,
+        explain: "묶음을 세울 때도 둘째 기준이 있어야 차례가 늘 같아요(8-3). 그래서 shop_id를 붙였어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "뚝딱 공방(8번 가게)의 값의 폭, 이 SQL의 결과 값은?",
+        code: "SELECT MAX(price) - MIN(price)\n  AS gap\nFROM items\nWHERE shop_id = 8",
+        options: ["220", "350", "130"],
+        answer: 0,
+        explain: "가장 비싼 장승 350에서 가장 싼 빨래방망이 130을 빼 220엽전이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "HAVING gap > 50이라고 별칭으로 쓰지 않고 셈을 다시 적는 까닭은?",
+        options: [
+          "HAVING에서 별칭을 못 알아듣는 데이터베이스도 있어서",
+          "별칭은 ORDER BY에서만 만들 수 있어서",
+          "셈을 다시 적으면 결과가 더 정확해져서",
+        ],
+        answer: 0,
+        explain: "8-4와 같아요. 이 장터는 받아 주지만 오류를 내는 데이터베이스가 있어 셈을 다시 적어요. ORDER BY에서는 별칭을 써도 돼요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "평균 값이 40엽전 넘는 가게만 남긴 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT shop_id,\n  AVG(price) AS avg_price\nFROM items\nGROUP BY shop_id\nHAVING AVG(price) > 40",
+        options: ["4행", "2행", "8행"],
+        answer: 0,
+        explain: "3번 41.8, 6번 46.4, 7번 266, 8번 220엽전, 4행이에요. 공방 둘만이 아니라 산삼·갓이 있는 가게도 넘었어요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "성적표에서 값의 폭이 가장 작은 가게는?",
+        options: ["여우골 떡방(2번)", "도깨비 국밥집(1번)", "방망이 대장간(7번)"],
+        answer: 0,
+        explain: "여우골 떡방은 5엽전부터 9엽전까지라 폭이 4엽전이에요. 국밥집은 17, 대장간은 250엽전이에요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_8",
+        q: "성적표가 평균 값 비싼 가게부터 나오게 빈자리를 채워 보세요.",
+        code: "SELECT shop_id,\n  AVG(price) AS avg_price\nFROM items\nGROUP BY shop_id\nORDER BY avg_price ___,\n  shop_id",
+        chips: ["DESC", "ASC", "MAX"],
+        answer: 0,
+        explain: "큰 값부터는 DESC예요. 7번 266이 맨 위, 2번 7이 맨 아래예요. ASC면 거꾸로, MAX는 그 자리에 올 수 없어 단서가 나와요.",
+      },
+      {
+        type: "order", concept: "adv_apply_8",
+        q: "가게마다 값의 폭을 큰 차례로 보게 줄을 놓아 보세요.",
+        lines: ["SELECT shop_id,", "MAX(price) - MIN(price) AS gap", "FROM items", "GROUP BY shop_id", "ORDER BY gap DESC, shop_id"],
+        explain: "셈한 열에 이름을 붙이고, 그 이름으로 큰 차례로 세워요. 7번 250, 8번 220, 3번 108 … 2번 4예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_8",
+        q: "평균 값이 20엽전 밑인 가게를 고른 결과는?",
+        options: [
+          { sql: "SELECT shop_id,\n  AVG(price) AS avg_price\nFROM items\nGROUP BY shop_id\nHAVING AVG(price) < 20" },
+          { sql: "SELECT shop_id,\n  AVG(price) AS avg_price\nFROM items\nGROUP BY shop_id\nHAVING MAX(price) < 20" },
+          { sql: "SELECT shop_id,\n  AVG(price) AS avg_price\nFROM items\nWHERE price < 20\nGROUP BY shop_id" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "1번 12.8, 2번 7, 5번 19인 3행이 정답이에요. MAX로 거르면 2번만, WHERE로 거르면 싼 물건만 남긴 평균이라 뜻이 달라요.",
+      },
+      {
+        id: "8-A3-b1", type: "build", concept: "adv_apply_8",
+        q: "가게마다 평균 값을 avg_price라는 이름으로 내서, 비싼 가게부터 보여 줘",
+        cards: ["SELECT", "shop_id,", "AVG(price) AS avg_price", "FROM", "items", "GROUP BY", "shop_id", "ORDER BY", "avg_price DESC,", "shop_id"],
+        extra: ["avg_price,", "SUM(price) AS avg_price"],
+        tables: ["items"],
+        hints: [
+          "가게로 묶어 평균을 낸 다음, 그 평균이 큰 차례로 세우고 가게 번호를 둘째 기준으로 붙여요.",
+          "ORDER BY 뒤에 avg_price DESC, 와 shop_id를 놓아요.",
+        ],
+        explain: "7번 266, 8번 220, 6번 46.4 … 2번 7엽전이에요. DESC가 없으면 거꾸로, SUM이면 평균이 아니라 합이에요.",
+      },
+      {
+        id: "8-A3-b2", type: "build", concept: "adv_apply_8",
+        q: "가게마다 값의 폭을 gap이라는 이름으로 내서, 폭이 100엽전 넘는 가게만 보여 줘",
+        cards: ["SELECT", "shop_id,", "MAX(price) - MIN(price) AS gap", "FROM", "items", "GROUP BY", "shop_id", "HAVING", "MAX(price) - MIN(price) > 100"],
+        extra: ["MAX(price) - MIN(price) > 200", "WHERE"],
+        tables: ["items"],
+        hints: [
+          "가게로 묶어 가장 비싼 값에서 가장 싼 값을 빼고, 그 폭으로 묶음을 걸러요.",
+          "HAVING 뒤에 같은 셈을 다시 적은 카드를 놓아요.",
+        ],
+        explain: "3번 108, 7번 250, 8번 220엽전이에요. 200을 넘는 건 공방 둘뿐이고, WHERE로는 셈을 거를 수 없어요.",
+      },
+      {
+        type: "check", concept: "adv_apply_8",
+        q: "쇠돌 님의 성적표 SQL에 대해 맞는 말은?",
+        options: [
+          "묶음마다 셈을 여럿 내고, 셈한 값으로 줄 세우고, HAVING에는 셈을 다시 적어 거른다",
+          "묶음마다 셈은 하나만 낼 수 있다",
+          "HAVING에는 SELECT의 별칭을 쓰는 것이 모든 데이터베이스에서 안전하다",
+        ],
+        answer: 0,
+        explain: "물건 수·평균·가장 싼 값·비싼 값·폭까지 한 행에 냈어요. 줄 세울 때는 둘째 기준, 거를 때는 셈을 다시 적기!",
+      },
+    ],
+  },
+];

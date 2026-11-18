@@ -787,3 +787,457 @@ export const TEMPLATES = [
     explain: "실수(REAL)로 바꿔야 소수까지 나와요. 이 장터에서는 정수끼리 나누면 소수점 아래를 버려요.",
   },
 ];
+
+// ---- 9장 심화 (v0.4, 쓰기 안내 13절 · 디딤돌 docs/specs/2026-11-18-심화-7-12장-디딤돌.md §2 9장) ----
+// - 쓸 수 있는 것: 1~9장 낱말(9장 심화 전용 낱말 없음). 조립은 본 과정 9장과 같다(R38, CASE 갈래 카드, GROUP BY 한 장).
+//   SUM(CASE …)는 여는 카드 "SUM(CASE", 갈래 카드 "WHEN … THEN 1", 닫는 카드 "ELSE 0 END)"로 나눈다. 레슨마다 build 2개.
+// - 9-A1 CASE로 조건 세기: 100엽전 이상 12·20엽전 밑 16, 재고 10개 밑 7·재고 모름 3·재고 50개 이상 5·10개 이하 8,
+//   취소 49/591, 60살 이상 10, 여우 12. COUNT(CASE WHEN price >= 100 THEN 1 END) 12, COUNT(CASE … ELSE 0 END) 40(0도 셈).
+//   참·거짓을 바로 더하는 SQLite만의 모양(SUM(price >= 100))은 가르치지 않는다(설계 §3).
+// - 9-A2 CASE로 만든 갈래로 묶기: 비싼 12·싼 28, 싼 16·보통 12·비싼 12(9-2와 같음), qty 2개 이상 '여럿' 498·'하나' 743,
+//   재고 모름 3·앎 37, 재고 10개 밑 '부족' 7·'넉넉' 33(빈칸 3이 넉넉에 섞임), <= 10이면 8·32.
+//   나이 40 이상 31·밑 29(모르는 5명이 '마흔 밑'에 섞임) → IS NULL 갈래를 먼저 두면 31·24·5. ELSE 없는 CASE로 묶으면 NULL 묶음 28.
+//   GROUP BY에는 별칭 대신 CASE 식을 다시 적는다: 이 장터(SQLite)·PostgreSQL·MySQL은 GROUP BY 별칭을 받지만 SQL Server 등은 받지 않아
+//   「이 장터에서는 … 못 알아듣는 데이터베이스도 있어요」(R36, 8-4 HAVING과 같은 까닭).
+//   조립은 SELECT 쪽 CASE를 "CASE WHEN 조건" + "THEN 값 ELSE 값" + "END AS 별칭,"으로, GROUP BY 쪽을 "CASE WHEN 조건" + "THEN 값 ELSE 값 END"로
+//   나눠 정답 카드 10장이 된다(디딤돌 §2 9-A2). GROUP BY 쪽 값 카드는 헷갈림 짝을 만들지 않는다(값이 바뀌어도 묶음 나눔이 같음).
+// - 9-A3 의뢰(주제 바꿈, 디딤돌 §4): 여우골 떡방(shops 2번) 금순. 사연은 꾸민 이야기.
+//   가게마다 재고 10개 밑 1번 0·2번 1·3번 3·4번 0·5번 1·6번 0·7번 0·8번 2(<= 10이면 4번이 1, 도라지 10개), 5개 밑 3번 2·5번 1·8번 2.
+//   재고 모름 1·5·8번 각 1. 30엽전 이상 0·0·2·1·1·3·5·5. 100엽전 이상 6번 1(갓). WHERE stock < 10 GROUP BY shop_id는 4행(2·3·5·8번).
+//   부족 2가지 이상 3·8번, 1가지 이상 2·3·5·8번. A3는 A1을 했다고 기대하지 않아 SUM(CASE …)를 카드 1에서 다시 보인다.
+export const ADVANCED = [
+  {
+    id: "9-A1", chapter: 9, isAdvanced: true, title: "CASE로 조건 세기",
+    goal: "CASE로 1·0을 매겨 더해 조건에 맞는 행을 센다",
+    summary: [
+      "맞으면 1, 아니면 0을 매겨 더해요",
+      "조건 여럿을 한 줄에 나란히 세요",
+      "COUNT로 셀 땐 ELSE 없이 THEN 1",
+    ],
+    cards: [
+      {
+        say: "9장에서 CASE로 행마다 값을 골랐죠? 오늘은 한 걸음 더, 그 값을 더해요. 조건에 맞으면 1, 아니면 0을 매겨 SUM하면 맞는 행 수예요. WHERE와 달리 조건 여럿을 한 줄에! 100엽전 이상 12가지, 20엽전 밑 16가지예요.",
+        sql: "SELECT SUM(CASE WHEN price >= 100\n  THEN 1 ELSE 0 END) AS expensive,\n  SUM(CASE WHEN price < 20\n  THEN 1 ELSE 0 END) AS cheap\nFROM items",
+      },
+      {
+        say: "COUNT로도 셀 수 있어요. ELSE를 빼면 안 맞는 행은 NULL이라 COUNT가 세지 않아 12예요. 그런데 ELSE 0을 붙이면 0도 값이라 40가지를 다 세요! COUNT엔 ELSE 없이, SUM엔 ELSE 0.",
+        sql: "SELECT\n  COUNT(CASE WHEN price >= 100\n    THEN 1 END) AS no_else,\n  COUNT(CASE WHEN price >= 100\n    THEN 1 ELSE 0 END) AS with_else\nFROM items",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "SUM(CASE WHEN price >= 100 THEN 1 ELSE 0 END)는 무엇을 낼까요?",
+        options: ["100엽전 이상인 물건 수", "100엽전 이상인 물건 값의 합", "물건 전체 수"],
+        answer: 0,
+        explain: "맞는 행은 1, 아닌 행은 0이니 더하면 맞는 행의 수예요. 값의 합을 내려면 THEN 뒤에 1이 아니라 price를 써야 해요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "이 SQL의 결과 값은 무엇일까요?",
+        code: "SELECT SUM(CASE WHEN stock < 10\n  THEN 1 ELSE 0 END) AS low\nFROM items",
+        options: ["7", "40", "3"],
+        answer: 0,
+        explain: "재고가 10개 밑인 산삼·짚신 같은 7가지가 1이에요. 40은 물건 전체, 3은 재고를 모르는 물건 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "60살 이상 손님 수, 이 SQL의 결과 값은?",
+        code: "SELECT SUM(CASE WHEN age >= 60\n  THEN 1 ELSE 0 END) AS old\nFROM customers",
+        options: ["10", "60", "55"],
+        answer: 0,
+        explain: "60살 이상인 10명만 1이에요. 60은 손님 전체, 55는 나이를 아는 손님 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "재고를 모르는 물건 3가지는 SUM(CASE WHEN stock < 10 THEN 1 ELSE 0 END)에서 어떻게 될까요?",
+        options: [
+          "빈칸과의 비교는 참이 아니라 ELSE 0으로 가서 세지 않는다",
+          "1로 세어진다",
+          "합 전체가 NULL이 된다",
+        ],
+        answer: 0,
+        explain: "9-2처럼 NULL < 10은 참이 아니에요. 그래서 0이 매겨져요. 모르는 재고를 따로 세려면 WHEN stock IS NULL 갈래로 세요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "ELSE 0을 붙여 COUNT로 센 이 SQL의 결과 값은?",
+        code: "SELECT COUNT(CASE WHEN price >= 100\n  THEN 1 ELSE 0 END) AS n\nFROM items",
+        options: ["40", "12", "28"],
+        answer: 0,
+        explain: "COUNT는 값이 있는 칸을 세요. 0도 값이라 물건 40가지가 모두 세어져요. COUNT로 세려면 ELSE를 빼서 안 맞는 행을 NULL로 둬요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "COUNT(CASE WHEN price >= 100 THEN 1 END)가 12인 까닭은?",
+        options: [
+          "ELSE가 없어 안 맞는 행은 NULL이고, COUNT는 NULL을 세지 않아서",
+          "COUNT가 1인 칸만 골라 세서",
+          "CASE가 안 맞는 행을 결과에서 지워서",
+        ],
+        answer: 0,
+        explain: "9-1에서 ELSE가 없으면 NULL이었죠? 7장 COUNT(열)은 빈칸을 건너뛰니 맞는 12행만 세어져요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "WHERE price >= 100으로 센 COUNT(*)와 견주어 SUM(CASE …)로 세면 좋은 점은?",
+        options: [
+          "여러 조건의 수를 한 행에 나란히 낼 수 있다",
+          "빈칸을 0으로 바꿔 준다",
+          "행을 결과에서 지워 더 짧아진다",
+        ],
+        answer: 0,
+        explain: "WHERE는 한 번에 한 조건으로 행을 거르지만, CASE는 행을 지우지 않아 비싼 것·싼 것을 한 줄에 함께 셀 수 있어요.",
+      },
+      {
+        type: "blank", concept: "adv_case_count",
+        q: "취소된 주문 수가 나오게 빈자리를 채워 보세요.",
+        code: "SELECT SUM(CASE WHEN status = '취소'\n  THEN ___ ELSE 0 END) AS cancelled\nFROM orders",
+        chips: ["1", "0", "status"],
+        answer: 0,
+        explain: "취소인 주문에 1을 매겨 더하면 49예요. 0이면 모두 0이라 합도 0이고, status를 넣으면 글자를 더하려다 엉뚱한 값(이 장터에서는 0)이 나와요.",
+      },
+      {
+        type: "order", concept: "adv_case_count",
+        q: "여우 손님 수를 CASE로 세게 줄을 놓아 보세요.",
+        lines: ["SELECT SUM(CASE", "WHEN kind = '여우' THEN 1", "ELSE 0 END) AS fox", "FROM customers"],
+        expect: "fox\n12",
+        explain: "여우 손님만 1, 나머지는 0이라 합이 12예요. SUM(CASE로 열고, 갈래를 놓고, ELSE 0 END)로 닫아요.",
+      },
+      {
+        type: "choice", concept: "adv_case_count",
+        q: "재고 10개 밑인 물건 수와 50개 이상인 물건 수를 한 줄로 센 결과는?",
+        options: [
+          { sql: "SELECT SUM(CASE WHEN stock < 10\n  THEN 1 ELSE 0 END) AS low,\n  SUM(CASE WHEN stock >= 50\n  THEN 1 ELSE 0 END) AS many\nFROM items" },
+          { sql: "SELECT SUM(CASE WHEN stock <= 10\n  THEN 1 ELSE 0 END) AS low,\n  SUM(CASE WHEN stock >= 50\n  THEN 1 ELSE 0 END) AS many\nFROM items" },
+          { sql: "SELECT COUNT(CASE WHEN stock < 10\n  THEN 1 ELSE 0 END) AS low,\n  COUNT(CASE WHEN stock >= 50\n  THEN 1 ELSE 0 END) AS many\nFROM items" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "low 7, many 5인 표예요. <= 10이면 재고가 딱 10인 도라지까지 8, ELSE 0을 붙인 COUNT는 둘 다 40이에요.",
+      },
+      {
+        id: "9-A1-b1", type: "build", concept: "adv_case_count",
+        q: "100엽전 이상인 물건이 몇 가지인지 CASE로 세어 expensive라는 이름으로 보여 줘",
+        cards: ["SELECT", "SUM(CASE", "WHEN price >= 100 THEN 1", "ELSE 0 END)", "AS expensive", "FROM", "items"],
+        extra: ["ELSE 1 END)", "COUNT(CASE"],
+        tables: ["items"],
+        hints: [
+          "100엽전 이상이면 1, 아니면 0을 매겨 모두 더해요.",
+          "SUM(CASE로 열고 WHEN … THEN 1, ELSE 0 END)로 닫아요.",
+        ],
+        explain: "12가지예요. ELSE 1이면 모든 물건이 1이라 40, COUNT(CASE로 바꾸면 0도 세어 40이에요.",
+      },
+      {
+        id: "9-A1-b2", type: "build", concept: "adv_case_count",
+        q: "주문 전체 수 n과 취소된 주문 수 cancelled를 한 줄로 보여 줘",
+        cards: ["SELECT", "COUNT(*) AS n,", "SUM(CASE", "WHEN status = '취소' THEN 1", "ELSE 0 END)", "AS cancelled", "FROM", "orders"],
+        extra: ["WHEN status = '완료' THEN 1", "COUNT(CASE"],
+        tables: ["orders"],
+        hints: [
+          "전체는 행을 세고, 취소는 1·0을 매겨 더해 한 행에 나란히 놓아요.",
+          "COUNT(*) AS n, 다음에 SUM(CASE … END)를 놓아요.",
+        ],
+        explain: "591건 중 49건이 취소예요. WHERE로 거르면 전체 수를 함께 볼 수 없었죠? '완료'면 542, COUNT(CASE면 591이에요.",
+      },
+      {
+        type: "check", concept: "adv_case_count",
+        q: "CASE로 조건 세기에 대해 맞는 말은?",
+        options: [
+          "맞는 행에 1, 아닌 행에 0을 매겨 SUM하면 맞는 행 수가 되고, 조건 여럿을 한 줄에 셀 수 있다",
+          "COUNT(CASE … ELSE 0 END)도 맞는 행만 센다",
+          "CASE로 세면 조건에 안 맞는 행이 결과에서 빠진다",
+        ],
+        answer: 0,
+        explain: "행을 지우지 않고 1·0만 매겨 더하는 게 요점이에요. COUNT로 셀 때는 ELSE를 빼서 안 맞는 행을 NULL로 둬요.",
+      },
+    ],
+  },
+  {
+    id: "9-A2", chapter: 9, isAdvanced: true, title: "CASE 갈래로 묶기",
+    goal: "CASE가 만든 갈래로 GROUP BY해 갈래마다 센다",
+    summary: [
+      "GROUP BY 뒤에 같은 CASE 식을 다시 적어요",
+      "갈래 이름이 같은 행끼리 한 묶음",
+      "빈칸은 ELSE 갈래로! IS NULL 갈래 먼저",
+    ],
+    cards: [
+      {
+        say: "9장에서 CASE로 '비싼'·'싼'을 붙였죠? 오늘은 그 갈래로 묶어요. GROUP BY 뒤에 같은 CASE 식을 다시 적어요. 이 장터에서는 별칭 band로도 묶이지만, 못 알아듣는 데이터베이스도 있어요(8-4 HAVING처럼).",
+        sql: "SELECT CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END AS band,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END",
+      },
+      {
+        say: "빈칸 조심! 나이 모르는 5명은 age >= 40이 참이 아니라 ELSE로 가서 '마흔 밑' 29명에 섞였어요. 9-2처럼 WHEN age IS NULL THEN '모름'을 맨 위 갈래로 두면 31·24·5로 나뉘어요.",
+        sql: "SELECT CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑'\n  END AS band, COUNT(*) AS n\nFROM customers\nGROUP BY CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑' END",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "GROUP BY CASE … END는 어떤 행끼리 한 묶음으로 모을까요?",
+        options: [
+          "CASE가 행마다 고른 값(갈래)이 같은 행끼리",
+          "CASE 안 price 값이 같은 행끼리",
+          "WHEN 조건이 몇 개인지에 따라",
+        ],
+        answer: 0,
+        explain: "CASE가 행마다 '비싼'이나 '싼'을 고르고, 그 값이 같은 행끼리 묶여요. 값 40가지가 갈래 둘로 모여요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "카드 1의 SQL처럼 값으로 '비싼'·'싼'을 나눠 묶으면 결과는 몇 행일까요?",
+        code: "SELECT CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END AS band,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END",
+        options: ["2행", "40행", "12행"],
+        answer: 0,
+        explain: "갈래가 '비싼'·'싼' 둘이라 2행이에요. 40은 물건 수, 12는 '비싼' 묶음의 n이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "9장 대표 문제의 세 갈래로 묶었어요. 이 SQL 결과에서 '보통' 묶음의 n은?",
+        code: "SELECT CASE\n  WHEN price >= 100 THEN '비싼'\n  WHEN price >= 20 THEN '보통'\n  ELSE '싼' END AS band,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE\n  WHEN price >= 100 THEN '비싼'\n  WHEN price >= 20 THEN '보통'\n  ELSE '싼' END",
+        options: ["12", "24", "16"],
+        answer: 0,
+        explain: "20엽전 이상 24가지 중 12가지는 위 갈래에서 '비싼'이라 '보통'은 12예요. 16은 '싼' 묶음이에요. 9-2에서 센 그 수가 한 번에 나왔어요!",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "GROUP BY 뒤에 별칭 band 대신 CASE 식을 다시 적는 까닭은?",
+        options: [
+          "이 장터는 받아 주지만 GROUP BY에서 별칭을 못 알아듣는 데이터베이스도 있어서",
+          "CASE는 SELECT에 쓸 수 없어서",
+          "식을 다시 적어야 갈래가 둘로 나뉘어서",
+        ],
+        answer: 0,
+        explain: "데이터베이스마다 달라요. 식을 다시 적으면 어디서나 돌아요. 8-4에서 HAVING에 셈을 다시 적은 것과 같은 까닭이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "카드 2의 SQL에서 '마흔 밑' 묶음의 n은?",
+        code: "SELECT CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑'\n  END AS band, COUNT(*) AS n\nFROM customers\nGROUP BY CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑' END",
+        options: ["29", "24", "5"],
+        answer: 0,
+        explain: "진짜 마흔 밑 24명에 나이 모르는 5명이 ELSE로 와서 29명이에요. 모르는 나이가 「마흔 밑」으로 잘못 세어졌어요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "나이 모르는 손님을 '모름' 묶음으로 따로 세려면?",
+        options: [
+          "WHEN age IS NULL THEN '모름'을 맨 위 갈래로 둔다",
+          "ELSE를 지운다",
+          "GROUP BY에서 CASE를 뺀다",
+        ],
+        answer: 0,
+        explain: "빈칸을 먼저 걸러야 다음 갈래로 안 넘어가요(9-2). ELSE를 지우면 마흔 밑과 모르는 손님이 함께 NULL 묶음이 돼요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "ELSE 없이 CASE WHEN price >= 100 THEN '비싼' END로 묶으면 100엽전 밑 물건은?",
+        options: ["NULL 한 묶음으로 모인다", "결과에서 빠진다", "오류가 난다"],
+        answer: 0,
+        explain: "ELSE가 없으면 그 행의 갈래는 NULL이고, 8장에서 봤듯 빈칸끼리는 한 묶음이에요. NULL 28, 비싼 12, 2행이에요.",
+      },
+      {
+        type: "blank", concept: "adv_group_case",
+        q: "재고를 아는 물건과 모르는 물건을 갈래로 묶어 세게 빈자리를 채워 보세요.",
+        code: "SELECT CASE WHEN stock IS NULL\n  THEN '모름' ELSE '앎' END AS known,\n  COUNT(*) AS n\nFROM items\nGROUP BY ___ WHEN stock IS NULL\n  THEN '모름' ELSE '앎' END",
+        chips: ["CASE", "WHERE", "ORDER BY"],
+        answer: 0,
+        explain: "GROUP BY 뒤에도 CASE부터 다시 적어요. 모름 3, 앎 37이에요. WHERE나 ORDER BY는 그 자리에 올 수 없어 단서가 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "재고가 10개 밑이면 '부족', 아니면 '넉넉'으로 나눠 갈래마다 센 결과는?",
+        options: [
+          { sql: "SELECT CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END" },
+          { sql: "SELECT CASE WHEN stock <= 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN stock <= 10\n  THEN '부족' ELSE '넉넉' END" },
+          { sql: "SELECT CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "부족 7, 넉넉 33인 표예요. 넉넉에는 재고 모르는 3가지가 섞였어요. <= 10이면 8·32, 묶지 않으면 한 행에 40이에요.",
+      },
+      {
+        type: "choice", concept: "adv_group_case",
+        q: "GROUP BY CASE를 쓴 결과의 행 수와 같은 것은?",
+        options: [
+          "CASE가 실제로 낸 서로 다른 값의 수",
+          "WHEN을 쓴 수",
+          "표 전체의 행 수",
+        ],
+        answer: 0,
+        explain: "8장처럼 묶음 하나가 한 행이에요. 어느 행도 고르지 않은 갈래는 묶음이 없고, ELSE가 없으면 NULL 묶음이 생길 수 있어요.",
+      },
+      {
+        id: "9-A2-b1", type: "build", concept: "adv_group_case",
+        q: "값이 100엽전 이상이면 '비싼', 아니면 '싼'으로 나눠 갈래마다 몇 가지인지 band, n으로 보여 줘",
+        cards: ["SELECT", "CASE WHEN price >= 100", "THEN '비싼' ELSE '싼'", "END AS band,", "COUNT(*) AS n", "FROM", "items", "GROUP BY", "CASE WHEN price >= 100", "THEN '비싼' ELSE '싼' END"],
+        extra: ["CASE WHEN price >= 10", "END AS band"],
+        tables: ["items"],
+        hints: [
+          "SELECT에서 만든 갈래와 똑같은 CASE 식으로 묶어요.",
+          "GROUP BY 뒤에 CASE WHEN price >= 100 카드와 THEN … END 카드를 놓아요.",
+        ],
+        explain: "비싼 12, 싼 28이에요. GROUP BY에도 같은 식을 적어야 갈래가 맞아요. 10엽전으로 나누면 다른 갈래가 돼요.",
+      },
+      {
+        id: "9-A2-b2", type: "build", concept: "adv_group_case",
+        q: "주문 내역을 한 번에 2개 이상이면 '여럿', 아니면 '하나'로 나눠 갈래마다 몇 줄인지 bundle, n으로 보여 줘",
+        cards: ["SELECT", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나'", "END AS bundle,", "COUNT(*) AS n", "FROM", "order_items", "GROUP BY", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나' END"],
+        extra: ["CASE WHEN qty >= 3", "SUM(qty) AS n"],
+        tables: ["order_items"],
+        hints: [
+          "수량으로 갈래를 만들고, 같은 CASE 식으로 묶어 줄 수를 세요.",
+          "GROUP BY 뒤에 CASE WHEN qty >= 2와 THEN … END 카드를 놓아요.",
+        ],
+        explain: "여럿 498줄, 하나 743줄이에요. 3개 이상으로 나누면 다른 갈래, SUM(qty)면 줄 수가 아니라 수량 합이에요.",
+      },
+      {
+        type: "check", concept: "adv_group_case",
+        q: "CASE 갈래로 묶기에 대해 맞는 말은?",
+        options: [
+          "GROUP BY에 같은 CASE 식을 다시 적고, 빈칸은 IS NULL 갈래를 먼저 둔다",
+          "GROUP BY에는 CASE를 쓸 수 없다",
+          "빈칸은 CASE 갈래에서 저절로 빠진다",
+        ],
+        answer: 0,
+        explain: "갈래도 값이라 묶을 수 있어요. 빈칸은 ELSE로 흘러가 엉뚱한 갈래에 섞이니, 모르는 값은 먼저 따로 갈래를 만들어요.",
+      },
+    ],
+  },
+  {
+    id: "9-A3", chapter: 9, isAdvanced: true, title: "가게별 재고 안내판",
+    goal: "가게마다 CASE로 조건을 세어 0인 가게까지 안내판을 만든다",
+    summary: [
+      "의뢰: 가게마다 재고 부족 물건 수",
+      "GROUP BY + SUM(CASE …)면 0도 보여요",
+      "모르는 재고는 ELSE 0으로 가요",
+    ],
+    cards: [
+      {
+        say: "9장에서 CASE로 '부족'을 붙였죠? 오늘은 의뢰예요! 여우골 떡방 금순 님이 「가게마다 재고가 모자란 물건이 몇 가지인지, 없는 가게는 0으로 안내판을 만들어 주게」래요. 부족이면 1, 아니면 0을 매겨 가게마다 더해요. 아래는 5개 밑!",
+        sql: "SELECT shop_id,\n  SUM(CASE WHEN stock < 5\n    THEN 1 ELSE 0 END) AS low\nFROM items\nGROUP BY shop_id",
+      },
+      {
+        say: "WHERE로 거른 뒤 세면 부족한 물건이 없는 가게는 행이 아예 안 나와요. CASE로 세야 0도 보이죠. 그런데 조심! 재고 모르는 물건은 비교가 참이 아니라 ELSE 0으로 가요. 모름은 갈래를 하나 더 둬 따로 세요.",
+        sql: "SELECT shop_id,\n  SUM(CASE WHEN stock IS NULL\n    THEN 1 ELSE 0 END) AS unknown\nFROM items\nGROUP BY shop_id",
+      },
+    ],
+    items: [
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "산삼 약방(3번 가게)에서, 이 SQL의 결과 값은?",
+        code: "SELECT SUM(CASE WHEN stock < 10\n  THEN 1 ELSE 0 END) AS low\nFROM items\nWHERE shop_id = 3",
+        options: ["3", "5", "2"],
+        answer: 0,
+        explain: "산삼 2, 인삼차 4, 오미자청 6개, 세 가지가 10개 밑이에요. 5는 3번 가게 물건 수, 2는 5개 밑인 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "WHERE stock < 10으로 거른 뒤 가게마다 센 이 SQL의 결과는 몇 행일까요?",
+        code: "SELECT shop_id, COUNT(*) AS low\nFROM items\nWHERE stock < 10\nGROUP BY shop_id",
+        options: ["4행", "8행", "7행"],
+        answer: 0,
+        explain: "부족한 물건이 있는 2·3·5·8번만 묶음이 돼서 4행이에요. 0인 가게는 걸러진 뒤라 행이 없어요. 7은 부족한 물건 수예요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "안내판에 0인 가게까지 보이려면 SUM(CASE …)로 세야 하는 까닭은?",
+        options: [
+          "행을 거르지 않고 0을 매겨 더해서, 부족한 물건이 없는 가게도 묶음으로 남아서",
+          "SUM이 COUNT보다 빨라서",
+          "CASE가 없는 가게를 새로 만들어 줘서",
+        ],
+        answer: 0,
+        explain: "WHERE는 묶기 전에 행을 지워 그 가게 묶음이 사라져요. CASE는 모든 행을 남기고 1·0만 매기니 가게 8곳이 다 나와요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "안내판에서 도깨비 국밥집(1번)이 0인 것에 대해 맞는 말은?",
+        options: [
+          "메밀전은 재고를 몰라 ELSE 0으로 갔을 뿐, 부족하지 않다고 확인한 것은 아니다",
+          "1번 가게 물건은 모두 재고가 10개 이상이다",
+          "1번 가게에는 물건이 없다",
+        ],
+        answer: 0,
+        explain: "국밥·수육·도토리묵·막걸리는 10개 이상이지만 메밀전은 몰라요. 그래서 카드 2처럼 모름을 따로 세어 함께 붙이면 좋아요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "바람 보따리(6번 가게)에서 100엽전 이상 물건 수, 이 SQL의 결과 값은?",
+        code: "SELECT SUM(CASE WHEN price >= 100\n  THEN 1 ELSE 0 END) AS pricey\nFROM items\nWHERE shop_id = 6",
+        options: ["1", "5", "0"],
+        answer: 0,
+        explain: "110엽전인 갓 하나만 1이에요. 5는 6번 가게 물건 수예요.",
+      },
+      {
+        type: "blank", concept: "adv_apply_9",
+        q: "가게마다 재고 5개 밑 물건 수가, 없으면 0으로 나오게 빈자리를 채워 보세요.",
+        code: "SELECT shop_id,\n  SUM(CASE WHEN stock < 5\n    THEN 1 ___ 0 END) AS low\nFROM items\nGROUP BY shop_id",
+        chips: ["ELSE", "THEN", "WHEN"],
+        answer: 0,
+        explain: "안 맞는 행에 0을 매기는 건 ELSE예요. 3번 2, 5번 1, 8번 2, 나머지는 0이에요. THEN·WHEN을 놓으면 단서가 나와요.",
+      },
+      {
+        type: "order", concept: "adv_apply_9",
+        q: "가게마다 30엽전 이상 물건 수를, 없으면 0으로 보게 줄을 놓아 보세요.",
+        lines: ["SELECT shop_id,", "SUM(CASE WHEN price >= 30", "THEN 1 ELSE 0 END) AS pricey", "FROM items", "GROUP BY shop_id"],
+        explain: "1·2번 가게는 0, 공방 7·8번은 5가지 모두예요. 묶는 열 shop_id와 CASE를 더한 셈을 SELECT에 놓아요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "가게마다 재고 모르는 물건 수를 0까지 보인 결과는?",
+        options: [
+          { sql: "SELECT shop_id,\n  SUM(CASE WHEN stock IS NULL\n    THEN 1 ELSE 0 END) AS unknown\nFROM items\nGROUP BY shop_id" },
+          { sql: "SELECT shop_id,\n  COUNT(*) AS unknown\nFROM items\nWHERE stock IS NULL\nGROUP BY shop_id" },
+          { sql: "SELECT shop_id,\n  SUM(CASE WHEN stock = NULL\n    THEN 1 ELSE 0 END) AS unknown\nFROM items\nGROUP BY shop_id" },
+        ],
+        answer: 0, tables: ["items"],
+        explain: "가게 8곳이 다 나오고 1·5·8번이 1인 표예요. WHERE로 거르면 3행뿐, = NULL은 늘 참이 아니라 모두 0이에요.",
+      },
+      {
+        type: "choice", concept: "adv_apply_9",
+        q: "재고 부족 물건이 하나라도 있는 가게만 안내판에 남기려면?",
+        options: [
+          "GROUP BY 뒤 HAVING에 SUM(CASE …) >= 1을 둔다",
+          "WHERE에 SUM(CASE …) >= 1을 둔다",
+          "SELECT의 SUM(CASE …)를 지운다",
+        ],
+        answer: 0,
+        explain: "묶은 뒤 셈으로 거르니 8장 HAVING이에요. WHERE에는 모아 세기를 못 써요. 그러면 2·3·5·8번이 남아요.",
+      },
+      {
+        id: "9-A3-b1", type: "build", concept: "adv_apply_9",
+        q: "가게마다 재고가 10개 밑인 물건 수를, 없는 가게는 0으로 low_stock이라는 이름으로 보여 줘",
+        cards: ["SELECT", "shop_id,", "SUM(CASE", "WHEN stock < 10 THEN 1", "ELSE 0 END)", "AS low_stock", "FROM", "items", "GROUP BY", "shop_id"],
+        extra: ["WHEN stock <= 10 THEN 1", "COUNT(CASE"],
+        tables: ["items"],
+        hints: [
+          "가게로 묶고, 10개 밑이면 1 아니면 0을 매겨 더해요.",
+          "SUM(CASE, WHEN stock < 10 THEN 1, ELSE 0 END) 카드를 써요.",
+        ],
+        explain: "2번 1, 3번 3, 5번 1, 8번 2, 나머지 0이에요. <= 10이면 도라지(10개)까지 걸려 4번이 1, COUNT(CASE면 모두 5예요.",
+      },
+      {
+        id: "9-A3-b2", type: "build", concept: "adv_apply_9",
+        q: "재고가 10개 밑인 물건이 2가지 이상인 가게 번호를 보여 줘",
+        cards: ["SELECT", "shop_id", "FROM", "items", "GROUP BY", "shop_id", "HAVING", "SUM(CASE", "WHEN stock < 10 THEN 1", "ELSE 0 END) >= 2"],
+        extra: ["ELSE 0 END) >= 1", "WHERE"],
+        tables: ["items"],
+        hints: [
+          "가게로 묶은 뒤, 10개 밑인 물건 수가 2 이상인 묶음만 남겨요.",
+          "HAVING 뒤에 SUM(CASE … END) >= 2가 되게 카드를 놓아요.",
+        ],
+        explain: "산삼 약방(3번)과 뚝딱 공방(8번)이에요. >= 1이면 2·5번도 들어와요. 셈으로 거르니 WHERE가 아니라 HAVING!",
+      },
+      {
+        type: "check", concept: "adv_apply_9",
+        q: "금순 님의 안내판 SQL에 대해 맞는 말은?",
+        options: [
+          "가게로 묶고 SUM(CASE …)로 세면 0인 가게도 남고, 모르는 재고는 따로 세야 한다",
+          "WHERE stock < 10 GROUP BY로 세도 0인 가게가 보인다",
+          "재고 모르는 물건은 SUM(CASE WHEN stock < 10 …)에서 1로 세어진다",
+        ],
+        answer: 0,
+        explain: "행을 지우지 않고 1·0을 매겨 더해 0까지 보였어요. 다만 빈칸은 ELSE 0으로 가니, 모름은 IS NULL 갈래로 따로 붙여요.",
+      },
+    ],
+  },
+];
