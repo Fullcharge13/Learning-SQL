@@ -852,7 +852,7 @@ export const ADVANCED = [
         options: [
           "빈칸이 0이 되면 나누는 수(셈에 드는 칸 수)가 늘어서",
           "COALESCE가 장부의 재고 칸을 0으로 고쳐 적어서",
-          "COALESCE 안에서는 AVG가 소수를 버려서",
+          "AVG에 COALESCE를 넣으면 소수를 버려서",
         ],
         answer: 0,
         explain: "더하는 값은 0이라 그대로지만, 0도 값이라 나누는 수가 하나 늘어 평균이 작아져요. 장부의 빈칸은 그대로 남아 있어요.",
@@ -904,9 +904,9 @@ export const ADVANCED = [
         type: "choice", concept: "adv_agg_coalesce",
         q: "뚝딱 공방(8번 가게)의 평균 재고를, 모르는 재고는 0으로 쳐서 보인 결과는?",
         options: [
-          { sql: "SELECT AVG(COALESCE(stock, 0))\n  AS avg_stock\nFROM items\nWHERE shop_id = 8" },
-          { sql: "SELECT AVG(stock) AS avg_stock\nFROM items\nWHERE shop_id = 8" },
-          { sql: "SELECT SUM(COALESCE(stock, 0))\n  AS avg_stock\nFROM items\nWHERE shop_id = 8" },
+          { sql: "SELECT AVG(COALESCE(stock, 0))\n  AS stock_shown\nFROM items\nWHERE shop_id = 8" },
+          { sql: "SELECT AVG(stock) AS stock_shown\nFROM items\nWHERE shop_id = 8" },
+          { sql: "SELECT SUM(COALESCE(stock, 0))\n  AS stock_shown\nFROM items\nWHERE shop_id = 8" },
         ],
         answer: 0, tables: ["items"],
         explain: "장승을 0개로 쳐서 82 ÷ 5 = 16.4인 표예요. COALESCE가 없으면 넷으로 나눠 20.5, SUM이면 합 82예요.",
@@ -1025,7 +1025,7 @@ export const ADVANCED = [
           "SUM과 COUNT는 한 SELECT에 함께 쓸 수 없어서",
         ],
         answer: 0,
-        explain: "나눗셈은 데이터베이스마다 달라요. 평균은 AVG가 어디서나 내 줘요. 직접 소수까지 나누는 법(CAST)은 9장에서 배워요.",
+        explain: "나눗셈은 데이터베이스마다 달라요. 이 장터에서는 AVG가 소수까지 내 줘요(정수 열의 AVG도 소수를 버리는 데이터베이스가 있어요). 직접 소수까지 나누는 법(CAST)은 9장에서 배워요.",
       },
       {
         type: "choice", concept: "adv_agg_arith",
@@ -1036,7 +1036,7 @@ export const ADVANCED = [
           "AVG가 나이 많은 손님을 두 번 세서",
         ],
         answer: 0,
-        explain: "AVG는 나이를 아는 55명으로 나눠요. 손으로 나눌 때 같은 뜻이 되려면 COUNT(age)로 나눠야 해요.",
+        explain: "AVG는 나이를 아는 55명으로 나눠요. 손으로 나눌 때 같은 뜻이 되려면 COUNT(age)로 나눠야 해요(이 장터에서는 그래도 정수 나눗셈이라 42).",
       },
       {
         type: "blank", concept: "adv_agg_arith",
@@ -1094,7 +1094,7 @@ export const ADVANCED = [
           "모든 행 수에서, 재고 칸에 값이 있는 행 수를 빼요.",
           "COUNT(*)와 COUNT(stock) 사이에 - 카드를 놓아요.",
         ],
-        explain: "3가지예요(메밀전·한지·장승). SUM(stock)을 놓으면 재고 합 967이 끼어들고, +면 77이 돼요.",
+        explain: "3가지예요(메밀전·한지·장승). SUM(stock)을 놓으면 재고 합이 섞여 −927이나 930 같은 엉뚱한 수가 되고, +면 77이 돼요.",
       },
       {
         type: "check", concept: "adv_agg_arith",
@@ -1169,7 +1169,7 @@ export const ADVANCED = [
         code: "SELECT AVG(qty) AS avg_qty\nFROM order_items",
         options: ["1.5165", "1", "3"],
         answer: 0,
-        explain: "AVG는 소수까지 내서 한 줄에 평균 1.5165개예요. 1은 손으로 나눈 값, 3은 한 줄에 가장 많이 담은 수량(MAX)이에요.",
+        explain: "이 장터에서는 AVG가 소수까지 내서 한 줄에 평균 1.5165개예요. 1은 손으로 나눈 값, 3은 한 줄에 가장 많이 담은 수량(MAX)이에요.",
       },
       {
         type: "choice", concept: "adv_apply_7",

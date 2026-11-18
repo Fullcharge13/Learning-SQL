@@ -801,6 +801,8 @@ export const TEMPLATES = [
 //   「이 장터에서는 … 못 알아듣는 데이터베이스도 있어요」(R36, 8-4 HAVING과 같은 까닭).
 //   조립은 SELECT 쪽 CASE를 "CASE WHEN 조건" + "THEN 값 ELSE 값" + "END AS 별칭,"으로, GROUP BY 쪽을 "CASE WHEN 조건" + "THEN 값 ELSE 값 END"로
 //   나눠 정답 카드 10장이 된다(디딤돌 §2 9-A2). GROUP BY 쪽 값 카드는 헷갈림 짝을 만들지 않는다(값이 바뀌어도 묶음 나눔이 같음).
+//   헷갈림 조건 카드는 묶음 안에서 값이 하나로 정해지는 것만 쓴다(price >= 1000: 모두 '싼', qty >= 1: 모두 '여럿'). SELECT·GROUP BY의
+//   CASE가 다르면 묶지 않은 식이 되어 묶음 안 아무 행의 값을 보이므로(7~9장 내용 검토, 점검기가 rev·pragma로 잡음).
 // - 9-A3 의뢰(주제 바꿈, 디딤돌 §4): 여우골 떡방(shops 2번) 금순. 사연은 꾸민 이야기.
 //   가게마다 재고 10개 밑 1번 0·2번 1·3번 3·4번 0·5번 1·6번 0·7번 0·8번 2(<= 10이면 4번이 1, 도라지 10개), 5개 밑 3번 2·5번 1·8번 2.
 //   재고 모름 1·5·8번 각 1. 30엽전 이상 0·0·2·1·1·3·5·5. 100엽전 이상 6번 1(갓). WHERE stock < 10 GROUP BY shop_id는 4행(2·3·5·8번).
@@ -895,7 +897,7 @@ export const ADVANCED = [
         code: "SELECT SUM(CASE WHEN status = '취소'\n  THEN ___ ELSE 0 END) AS cancelled\nFROM orders",
         chips: ["1", "0", "status"],
         answer: 0,
-        explain: "취소인 주문에 1을 매겨 더하면 49예요. 0이면 모두 0이라 합도 0이고, status를 넣으면 글자를 더하려다 엉뚱한 값(이 장터에서는 0)이 나와요.",
+        explain: "취소인 주문에 1을 매겨 더하면 49예요. 0이면 모두 0이라 합도 0이고, status를 넣으면 이 장터에서는 글자를 0으로 쳐서 0이 나오고, 오류를 내는 데이터베이스도 있어요.",
       },
       {
         type: "order", concept: "adv_case_count",
@@ -966,7 +968,7 @@ export const ADVANCED = [
         sql: "SELECT CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END AS band,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN price >= 100\n  THEN '비싼' ELSE '싼' END",
       },
       {
-        say: "빈칸 조심! 나이 모르는 5명은 age >= 40이 참이 아니라 ELSE로 가서 '마흔 밑' 29명에 섞였어요. 9-2처럼 WHEN age IS NULL THEN '모름'을 맨 위 갈래로 두면 31·24·5로 나뉘어요.",
+        say: "빈칸 조심! 나이 모르는 5명은 마흔 이상이 참이 아니라 ELSE로 가서 '마흔 밑' 29명에 섞였어요. 9-2처럼 IS NULL 갈래 '모름'을 맨 위에 두면 31·24·5로 나뉘어요.",
         sql: "SELECT CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑'\n  END AS band, COUNT(*) AS n\nFROM customers\nGROUP BY CASE WHEN age >= 40\n  THEN '마흔 이상' ELSE '마흔 밑' END",
       },
     ],
@@ -1049,16 +1051,16 @@ export const ADVANCED = [
         options: [
           { sql: "SELECT CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END" },
           { sql: "SELECT CASE WHEN stock <= 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN stock <= 10\n  THEN '부족' ELSE '넉넉' END" },
-          { sql: "SELECT CASE WHEN stock < 10\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items" },
+          { sql: "SELECT CASE WHEN stock < 5\n  THEN '부족' ELSE '넉넉' END AS s,\n  COUNT(*) AS n\nFROM items\nGROUP BY CASE WHEN stock < 5\n  THEN '부족' ELSE '넉넉' END" },
         ],
         answer: 0, tables: ["items"],
-        explain: "부족 7, 넉넉 33인 표예요. 넉넉에는 재고 모르는 3가지가 섞였어요. <= 10이면 8·32, 묶지 않으면 한 행에 40이에요.",
+        explain: "부족 7, 넉넉 33인 표예요. 넉넉에는 재고 모르는 3가지가 섞였어요. <= 10이면 8·32, 5개 밑이면 5·35예요.",
       },
       {
         type: "choice", concept: "adv_group_case",
         q: "GROUP BY CASE를 쓴 결과의 행 수와 같은 것은?",
         options: [
-          "CASE가 실제로 낸 서로 다른 값의 수",
+          "CASE가 실제로 낸 서로 다른 갈래의 수(빈칸 갈래 포함)",
           "WHEN을 쓴 수",
           "표 전체의 행 수",
         ],
@@ -1069,25 +1071,25 @@ export const ADVANCED = [
         id: "9-A2-b1", type: "build", concept: "adv_group_case",
         q: "값이 100엽전 이상이면 '비싼', 아니면 '싼'으로 나눠 갈래마다 몇 가지인지 band, n으로 보여 줘",
         cards: ["SELECT", "CASE WHEN price >= 100", "THEN '비싼' ELSE '싼'", "END AS band,", "COUNT(*) AS n", "FROM", "items", "GROUP BY", "CASE WHEN price >= 100", "THEN '비싼' ELSE '싼' END"],
-        extra: ["CASE WHEN price >= 10", "END AS band"],
+        extra: ["CASE WHEN price >= 1000", "END AS band"],
         tables: ["items"],
         hints: [
           "SELECT에서 만든 갈래와 똑같은 CASE 식으로 묶어요.",
           "GROUP BY 뒤에 CASE WHEN price >= 100 카드와 THEN … END 카드를 놓아요.",
         ],
-        explain: "비싼 12, 싼 28이에요. GROUP BY에도 같은 식을 적어야 갈래가 맞아요. 10엽전으로 나누면 다른 갈래가 돼요.",
+        explain: "비싼 12, 싼 28이에요. GROUP BY에도 같은 식을 적어야 갈래가 맞아요. 1000엽전 이상인 물건은 없어서 그 식을 놓으면 모두 '싼'이 돼요.",
       },
       {
         id: "9-A2-b2", type: "build", concept: "adv_group_case",
         q: "주문 내역을 한 번에 2개 이상이면 '여럿', 아니면 '하나'로 나눠 갈래마다 몇 줄인지 bundle, n으로 보여 줘",
         cards: ["SELECT", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나'", "END AS bundle,", "COUNT(*) AS n", "FROM", "order_items", "GROUP BY", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나' END"],
-        extra: ["CASE WHEN qty >= 3", "SUM(qty) AS n"],
+        extra: ["CASE WHEN qty >= 1", "SUM(qty) AS n"],
         tables: ["order_items"],
         hints: [
           "수량으로 갈래를 만들고, 같은 CASE 식으로 묶어 줄 수를 세요.",
           "GROUP BY 뒤에 CASE WHEN qty >= 2와 THEN … END 카드를 놓아요.",
         ],
-        explain: "여럿 498줄, 하나 743줄이에요. 3개 이상으로 나누면 다른 갈래, SUM(qty)면 줄 수가 아니라 수량 합이에요.",
+        explain: "여럿 498줄, 하나 743줄이에요. 1개 이상으로 나누면 모든 줄이 '여럿'이 되고, SUM(qty)면 줄 수가 아니라 수량 합이에요.",
       },
       {
         type: "check", concept: "adv_group_case",
@@ -1116,7 +1118,7 @@ export const ADVANCED = [
         sql: "SELECT shop_id,\n  SUM(CASE WHEN stock < 5\n    THEN 1 ELSE 0 END) AS low\nFROM items\nGROUP BY shop_id",
       },
       {
-        say: "WHERE로 거른 뒤 세면 부족한 물건이 없는 가게는 행이 아예 안 나와요. CASE로 세야 0도 보이죠. 그런데 조심! 재고 모르는 물건은 비교가 참이 아니라 ELSE 0으로 가요. 모름은 갈래를 하나 더 둬 따로 세요.",
+        say: "WHERE로 거른 뒤 세면 부족한 물건이 없는 가게는 행이 아예 안 나와요. CASE로 세야 0도 보이죠. 그런데 조심! 재고 모르는 물건은 비교가 참이 아니라 ELSE 0으로 가요. 모름은 셈 열을 하나 더 놓아 따로 세요.",
         sql: "SELECT shop_id,\n  SUM(CASE WHEN stock IS NULL\n    THEN 1 ELSE 0 END) AS unknown\nFROM items\nGROUP BY shop_id",
       },
     ],

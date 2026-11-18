@@ -857,7 +857,18 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
       if (got.timeout && timeoutIsWrong) return;
       if (got.timeout) { add(w, rule, `${what} 실행이 시간 초과(${TIMEOUT_MS}ms) — 학습자 화면에서 「너무 오래 걸려요」: ${sql}`); return; }
       const j = judgeBuild(it, got, exp, used2);
-      if (j.ok) add(w, rule, `${what} 정답(${brief(got)}): ${sql}`);
+      if (j.ok) { add(w, rule, `${what} 정답(${brief(got)}): ${sql}`); return; }
+      // v0.4: main에서 오답이어도 저장 순서(rev)·훑는 순서(pragma)가 바뀌면 정답이 되는 변형은 기기·판에 따라 갈린다
+      // (묶지 않은 열이 묶음 안 아무 행의 값을 보이는 경우, ORDER BY 없는 차례 등). 헷갈림은 레슨이 설명한 까닭으로 늘 틀려야 한다
+      if (got.error) return;
+      for (const db of ["rev", "pragma"]) {
+        const e2 = run(answer, { db }), g2 = run(sql, { db });
+        if (e2.error || g2.error || g2.timeout) continue;
+        if (judgeBuild(it, g2, e2, used2).ok) {
+          add(w, rule, `${what} ${db} 데이터베이스에서는 정답 — 저장·훑는 순서에 기댄 오답(묶지 않은 열 등): ${sql}`);
+          return;
+        }
+      }
     }
   }
 

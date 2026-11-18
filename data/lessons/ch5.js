@@ -1137,7 +1137,7 @@ export const ADVANCED = [
         id: "5-A3-b1", type: "build", concept: "adv_apply_5",
         q: "나무쇠 님 의뢰: 물건값 가운데 네 번째로 싼 값을 알려 줘",
         cards: ["SELECT", "DISTINCT", "price", "FROM", "items", "ORDER BY", "price", "LIMIT 1", "OFFSET 3"],
-        extra: ["OFFSET 4", "name"],
+        extra: ["OFFSET 4", "LIMIT 2"],
         tables: ["items"],
         hints: [
           "같은 값은 한 번만 세도록 겹침을 없애고, 싼 것부터 세운 뒤 앞의 값 세 개를 건너뛰어요.",

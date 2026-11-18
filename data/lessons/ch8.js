@@ -883,7 +883,7 @@ export const ADVANCED = [
         code: "SELECT kind, village,\n  COUNT(*) AS n\nFROM customers\nWHERE age IS NULL\nGROUP BY kind, ___",
         chips: ["village", "n", "age"],
         answer: 0,
-        explain: "SELECT에 놓은 두 열로 묶어야 해요. 사람 느티나무골 2명 같은 4묶음이 나와요. n은 셈이라 묶을 수 없고, age면 마을이 섞여요.",
+        explain: "SELECT에 놓은 두 열로 묶어야 해요. 사람 느티나무골 2명 같은 4묶음이 나와요. n은 셈이라 묶을 수 없고, age로 묶으면 village가 묶이지 않은 열이 되어 많은 데이터베이스에서 오류예요.",
       },
       {
         type: "order", concept: "adv_group_two",
@@ -986,7 +986,7 @@ export const ADVANCED = [
       },
       {
         type: "choice", concept: "adv_having_two",
-        q: "가게 중 가장 싼 물건이 100엽전 이상이거나, 가장 비싼 물건이 10엽전 밑인 곳은 몇 곳?",
+        q: "가장 싼 물건이 100엽전 이상이거나 가장 비싼 물건이 10엽전 밑인 가게, 이 SQL의 결과는 몇 행일까요?",
         code: "SELECT shop_id\nFROM items\nGROUP BY shop_id\nHAVING MIN(price) >= 100\n  OR MAX(price) < 10",
         options: ["3행", "2행", "8행"],
         answer: 0,

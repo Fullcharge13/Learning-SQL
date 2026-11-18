@@ -553,3 +553,22 @@ test("advanced uses no later-chapter shapes: WITH, FROM (SELECT, OVER ( in chapt
   const ok13 = advMod(places.code(LATE[1][2]));
   assert.deepEqual(checkChapter(ok13, 13, engine, { concepts: advConcepts }).filter((i) => i.rule === "grammar" && /FROM \(SELECT/.test(i.msg)), []);
 });
+
+// ---- v0.4 작업 3 뒤 검토: 헷갈림 변형이 저장 순서(rev)·훑는 순서(pragma)에 따라 정답이 되면 잡는다 ----
+// SELECT의 CASE와 GROUP BY의 CASE가 다르면 SQLite는 묶음 안 아무 행의 값을 보인다. main에서 오답이어도 rev·pragma에서 정답이면
+// 학습자 기기에 따라 「틀린 카드로 맞음」이 될 수 있어 swap-extra·drop-one으로 알린다.
+test("build variants are judged on rev and pragma databases too (bare column inside a group)", () => {
+  const b = { type: "build", id: "adv-bare-build", concept: "select", q: "수량 갈래마다 몇 줄인지 보여 줘",
+    cards: ["SELECT", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나'", "END AS bundle,", "COUNT(*) AS n", "FROM", "order_items",
+      "GROUP BY", "CASE WHEN qty >= 2", "THEN '여럿' ELSE '하나' END"],
+    extra: ["CASE WHEN qty >= 3", "SUM(qty) AS n"], tables: ["order_items"],
+    hints: ["수량으로 갈래를 만들어 묶어요.", "GROUP BY에 같은 CASE를 적어요."], explain: "갈래마다 줄 수예요." };
+  const mod = advMod((m) => { const l = m.ADVANCED[0]; const k = l.items.findIndex((it) => it.type === "build"); l.items[k] = b; });
+  const hit = checkChapter(mod, 9, engine, { concepts: advConcepts })
+    .filter((i) => i.where.includes("adv-bare-build") && i.rule === "swap-extra" && /qty >= 3/.test(i.msg));
+  assert.ok(hit.length && hit.some((i) => /rev|pragma/.test(i.msg)), show(hit));
+  // 묶음 안에서 값이 하나로 정해지는 헷갈림(CASE WHEN qty >= 1: 모든 줄이 '여럿')은 괜찮음
+  const fixed = advMod((m) => { const l = m.ADVANCED[0]; const k = l.items.findIndex((it) => it.type === "build"); l.items[k] = { ...b, extra: ["CASE WHEN qty >= 1", "SUM(qty) AS n"] }; });
+  const none = checkChapter(fixed, 9, engine, { concepts: advConcepts }).filter((i) => i.where.includes("adv-bare-build") && /swap-extra|drop-one/.test(i.rule));
+  assert.deepEqual(none, [], show(none));
+});
