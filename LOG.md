@@ -132,6 +132,8 @@ img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'
 | (사소) style 속성 검사가 `src/`만, `setAttribute("style")`은 안 봄 | `data/`까지, `setAttribute("style")`도 검사 | build_test `test_csp_meta` — 일부러 넣은 파일로 실패 확인 뒤 지움 |
 | (사소) 위 XSS 점검 글이 「`cleanStall`이 숫자·표 id만 남김」이라 했으나 주문·장부 기록은 글자도 옮김 | 일지 문구를 사실대로 고침(안전은 그릴 때 `esc`가 맡음, 변이 시험으로 확인) | — |
 
+검토 뒤 다시 돌린 결과: `npm test` 712 통과 · content 문제점 0 · engine 5/5 · build_test 34 통과 · `flow.py` 55 통과, 실패 0, 건너뜀 0 (588초) · 엽전 중앙값 40.8 · 가게 14/14 · 의뢰 15/15 · README 어긋남 0 · pytest 15.
+
 검토가 판정한 것: 칸 편집기 새는 문제 고침은 진짜이고 맞음. `test_stall_day` 고침은 제품 회귀가 아니라 시험 측정 타이밍(창이 0.22초 동안 올라오는데 120ms 뒤에 잼). `'wasm-unsafe-eval'`은 해가 없어 둠(다만 사파리 16 이전은 이 낱말을 몰라 「옛 사파리용」이라는 까닭은 약함).
 
 ### 남은 문제
