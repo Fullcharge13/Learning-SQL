@@ -32,7 +32,7 @@ test("이름표: 저장 칸 dueogi-sql.theme, 색은 밝게 #FBF6EA·어둡게 #
   assert.equal(THEME_COLOR.dark, "#141C2B");
 });
 
-test.skip("THEME_COLOR.dark = style.css 어둡게 --paper (작업 3)", () => {
+test("THEME_COLOR.dark = style.css 어둡게 --paper (작업 3)", () => {
   const css = fs.readFileSync(new URL("../../src/style.css", import.meta.url), "utf8");
   const dark = css.match(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
   assert.ok(dark, "style.css에 :root[data-theme=\"dark\"] 이름표 묶음");

@@ -197,7 +197,7 @@ export function stallSVG(stall, { ids = null, stocks = null } = {}) {
     const st = stockOf(id);
     const noPrice = priceOf(id) === null;
     return `<g class="box${st <= 0 ? " empty" : ""}" data-item="${id}">
-      <rect x="${x}" y="${y}" width="${bw}" height="${BOX_H}" rx="6" fill="#FFFDF8" stroke="#22304A" stroke-width="2"/>
+      <rect class="box-bg" x="${x}" y="${y}" width="${bw}" height="${BOX_H}" rx="6" fill="#FFFDF8" stroke="#22304A" stroke-width="2"/>
       <text x="${x + bw / 2}" y="${y + 18}" text-anchor="middle" class="box-name">${esc(itemName(id))}</text>
       <text x="${x + bw / 2}" y="${y + 36}" text-anchor="middle" class="box-stock" data-stock="${id}">${st <= 0 ? "다 팔림" : `${st}개`}</text>
       ${noPrice ? `<text x="${x + bw - 5}" y="${y + 12}" text-anchor="end" class="box-tag">값?</text>` : ""}
@@ -217,7 +217,7 @@ export function stallSVG(stall, { ids = null, stocks = null } = {}) {
     <path d="M18 ${BOX_Y0 + BOX_H + BOX_GAP / 2} H266" stroke="#B9824B" stroke-width="2"/>
     ${stripes}
     <rect x="4" y="6" width="${VW - 8}" height="10" rx="4" fill="#22304A"/>
-    <rect x="150" y="18" width="60" height="18" rx="4" fill="#FFFDF8" stroke="#22304A" stroke-width="1.5"/>
+    <rect class="sign-bg" x="150" y="18" width="60" height="18" rx="4" fill="#FFFDF8" stroke="#22304A" stroke-width="1.5"/>
     <text x="180" y="31" text-anchor="middle" class="sign">두억이네</text>
     ${boxes}
     <rect x="8" y="160" width="${VW - 16}" height="46" rx="4" fill="#A86B3C" stroke="#22304A" stroke-width="2"/>

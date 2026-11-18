@@ -250,11 +250,14 @@ def test_contrast_self_test():
 
 # ---------------------------------------------------------------- 화면 순회
 
+DEVICE = "iPhone 17"   # --device로 바꿈(캡처 폴더는 tests/out/contrast/<theme>-<기기>)
+
+
 class Runner:
     def __init__(self, theme, skip_art=False):
         self.theme = theme
         self.skip_art = skip_art
-        self.dir = os.path.join(OUT, theme)
+        self.dir = os.path.join(OUT, theme if DEVICE == "iPhone 17" else theme + "-" + DEVICE.lower().replace(" ", "-"))
         os.makedirs(self.dir, exist_ok=True)
         self.screens = []     # [{screen, checked, minRatio, fails, excluded, theme_applied}]
         self.errors = []      # 화면을 못 연 오류
@@ -316,7 +319,7 @@ def _app(r, save=None, real=False, dev=False, **kw):
     init = FROZEN_DATE_JS + FIXED_RANDOM_JS + "try{localStorage.setItem(%s,%s)}catch(e){}" % (json.dumps(THEME_KEY), json.dumps(r.theme))
     if dev:
         init += "try{localStorage.setItem('dueogi-sql.dev','1')}catch(e){}"
-    return flow.App("iPhone 17", save=save, url=flow.real_url() if real else None, init_js=init, **kw)
+    return flow.App(DEVICE, save=save, url=flow.real_url() if real else None, init_js=init, **kw)
 
 
 def _seed(**extra):
@@ -632,7 +635,8 @@ def summarize(r, theme, secs, skip_art=False):
         for k, v in s["excluded"].items():
             ex[k] = ex.get(k, 0) + v
     return {"theme": theme, "skip_art_text": ART_TEXT if skip_art else [], "seconds": round(secs, 1),
-            "screens": [{k: s[k] for k in ("screen", "checked", "minRatio", "theme_applied")} | {"fails": len(s["fails"])} for s in r.screens],
+            "screens": [{k: s[k] for k in ("screen", "checked", "minRatio", "theme_applied")}
+                        | {"fails": len(s["fails"]), "artText": s["excluded"].get("artText", 0)} for s in r.screens],
             "checked": sum(s["checked"] for s in r.screens), "fail_count": len(fails),
             "fail_elements": sum(f["count"] for f in fails), "excluded": ex, "info": info, "errors": r.errors, "failures": fails,
             "digests": {s["screen"]: s["digest"] for s in r.screens}}
@@ -665,7 +669,10 @@ def main(argv=None):
     ap.add_argument("--skip-art-text", action="store_true", help="그림 속 장식 글자(ART_TEXT)를 뺌")
     ap.add_argument("--compare", metavar="BASELINE.json", help="기준 JSON과 화면별 글자색·바탕색이 하나라도 다르면 종료 코드 1")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--device", default="iPhone 17", help="Playwright 기기 이름(기본 iPhone 17). 밝게 기준은 iPhone 17로만 만듦")
     args = ap.parse_args(argv)
+    global DEVICE
+    DEVICE = args.device
     sys.path.insert(0, HERE)
     if args.self_test:
         res = self_test()
@@ -681,7 +688,8 @@ def main(argv=None):
     print("\n%s: %d screens, %d elements checked, %d failing groups (%d elements), %d scenario errors, %.0fs"
           % (args.theme, len(rep["screens"]), rep["checked"], rep["fail_count"], rep["fail_elements"], len(rep["errors"]), rep["seconds"]))
     if args.skip_art_text:
-        print("excluded art text (ART_TEXT %s): %d elements" % (ART_TEXT, rep["excluded"].get("artText", 0)))
+        print("excluded art text (ART_TEXT %s): %d elements — %s" % (ART_TEXT, rep["excluded"].get("artText", 0),
+              ", ".join("%s %d" % (x["screen"], x["artText"]) for x in rep["screens"] if x["artText"])))
     for e in rep["errors"]:
         print("  ERROR %s: %s" % (e["scenario"], e["error"]))
     for f in sorted(rep["failures"], key=lambda f: f["ratio"])[:40]:
