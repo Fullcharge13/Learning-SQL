@@ -520,3 +520,36 @@ test("blank: a code with a literal '___' pattern besides the blank marker is rep
   const issues = checkChapter(mod, 5, engine, { concepts: good.CONCEPTS });
   assert.ok(issues.some((i) => i.rule === "shape" && /___/.test(i.msg) && /정확히 하나/.test(i.msg)), show(issues));
 });
+
+// ---- v0.4 작업 1: 7~12장 심화는 13장 이후 모양(WITH·FROM (SELECT·OVER ()을 쓰지 않는다(설계 「심화 7~12장」 §2·§5) ----
+// 심는 곳: 문제 code, 설명 카드 sql, 코드 모양 글자 보기(한글 없음), 조립 헷갈림 카드. 장마다(7~12) 모두 grammar로 잡혀야 한다.
+test("advanced uses no later-chapter shapes: WITH, FROM (SELECT, OVER ( in chapter 7-12 advanced", () => {
+  const LATE = [
+    ["WITH", /WITH/, "WITH t AS (SELECT price FROM items) SELECT MAX(price) AS m FROM t"],
+    ["FROM (SELECT", /FROM \(SELECT/, "SELECT MAX(p) AS m FROM (SELECT price AS p FROM items)"],
+    ["OVER (", /OVER/, "SELECT name, RANK() OVER (ORDER BY price) AS rk FROM items"],
+  ];
+  const textOpt = (sql) => ({ q: "어느 SQL이 가장 비싼 값을 보여 줄까요?", options: [sql, "SELECT MIN(price) FROM items", "SELECT COUNT(*) FROM items"], answer: 0 });
+  const places = {
+    code: (sql) => (m) => { m.ADVANCED[0].items.unshift(touch("late-q", sql)); },
+    card: (sql) => (m) => { m.ADVANCED[0].items.unshift(touch("late-q", "SELECT 1 AS r")); m.ADVANCED[0].cards[0].sql = sql; },
+    option: (sql) => (m) => { m.ADVANCED[0].items.unshift(touch("late-q", undefined, textOpt(sql))); delete m.ADVANCED[0].items[0].code; },
+    extra: (sql) => (m) => { m.ADVANCED[0].items.unshift(touch("late-q", "SELECT 1 AS r")); m.ADVANCED[0].items.find((it) => it.type === "build").extra.push(sql); },
+  };
+  const missing = [];
+  for (let ch = 7; ch <= 12; ch++) {
+    for (const [name, re, sql] of LATE) {
+      for (const [place, patch] of Object.entries(places)) {
+        const mod = advMod(patch(sql));
+        const lid = mod.ADVANCED[0].id;
+        const hit = checkChapter(mod, ch, engine, { concepts: advConcepts })
+          .filter((i) => i.rule === "grammar" && i.where.startsWith(lid) && re.test(i.msg));
+        if (!hit.length) missing.push(`${ch}장 심화 ${place}: ${name}`);
+      }
+    }
+  }
+  assert.deepEqual(missing, [], `잡지 못한 뒷장 모양:\n${missing.join("\n")}`);
+  // 13장 심화에서는 FROM (SELECT·WITH가 그 장 낱말이라 괜찮음(OVER는 14장)
+  const ok13 = advMod(places.code(LATE[1][2]));
+  assert.deepEqual(checkChapter(ok13, 13, engine, { concepts: advConcepts }).filter((i) => i.rule === "grammar" && /FROM \(SELECT/.test(i.msg)), []);
+});

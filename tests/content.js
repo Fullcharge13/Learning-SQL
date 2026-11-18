@@ -322,6 +322,16 @@ function* permutations(arr) {
   }
 }
 
+/** 낱말 조각(대문자) 속 괄호 서브쿼리 모양: 「( SELECT」 → "(SELECT"(12장), 「FROM ( SELECT」 → "FROM (SELECT"(13장) */
+function subqueryForms(up) {
+  const found = new Set();
+  for (let i = 0; i + 1 < up.length; i++) {
+    if (up[i] === "(" && up[i + 1] === "SELECT") found.add("(SELECT");
+    if (up[i] === "FROM" && up[i + 1] === "(" && up[i + 2] === "SELECT") found.add("FROM (SELECT");
+  }
+  return found;
+}
+
 // ── 장 하나 점검 ────────────────────────────────────────────────────────
 /**
  * @param mod      장 모듈 { CHAPTER, LESSONS, ADVANCED?, TEMPLATES? } — ADVANCED(심화 N-A1~N-A3)도 본 과정과 같은 규칙으로 본다
@@ -369,14 +379,12 @@ export function checkChapter(mod, chapter, engine, { concepts = DATA_CONCEPTS, s
       const up = tokens.map((t) => t.toUpperCase());
       for (const f of advForms) if (up.includes(f)) advWord(f);
       if (comments.some((c) => c.kind === "--")) advWord("--");
+      // 서브쿼리 모양((SELECT 12장, FROM (SELECT 13장)은 낱말 검사로 잡히지 않아 코드 모양 보기에서도 본다(v0.4, 7~12장 심화)
+      for (const f of subqueryForms(up)) if (FORMS[f] > chapter) late.push(`${f}(${FORMS[f]}장)`);
     }
     if (!prose) {
       const up = tokens.map((t) => t.toUpperCase());
-      const forms = new Set(up.filter((t) => Object.hasOwn(FORMS, t)));
-      for (let i = 0; i + 1 < up.length; i++) {
-        if (up[i] === "(" && up[i + 1] === "SELECT") forms.add("(SELECT");
-        if (up[i] === "FROM" && up[i + 1] === "(" && up[i + 2] === "SELECT") forms.add("FROM (SELECT");
-      }
+      const forms = new Set([...up.filter((t) => Object.hasOwn(FORMS, t)), ...subqueryForms(up)]);
       for (const f of forms) if (FORMS[f] > chapter) late.push(`${f}(${FORMS[f]}장)`);
       for (const f of advForms) if (up.includes(f)) advWord(f);
       // 주석: 줄 주석 --은 1장 심화 전용 모양, 블록 주석 /* */은 가르치지 않음
