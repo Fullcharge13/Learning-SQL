@@ -220,11 +220,13 @@ UNPIN_FIXED_JS = r"""() => { for (const e of document.querySelectorAll('[data-fl
 class App:
     """기기 하나 + 새 저장소의 앱 한 판."""
 
-    def __init__(self, device="iPhone 17", save=None, reduced=False, url=None, block=()):
+    def __init__(self, device="iPhone 17", save=None, reduced=False, url=None, block=(), init_js=None, color_scheme=None):
         e = env()
         opts = device_opts(device)
         if reduced:
             opts["reduced_motion"] = "reduce"
+        if color_scheme:   # v0.3.4: 휴대폰 어두운 모드 흉내(prefers-color-scheme)
+            opts["color_scheme"] = color_scheme
         # sw.js가 옛 빌드를 저장해 두지 않도록 서비스 작업자는 막는다(오프라인은 build_test.py가 시험)
         self.context = e["browser"].new_context(service_workers="block", **opts)
         for pat in block:   # 받기를 막을 주소(예: 실행기 wasm). 작업자 안의 요청도 막히도록 context에 건다
@@ -238,6 +240,8 @@ class App:
             self.page.add_init_script(
                 "if (!sessionStorage.getItem('flow-seeded')) { localStorage.setItem(%s, %s); sessionStorage.setItem('flow-seeded', '1'); }"
                 % (json.dumps(SAVE_KEY), json.dumps(json.dumps(save))))
+        if init_js:   # v0.3.4: 문서보다 먼저 도는 시험용 스크립트(화면 설정 칸·고정 날짜 등, tests/contrast.py)
+            self.page.add_init_script(init_js)
         self.page.goto(url or e["url"])
         self.page.wait_for_selector(".screen.splash #go", timeout=20_000)
 
