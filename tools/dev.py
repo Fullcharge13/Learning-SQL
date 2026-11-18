@@ -24,7 +24,7 @@ DEV = os.path.join(ROOT, "dev")
 ESBUILD = os.path.join(ROOT, "node_modules", ".bin", "esbuild")
 SQLJS_DIST = os.path.join(ROOT, "node_modules", "sql.js", "dist")
 sys.path.insert(0, ROOT)
-from build import THEME_HEAD  # noqa: E402  v0.3.4: 배포판과 같은 머리 화면 설정 스크립트
+from build import put_theme_head  # noqa: E402  v0.3.4: 배포판과 같은 머리 화면 설정 스크립트
 
 
 def build():
@@ -36,7 +36,7 @@ def build():
             check=True, cwd=ROOT)
     with open(os.path.join(SRC, "index.html"), encoding="utf-8") as f:
         html = f.read()
-    html = html.replace("<!-- RIA:THEME -->", THEME_HEAD, 1)
+    html = put_theme_head(html)   # 자리표가 없으면 멈춤(v0.3.4 검토)
     html = html.replace("<!-- RIA:CONFIG -->", "")
     with open(os.path.join(DEV, "index.html"), "w", encoding="utf-8") as f:
         f.write(html)

@@ -4362,7 +4362,7 @@ def test_theme_setting_persists():
 
 def test_theme_dark_csp():
     """v0.3.4: 배포판(엄격한 CSP 메타, 인라인 스크립트 지문 3개)을 「어둡게」로 열어 첫 레슨 1-1 끝까지 + 가게 하루·칸 시험 실행 →
-    CSP 위반 0, 앱 밖 주소 요청 0. 머리 스크립트가 막히면 data-theme가 비므로 첫 화면에서 dark인지도 봄"""
+    CSP 위반 0, 앱 밖 주소 요청 0. 머리 스크립트가 CSP에 막히면 위반으로 잡힘(첫 그림 전 data-theme는 test_theme_no_flash가 봄)"""
     a, w = _csp_app(url=real_url(), init_js=_theme_init("dark"))
     with a:
         assert a.js(THEME_STATE_JS)["theme"] == "dark"

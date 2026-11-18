@@ -202,7 +202,11 @@ def test_theme_head():
     spec.loader.exec_module(b)
     assert b.THEME_HEAD == "<script>" + head + "</script>"
     assert "<!-- RIA:THEME -->" in _read(os.path.join(ROOT, "src", "index.html"))
-    assert "THEME_HEAD" in _read(os.path.join(ROOT, "tools", "dev.py")), "dev page uses the same head script"
+    # 개발판(tools/dev.py --build-only)도 같은 머리 스크립트를 <link rel=stylesheet>보다 먼저 넣음(v0.3.4 검토: 글자 검사 → 실제로 묶어 봄)
+    r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "dev.py"), "--build-only"], cwd=ROOT, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    dev = _read(os.path.join(ROOT, "dev", "index.html"))
+    assert b.THEME_HEAD in dev and dev.index(b.THEME_HEAD) < dev.index('<link rel="stylesheet"'), "dev page lacks the head theme script"
 
 
 def test_csp_build_id_and_hash_rebuild():

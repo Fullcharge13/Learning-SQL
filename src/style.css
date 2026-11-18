@@ -812,6 +812,8 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 .stall-svg .box.empty .box-stock { fill: var(--coral-ink); }
 /* v0.3.4: 물건 상자·간판 바탕은 이름표(글자가 얹히는 이름표라 어둡게에서 함께 바뀜). 밝게는 SVG 속성 값과 같은 #FFFDF8 */
 .stall-svg .box-bg, .stall-svg .sign-bg { fill: var(--card); }
+/* 어둡게: 상자·간판 테두리(#22304A)가 어두운 카드 위에서 거의 안 보여 이음선 색으로(v0.3.4 검토). 밝게는 그대로 */
+:root[data-theme="dark"] .stall-svg .box-bg, :root[data-theme="dark"] .stall-svg .sign-bg { stroke: var(--line); }
 .stall-svg .box.empty rect { fill: var(--paper-2); }
 .stall-svg .box-tag { font-size: 9px; font-weight: 800; fill: var(--coral-ink); }
 .stall-svg .sign { font-size: 11px; font-weight: 900; }
