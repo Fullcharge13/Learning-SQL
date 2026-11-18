@@ -172,12 +172,15 @@ def test_csp_meta():
     body = re.sub(r"<script>.*?</script>|<style>.*?</style>", "", html, flags=re.S)
     assert not re.search(r"\sstyle\s*=", body), "style attribute in index.html"
     assert not re.search(r"\son[a-z]+\s*=", body), "inline event handler in index.html"
-    for dp, _, fs in os.walk(os.path.join(ROOT, "src")):
-        for f in fs:
-            if f.endswith(".js"):
-                src = _read(os.path.join(dp, f))
-                assert not re.search(r"""\sstyle=["'$]""", src), "style attribute in markup: src/%s" % f
-                assert not re.search(r"""\son(click|error|load|input|change)=""", src), "inline handler in markup: src/%s" % f
+    for top in ("src", "data"):   # data/도: 표·대사 글자가 그대로 화면에 들어감(v0.3.3 검토)
+        for dp, _, fs in os.walk(os.path.join(ROOT, top)):
+            for f in fs:
+                if f.endswith(".js"):
+                    src = _read(os.path.join(dp, f))
+                    rel = os.path.relpath(os.path.join(dp, f), ROOT)
+                    assert not re.search(r"""\sstyle=["'$]""", src), "style attribute in markup: %s" % rel
+                    assert not re.search(r"""setAttribute\(\s*["']style["']""", src), "setAttribute('style') is blocked by CSP: %s" % rel
+                    assert not re.search(r"""\son(click|error|load|input|change)=""", src), "inline handler in markup: %s" % rel
 
 
 def test_csp_build_id_and_hash_rebuild():

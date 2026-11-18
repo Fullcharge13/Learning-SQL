@@ -2,13 +2,12 @@
 //   ctx.show("tutorial")                 새 저장의 「시작하기」 뒤(splash) — 끝나면 저장의 tutorial = "done" | "skipped"
 //   ctx.show("tutorial", { replay: true }) 설정 「사용법 다시 보기」 — 저장은 아무것도 바꾸지 않음
 // - 카드 4: SELECT · * · FROM · shops를 섞은 더미에서 눌러 조립 → 「실행」이 진짜 실행기로 돌려 결과 표(8행) → 「잘했어요!」.
-//   차례가 틀리면 실행기의 오류 설명(grade.explain)과 짧은 안내. 맞지 않은 실행 2번이면 「정답 보기」(카드를 정답 차례로 놓아 줌).
+//   차례가 틀리면 짧은 안내만(실행기 오류 원문은 보이지 않음, v0.3.3 검토). 맞지 않은 실행 2번이면 「정답 보기」(카드를 정답 차례로 놓아 줌).
 //   막지 않는다: 「건너뛰기」는 카드마다, 실행기를 기다리는 동안·못 받았을 때도 「홈으로」.
 // - XP·엽전·레슨 진도·퀘스트·배지는 건드리지 않는다.
 // - 화면 요소에만 눌림 묶음을 단다(#app에 달지 않음). 떠나면 실행기 구독을 떼고(alive), 늦게 끝난 실행은 그리지 않는다.
 import { dueogiSVG } from "../dueogi.js";
 import { SCHEMA } from "../../data/schema.js";
-import { explain } from "../grade.js";
 import { esc, escCode, icon } from "./dom.js";
 import { tableHTML } from "./table.js";
 import { TUT_TEXT, TUT_CARDS, SHOW_ANSWER_AFTER, TUT_HINT, tutorialCheck, tutorialBank } from "../tutorial.js";
@@ -124,12 +123,13 @@ export function render(root, ctx, params = {}) {
       try { ctx.sound.play("correct"); } catch { /* 소리는 없어도 됨 */ }
       const face = root.querySelector(".tut-dueogi");
       if (face) face.innerHTML = dueogiSVG({ outfit: ctx.save.outfit, face: "cheer", size: 84 });
-    } else if (r && (r.error === "load" || r.error === "worker")) {
+    } else if (!r || r.error === "load" || r.error === "worker" || r.error === "timeout" || r.timeout) {
+      // 실행기 탓(멈춤·시간 넘김)은 차례 안내가 아니라 다시 눌러 보라는 말(v0.3.3 검토: 맞는 차례인데 「SELECT로 시작해요」가 뜨던 일)
       outHTML = `<div class="err-panel soft"><p>실행기가 잠깐 멈췄어요. 다시 눌러 보세요.</p></div>`;
     } else {
+      // 차례만 틀림: 처음 보는 오류가 「조회만 할 수 있어요」 같은 엉뚱한 설명이 되지 않게 친절한 안내만(v0.3.3 검토)
       tries++;
-      const why = r && r.error ? `<p class="err-orig mono" lang="en">${esc(r.error)}</p><p>${escCode(explain(r.error, ctx.save.outfit))}</p>` : "";
-      outHTML = `<div class="err-panel soft">${why}<p class="tut-hint">${icon("bulb")}<span>${esc(TUT_HINT.order)}</span></p></div>`;
+      outHTML = `<div class="err-panel soft"><p class="tut-hint">${icon("bulb")}<span>${esc(TUT_HINT.order)}</span></p></div>`;
     }
     paintBuild();
     const box = root.querySelector("#tut-out");

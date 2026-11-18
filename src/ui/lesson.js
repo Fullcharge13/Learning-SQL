@@ -216,7 +216,9 @@ function run(root, ctx, lesson, review, resumed = null, daily = false) {
     progEl.setAttribute("aria-valuenow", String(p));
     progEl.setAttribute("aria-valuemax", "100");
     progEl.setAttribute("aria-valuetext", `${p}%`);
-    progEl.firstElementChild.style.width = p + "%";
+    const fill = progEl.firstElementChild;
+    delete fill.dataset.layPct;   // 그린 직후의 0%를 관찰 콜백이 뒤늦게 덮어쓰지 않게(v0.3.3 검토: 이어서 하기 뒤 0%)
+    fill.style.width = p + "%";
   }
 
   const mark = (index, concept, outcome) => markConcept(S, index, concept, outcome);

@@ -992,6 +992,11 @@ def test_resume_lesson():
         a.page.wait_for_selector("article.item")
         assert a.which_item(items) == on_screen, (done, on_screen)
         assert a.page.inner_text(".lesson-tag") == RESUME_LESSON
+        # 진행 막대: 이어서 연 직후에도 aria-valuenow만큼 차 있어야 함(v0.3.3 검토: 0%로 되돌아가던 회귀)
+        a.page.wait_for_timeout(500)
+        pb = a.page.evaluate("""() => { const b = document.querySelector('.lp-bar');
+            return { now: Number(b.getAttribute('aria-valuenow')), w: b.firstElementChild.style.width }; }""")
+        assert pb["now"] > 0 and pb["w"] == "%d%%" % pb["now"], pb
         # 조립 문제에서 카드 3장을 놓고 새로고침 → 같은 카드가 같은 차례로
         bi = next(x for x in items if x["type"] == "build")
         a.page.wait_for_selector("#bbank button.bcard")
@@ -4002,7 +4007,7 @@ def _progress_of(save):
 
 
 def test_tutorial_flow():
-    """새 저장 → 시작하기 → 카드 4장(인사·작은 표·카드 예·직접 해 보기) → 틀린 차례 두 번(오류 설명 + 안내) → 「정답 보기」 →
+    """새 저장 → 시작하기 → 카드 4장(인사·작은 표·카드 예·직접 해 보기) → 틀린 차례 두 번(안내) → 「정답 보기」 →
     「실행」 → 진짜 결과 표 8행 「잘했어요!」 → 「홈으로」 → tutorial "done", XP·엽전·진도·퀘스트는 그대로. 다시 열면 바로 홈"""
     with App("iPhone 17") as a:
         before = _progress_of(a.js("() => window.__dueogi.ctx.save"))
@@ -4029,14 +4034,15 @@ def test_tutorial_flow():
         _tut_run(a)
         assert "카드 4장을 모두 놓아 봐요" in a.page.inner_text("#tut-out")
         assert a.page.is_hidden("#tut-answer")
-        # 2) 섞인 차례 그대로 4장 → 진짜 실행 오류 + 설명 + 「SELECT로 시작해요」, 이제 「정답 보기」
+        # 2) 섞인 차례 그대로 4장 → 「SELECT로 시작해요」 안내만, 이제 「정답 보기」
         _tut_tap(a, bank[2])
         _tut_tap(a, bank[3])
         assert _tut_line(a) == bank
         _tut_run(a)
         out = a.page.inner_text("#tut-out")
         print("    wrong order %s → %r" % (bank, " ".join(out.split())[:160]))
-        assert "SELECT로 시작해요" in out and a.page.query_selector("#tut-out .err-orig"), out
+        # 첫 오류가 「조회만 할 수 있어요」 같은 엉뚱한 설명이 되지 않게: 차례가 틀린 것뿐이면 친절한 안내만(v0.3.3 검토)
+        assert "SELECT로 시작해요" in out and not a.page.query_selector("#tut-out .err-orig") and "조회만" not in out, out
         assert a.page.is_visible("#tut-answer")
         # 놓은 카드를 누르면 빠짐
         a.page.click("#tut-line button.bcard")

@@ -139,6 +139,8 @@ export function applyLayout(root) {
       if (v === undefined || v === "") continue;
       const n = Number(v);
       if (Number.isFinite(n)) e.style[prop] = n + unit;
+      // 한 번 넣었으면 지운다: 그 뒤 코드가 바꾼 값(예: 레슨 진행 막대 setProgress)을 관찰 콜백이 처음 값으로 되돌리지 않게(v0.3.3 검토)
+      delete e.dataset[k];
     }
   }
 }
