@@ -652,6 +652,10 @@ body.kbd-open .lesson-foot.has-dock { padding-bottom: 8px; }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
 .seg button { min-height: 48px; border-radius: 14px; background: var(--card); border: 2px solid var(--line); font-weight: 800; }
 .seg button[aria-checked="true"] { background: var(--teal-ink); color: #fff; border-color: var(--teal-ink); }
+/* v0.3.4 설정 「화면」 줄: 「시스템 따라가기」가 좁은 폰에서 두 줄이 돼도 단추 안에 */
+.theme-set h2 { margin: 0; }
+.theme-set .muted { margin: 0; }
+.seg.theme-seg button { padding: 8px 6px; line-height: 1.25; }
 input[type="text"] { width: 100%; min-height: 48px; font-size: 16px; padding: 10px 14px; border-radius: 14px; border: 2px solid var(--line); background: #fff; margin-top: 6px; }
 input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var(--focus); outline-offset: 1px; }
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

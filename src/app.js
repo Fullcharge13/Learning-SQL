@@ -16,6 +16,7 @@ import { createLessonData, chaptersForConcepts } from "./lessondata.js";
 import { advancedIds } from "./advanced.js";
 import { loadDevChapters } from "./lessondev.js";
 import { createSound } from "./sound.js";
+import { applyTheme, watchSystem } from "./theme.js";
 import { SqlRun } from "./sqlrun.js";
 import MARKET_SQL from "../data/market.sql";   // esbuild가 글자로 묶음(build.py·tools/dev.py: loader .sql=text)
 import { toast, applyLayout } from "./ui/dom.js";
@@ -334,6 +335,9 @@ const ctx = {
 
 async function boot() {
   const root = document.getElementById("app");
+  // v0.3.4 밤의 장터: 머리 스크립트가 이미 정했지만 theme-color까지 한 번 더 맞추고, 「시스템 따라가기」면 휴대폰 설정 변화를 따라감
+  applyTheme();
+  watchSystem();
   app.dev = readDevFlag(storage);
   paintDev();
   const { save, readFailed } = loadSlot(storage, app.dev);

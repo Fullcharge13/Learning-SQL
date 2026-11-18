@@ -158,7 +158,8 @@ def test_csp_meta():
     assert d["default-src"] == ["'self'"], d
     scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
     styles = re.findall(r"<style>(.*?)</style>", html, re.S)
-    assert len(scripts) == 2 and len(styles) == 1, (len(scripts), len(styles))
+    # v0.3.4: 머리 화면 설정(THEME_HEAD)·설정(CONFIG)·앱 — 인라인 스크립트 3개
+    assert len(scripts) == 3 and len(styles) == 1, (len(scripts), len(styles))
     assert not re.search(r"<script\b(?![^>]*\ssrc=)[^>]*\S[^>]*>", html.replace("<script>", "")), "inline script with attributes"
     want_script = ["'self'", "'wasm-unsafe-eval'"] + [_b64sha256(s) for s in scripts]
     assert sorted(d["script-src"]) == sorted(want_script), (d["script-src"], want_script)
@@ -181,6 +182,27 @@ def test_csp_meta():
                     assert not re.search(r"""\sstyle=["'$]""", src), "style attribute in markup: %s" % rel
                     assert not re.search(r"""setAttribute\(\s*["']style["']""", src), "setAttribute('style') is blocked by CSP: %s" % rel
                     assert not re.search(r"""\son(click|error|load|input|change)=""", src), "inline handler in markup: %s" % rel
+
+
+def test_theme_head():
+    """v0.3.4 밤의 장터: 머리 스크립트(build.py THEME_HEAD)가 <style>보다 먼저 data-theme·color-scheme을 정하고(번쩍임 없음),
+    CSP 지문 목록에 들어감. 개발판(tools/dev.py)도 같은 글자를 씀"""
+    _build()
+    html = _read(os.path.join(DIST, "index.html"))
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    head = next((x for x in scripts if "dueogi-sql.theme" in x), None)
+    assert head, "head theme script missing"
+    assert html.index(head) < html.index("<style>"), "theme script must run before the stylesheet"
+    assert html.index(head) < html.index("</head>")
+    assert 'setAttribute("data-theme"' in head and "colorScheme" in head and "theme-color" in head, head
+    _, d = _csp(html)
+    assert _b64sha256(head) in d["script-src"], d["script-src"]
+    spec = importlib.util.spec_from_file_location("dueogi_build", os.path.join(ROOT, "build.py"))
+    b = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b)
+    assert b.THEME_HEAD == "<script>" + head + "</script>"
+    assert "<!-- RIA:THEME -->" in _read(os.path.join(ROOT, "src", "index.html"))
+    assert "THEME_HEAD" in _read(os.path.join(ROOT, "tools", "dev.py")), "dev page uses the same head script"
 
 
 def test_csp_build_id_and_hash_rebuild():

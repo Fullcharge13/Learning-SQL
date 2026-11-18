@@ -318,6 +318,32 @@ def replace_block(html, name, new):
     return html[:i] + new + html[j + len(end):]
 
 
+# v0.3.4 밤의 장터: CSS보다 먼저 <html data-theme>·color-scheme·theme-color를 정함(열 때 밝게 번쩍이지 않게).
+# 규칙은 src/theme.js와 같다(tests/unit/theme.test.js가 이 글자를 꺼내 같은 입력 표로 확인). src/index.html의
+# <!-- RIA:THEME --> 자리에 이 글자가 그대로 들어가고(배포판·tools/dev.py 개발판 모두), CSP 지문 목록에도 들어간다.
+# 속성 없는 <script>여야 한다(content_security_policy가 속성 붙은 인라인 스크립트를 거부). 색 값 #141C2B = 어둡게 --paper
+THEME_HEAD = """<script>
+(function () {
+  var d = false;
+  try {
+    var v = localStorage.getItem("dueogi-sql.theme");
+    d = v === "dark" || (v !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  } catch (e) { try { d = matchMedia("(prefers-color-scheme: dark)").matches; } catch (e2) { d = false; } }
+  var r = d ? "dark" : "light", el = document.documentElement;
+  el.setAttribute("data-theme", r);
+  el.style.colorScheme = r;
+  var m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.setAttribute("content", d ? "#141C2B" : "#FBF6EA");
+})();
+</script>"""
+
+
+def put_theme_head(html):
+    if "<!-- RIA:THEME -->" not in html:
+        raise SystemExit("build: marker THEME not found in src/index.html")
+    return html.replace("<!-- RIA:THEME -->", THEME_HEAD, 1)
+
+
 HEAD_LINKS = """<meta name="mobile-web-app-capable" content="yes">
 <meta name="dueogi-version" content="{version}">{build_meta}
 <link rel="manifest" href="manifest.webmanifest">
@@ -340,7 +366,7 @@ window.DUEOGI_CHAPTER_FILES = {chapter_files};
 
 
 # 콘텐츠 보안 정책(v0.3.3). GitHub Pages는 응답 머리글을 못 바꾸므로 index.html의 <meta>로 건다(head 맨 앞, 어떤 script·style보다 먼저).
-# - script-src: 'self' + 이 빌드의 인라인 <script> 두 개(설정·앱)의 sha256 지문. 'unsafe-inline'·'unsafe-eval' 없음
+# - script-src: 'self' + 이 빌드의 인라인 <script> 세 개(v0.3.4 머리 화면 설정·설정·앱)의 sha256 지문. 'unsafe-inline'·'unsafe-eval' 없음
 #   (sql.js는 작업자 묶음 안에 들어 있어 실행 중 글자를 코드로 바꾸지 않음 — check_worker).
 #   'wasm-unsafe-eval': WebAssembly 컴파일만 허용(JS eval은 아님). 작업자는 자기 응답의 정책을 따르지만, 문서의 정책을
 #   작업자에게도 적용하던 옛 사파리에서도 sql-wasm.wasm이 돌게 둔다.
@@ -390,6 +416,7 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     with open(os.path.join(SRC, "index.html"), encoding="utf-8") as f:
         html = f.read()
 
+    html = put_theme_head(html)
     html = replace_block(html, "STYLE", "<style>" + b["css"].replace("</", "<\\/") + "</style>")
     html = html.replace("</title>\n", "</title>\n" + HEAD_LINKS.format(
         version=version, build_meta=('\n<meta name="dueogi-build" content="%s">' % html_attr(build_id)) if build_id else ""), 1)

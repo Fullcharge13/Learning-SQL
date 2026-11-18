@@ -20,6 +20,7 @@
   기준: 글자 4.5:1, 큰 글씨(24px 이상, 또는 굵기 700 이상이고 19px 이상) 3:1.
 - 같은 화면 목록의 스크린숏을 tests/out/contrast/<theme>/<화면>.png 로 저장한다.
 - `--compare 기준.json`: 보고서의 `digests`(화면별 선택자|글자색|바탕색 전부)를 견줘 다르면 1.
+  기준 뒤에 새로 생긴 부분(NEW_SINCE_BASELINE: v0.3.4 설정 「화면」 묶음)은 대비만 재고 비교 목록에서 뺀다.
 - 종료 코드: `--strict`이고 미달(또는 화면을 못 연 오류)이 있으면 1. 아니면 0.
 - 페이지 시계는 늘 같은 날(2026-11-11 12:00 KST)에서 시작하고(FROZEN_DATE_JS), Math.random·crypto.getRandomValues는 씨앗을 고정한다(FIXED_RANDOM_JS).
   그래서 복습 묶음·보기 순서·가게 씨앗이 판마다 같아 밝게 비교가 결정적이다.
@@ -45,6 +46,9 @@ NEED_TEXT, NEED_LARGE = 4.5, 3.0
 # 그림으로 보는 글자: 배지 그림(src/ui/badges.js badgeArt) 안 <text>. 그림 색은 손대지 않으므로 어둡게 엄격 시험에서 뺀다(목록 보고).
 # 가게 그림(src/ui/stallart.js)의 상자 이름·재고·간판 글자는 이름표라 빼지 않는다(설계서 §2-2 「그림과 글자의 경계」).
 ART_TEXT = [".badge-art > text", ".badge-art text"]
+# 밝게 기준(v0.3.3 코드로 만든 tests/fixtures/contrast-light-baseline.json) 뒤에 새로 생긴 화면 부분. 대비는 재지만 밝게 비교
+# 목록(digests)에는 넣지 않는다(v0.3.3에 없던 줄이라 견줄 기준이 없음): v0.3.4 설정 「화면」 묶음
+NEW_SINCE_BASELINE = [".theme-set"]
 
 CHECK_JS = r"""(opts) => {
   const cv = document.createElement('canvas'); cv.width = cv.height = 1;
@@ -173,7 +177,7 @@ CHECK_JS = r"""(opts) => {
     checked++; if (rt < minRatio) minRatio = rt;
     if (ariaHid) info.ariaHiddenChecked++;
     if (bd.bgimg) info.bgimgChecked++;
-    digest.push(sel(el) + '|' + hex(fg) + '|' + hex(bd.rgb));
+    if (!(opts.digestSkip || []).some(q => el.closest(q))) digest.push(sel(el) + '|' + hex(fg) + '|' + hex(bd.rgb));
     if (rt + 1e-9 >= need) continue;
     const key = sel(el) + '|' + hex(fg) + '|' + hex(bd.rgb);
     if (fails[key]) { fails[key].count++; continue; }
@@ -185,7 +189,8 @@ CHECK_JS = r"""(opts) => {
 
 
 def run_check(page, skip_editor_tokens=False, skip_art=False):
-    return page.evaluate(CHECK_JS, {"skipEditorTokens": bool(skip_editor_tokens), "artText": ART_TEXT if skip_art else []})
+    return page.evaluate(CHECK_JS, {"skipEditorTokens": bool(skip_editor_tokens), "artText": ART_TEXT if skip_art else [],
+                                    "digestSkip": NEW_SINCE_BASELINE})
 
 
 # ---------------------------------------------------------------- 자기 시험

@@ -1,4 +1,4 @@
-// 설정: 소리, 하루 목표, 이름, 저장 내보내기·가져오기, 홈 화면에 추가, 개발자 모드(맨 아래, v0.3.2), 판 번호
+// 설정: 소리, 하루 목표, 이름, 화면(v0.3.4), 저장 내보내기·가져오기, 홈 화면에 추가, 개발자 모드(맨 아래, v0.3.2), 판 번호
 import { DAILY_GOALS } from "../rules.js";
 import { esc, toast, dialog, celebrate, icon } from "./dom.js";
 import { collectOfflineStatus } from "../offline.js";
@@ -8,6 +8,7 @@ import { checkImport } from "../save.js";
 import { tabBar, bindTabs, statusBar, stallTabOf } from "./nav.js";
 import { localDate } from "../today.js";
 import { isDev } from "../devgate.js";
+import { getTheme, setTheme } from "../theme.js";
 
 /** 이름: 앞뒤 빈칸과 끝의 「님」을 빼고 8자까지 */
 export function cleanName(v) {
@@ -57,12 +58,16 @@ function courseCard(ctx) {
   </section>`;
 }
 
+/** 화면 설정 세 가지(v0.3.4). 기기 설정이라 학습 기록(저장)에 넣지 않음(src/theme.js) */
+export const THEMES = [["system", "시스템 따라가기"], ["light", "밝게"], ["dark", "어둡게"]];
+
 export const DEV_ON_NOTE = "켜져 있어요 · 끄면 학습 기록으로 돌아가요";
 
 export function render(root, ctx) {
   const s = ctx.save;
   const dev = !!ctx.dev;
   const goal = DAILY_GOALS.includes(s.settings.dailyGoal) ? s.settings.dailyGoal : 20;
+  const theme = getTheme();
   root.innerHTML = `<div class="screen settings with-tabs">
     ${statusBar(s)}
     <main>
@@ -81,6 +86,14 @@ export function render(root, ctx) {
         <div class="row col">
           <label for="name" class="row-label">부를 이름<small>두억이가 「○○님」이라고 불러요. 비워 둬도 돼요</small></label>
           <input id="name" type="text" maxlength="9" autocomplete="nickname" autocapitalize="off" value="${esc(s.settings.name || "")}" placeholder="예: 지민">
+        </div>
+      </section>
+      <section class="panel theme-set" aria-labelledby="theme-title">
+        <div class="row col">
+          <h2 id="theme-title">화면</h2>
+          <p class="muted" id="theme-desc">밤에는 어두운 화면이 눈이 편해요</p>
+          <div class="seg theme-seg" id="theme-seg" role="radiogroup" aria-labelledby="theme-title" aria-describedby="theme-desc">${THEMES.map(([v, label]) =>
+            `<button role="radio" aria-checked="${v === theme}" tabindex="${v === theme ? 0 : -1}" data-theme-pick="${v}">${label}</button>`).join("")}</div>
         </div>
       </section>
       <section class="panel tut-again">
@@ -174,6 +187,24 @@ export function render(root, ctx) {
     }
     ctx.show("settings"); // 위 상태 줄 목표 숫자도 바로 맞춤
   }));
+  // 화면(v0.3.4): 누르면 바로 바뀜, 알림 없음. 라디오 묶음이라 화살표 키로 옮겨 다니며 고름(고른 단추만 Tab 순서에)
+  const picks = [...root.querySelectorAll("[data-theme-pick]")];
+  const pickTheme = (b) => {
+    setTheme(b.dataset.themePick);   // 기기 설정: 학습 기록(save)에는 넣지 않음
+    picks.forEach((x) => { const on = x === b; x.setAttribute("aria-checked", String(on)); x.tabIndex = on ? 0 : -1; });
+  };
+  picks.forEach((b, i) => {
+    b.addEventListener("click", () => pickTheme(b));
+    b.addEventListener("keydown", (e) => {
+      const j = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: picks.length - 1 }[e.key];
+      if (j === undefined) return;
+      e.preventDefault();
+      const next = picks[(j + picks.length) % picks.length];
+      pickTheme(next);
+      next.focus();
+    });
+  });
+
   const name = root.querySelector("#name");
   name.addEventListener("change", () => {
     const v = cleanName(name.value);
