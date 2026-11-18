@@ -6,6 +6,7 @@
 
 | 판 | 날짜 | 한 줄 요약 | 레슨 | 문제 | 배지 | 의상 | 배포 크기 |
 |---|---|---|---|---|---|---|---|
+| v0.3.3 | 2026-11-18 | 다시 들어오기 점검(칸 편집기가 가게를 떠나도 `#app` 눌림을 계속 받던 잠재 문제 고침), 보안 점검(XSS 구멍 0, 엄격한 CSP 메타·style 속성 없앰, 바깥 요청 0), 첫 사용 튜토리얼(두억이 카드 4장 + 진짜 `SELECT * FROM shops`, 설정 「사용법 다시 보기」), 확인 목록 29~35·39~41 아이폰 확인됨 | 85 + 심화 18 | 1336 (본 과정 1112 + 심화 224) | 16 | 10 | 386.2KB (gzip 124.2KB) + 장 파일 17개 732.4KB + sql-wasm.wasm 669.2KB + worker.js 42.9KB |
 | v0.3.2 | 2026-11-18 | 개발자 모드(설정 맨 아래, 학습 기록과 따로 저장, 잠긴 곳 모두 열기·줄무늬 띠), 아래 메뉴 「가게」 칸(홈 카드 없앰, 잠김·새 소식 점, 「<」는 들어온 화면으로), 칸 편집기 「비우기」+5초 되돌리기 | 85 + 심화 18 | 1336 (본 과정 1112 + 심화 224) | 16 | 10 | 372.4KB (gzip 120.0KB) + 장 파일 17개 732.4KB + sql-wasm.wasm 669.2KB + worker.js 42.9KB |
 | v0.3.1 | 2026-11-11 | 「홈 화면에 추가」 안내를 안드로이드 크롬에도: ⋮ 메뉴 3단계, 크롬이 허락하면 「바로 설치하기」 단추, 첫 레슨 뒤 자동 안내, 그 밖의 기기는 아이폰·안드로이드 둘 다 | 85 + 심화 18 | 1336 (본 과정 1112 + 심화 224) | 16 | 10 | 365.2KB (gzip 117.6KB) + 장 파일 17개 732.4KB + sql-wasm.wasm 669.2KB + worker.js 42.9KB |
 | v0.3 | 2026-11-11 | 「두억이의 가게」 새로 열기: 3장 평가 뒤 열리는 놀이터, SQL 카드로 자동화 칸 6개를 고쳐 가게를 하루씩 굴림, 의뢰 15개·성장 5가지, 가게 돈(냥)은 게임 안에서만 | 85 + 심화 18 | 1336 (본 과정 1112 + 심화 224) | 16 | 10 | 361.8KB (gzip 116.8KB) + 장 파일 17개 732.4KB + sql-wasm.wasm 669.2KB + worker.js 42.9KB |
@@ -14,6 +15,117 @@
 | v0.1.2 | 2026-11-06 | 정답 대사가 문제와 안 맞던 것(엽전 대사) 고침, 완료 화면이 상태 표시줄 밑으로 스크롤되던 것 고침 | 85 | 1111 | 16 | 10 | 284.6KB (gzip 91.9KB) + 장 파일 17개 616.0KB + sql-wasm.wasm 669.2KB + worker.js 42.4KB |
 | v0.1.1 | 2026-11-06 | 엽전 조정(레슨 10→12, 상인 옷 100→110), 느린 휴대폰은 시간 초과 때 한 번 더 기다리기 | 85 | 1111 | 16 | 10 | 284.5KB (gzip 91.9KB) + 장 파일 17개 616.0KB + sql-wasm.wasm 669.2KB + worker.js 42.4KB |
 | v0.1 | 2026-11-06 | 첫 판: 두억이와 SQL 17장 85레슨(터치·카드 조립, 실행 결과 표로 채점), 도깨비 장터 데이터, 리아의 게임 장치 전부, 매일 도전, 오프라인·홈 화면 앱 | 85 | 1111 | 16 | 10 | 283.0KB (gzip 91.3KB) + 장 파일 17개 616.0KB + sql-wasm.wasm 669.2KB + worker.js 42.4KB |
+
+---
+
+## v0.3.3 — 다시 들어오기 점검 · 보안 점검 · 첫 사용 튜토리얼 (2026-11-18)
+
+### 요청
+
+> 다음 진행은?
+
+다음 판 후보(리아와 파이썬 v0.18.0 튜토리얼 · v0.19.2 보안 · v0.20.1/v0.20.2 다시 들어오기 고침을 두억이에)를 보여 드린 뒤:
+
+> A
+
+> 진행
+
+같은 날 사용자가 아이폰에서 확인 목록 29~35·39~41(가게·개발자 모드·비우기)을 「확인됨」으로 알려 주어 목록에 적었어요.
+
+### 구현 표
+
+| # | 바꾼 것 | 파일 | 상태 |
+|---|---|---|---|
+| 1 | 다시 들어오기 점검: 화면 13가지의 눌림 묶음·타이머·구독·늦게 끝나는 비동기 일을 모두 점검(아래 표). 진짜 문제 1건 — 칸 편집기가 `#app`(화면이 바뀌어도 그대로인 요소)에 단 click 묶음을 편집기를 닫을 때만 떼고, 가게 화면이 떠날 때는 떼지 않음 → 가게 화면이 떠날 때 열린 편집기를 바로 닫게(`bindClose`). 두 번째 안전장치로 편집기 화면 밖의 단추는 받지 않음 | `src/ui/stall.js`, `src/ui/stallslot.js` | 완료 |
+| 2 | XSS 점검: HTML을 만드는 곳(innerHTML·템플릿 글자)의 바깥 값(저장·가져온 저장·레슨·SQL 결과 칸·열 이름·sql.js 오류 글)을 모두 따라감. **진짜 구멍 0건**(모두 `esc`/`escCode`/`textContent` 또는 숫자·표 값으로 걸러짐). 시험 2개를 지킴이로 두고, 이스케이프를 일부러 빼면 실패하는 것을 확인 | `tests/flow.py` | 완료 |
+| 3 | CSP(콘텐츠 보안 정책) 메타: 빌드가 인라인 `<script>` 2개와 `<style>` 1개의 sha256 지문을 넣음. `'unsafe-inline'`·`'unsafe-eval'`·`*` 없음. 화면 코드의 `style="…"` 속성 6곳(진행 막대, 학습 길 노드·별·길 크기)을 `data-lay-*` 숫자 + CSSOM(`applyLayout`)으로 바꿈 | `build.py`, `src/ui/dom.js`, `src/ui/home.js`, `src/app.js` | 완료 |
+| 4 | 첫 사용 튜토리얼: 새 저장이면 「시작하기」 뒤 두억이 카드 4장(인사 · 작은 장부 표 · 카드 조립 예 · 직접 해 보기). 4장째는 `SELECT` `*` `FROM` `shops`를 섞은 더미에서 눌러 조립하고 「실행」이 진짜 실행기로 돌려 결과 표 8행 → 「잘했어요!」. 틀린 차례는 실행기 오류 설명 + 「SELECT로 시작해요」, 4장보다 적으면 「카드 4장을 모두 놓아 봐요」, 맞지 않은 실행 2번이면 「정답 보기」. 카드마다 「건너뛰기」, 실행기를 기다리는 동안·못 받았을 때도 「홈으로」. 성공 뒤 「첫 레슨 시작」·「홈으로」 | `src/tutorial.js`(새), `src/ui/tutorial.js`(새), `src/ui/splash.js`, `src/app.js`, `src/style.css` | 완료 |
+| 5 | 저장 칸 `tutorial`(null·"done"·"skipped", saveVer 그대로). 기록이 있는 옛 저장(레슨·XP·엽전·가게 중 하나라도)은 "done" → 바로 홈. 개발자 모드도 바로 홈 | `src/save.js` | 완료 |
+| 6 | 설정 「사용법 다시 보기」 + 「보기」: 같은 카드, 위 단추는 「닫기」, 끝은 「홈으로」만. 저장은 아무것도 바꾸지 않음 | `src/ui/settings.js` | 완료 |
+| 7 | 판 v0.3.3, README(튜토리얼·보안 줄, 시험 표, 알려진 한계), 확인 목록 29~35·39~41 「확인됨」 표시, 42~45 새로 | `src/app.js`, `tests/build_test.py`, `tests/py/test_readme_gen.py`, `tools/readme_gen.py`, `README.md`, `docs/device-checklist.md` | 완료 |
+
+### 조정 과정
+
+**다시 들어오기 점검표**(화면 → 다는 것 → 떠날 때 → 판정)
+
+| 화면 | 다는 것 | 떠날 때 정리 | 판정 |
+|---|---|---|---|
+| 첫 화면 | `#go` 단추, 실행기 상태 구독 | 구독 끊는 함수를 cleanup으로 | 깨끗 |
+| 홈(학습 길) | 화면 안 단추들, 「다시 하기」 확인 창(body) | 화면을 다시 그리면 단추째 사라짐, 창은 닫을 때 keydown 뗌 | 깨끗 |
+| 레슨(카드·터치·카드 조립) | 화면 안 단추, `document` keydown, 대기 타이머, 장 받기 비동기, 조립의 실행기 구독·실행/제출 비동기, 결과 표 채우기 | keydown 뗌, 타이머 지움, `alive`+`token`으로 늦은 장 받기 버림, 조립 `destroyed`로 늦은 결과 버림·구독 끊음, 표 채우기 `stopped` | 깨끗 |
+| 매일 도전 | 레슨과 같음 + 문제마다 저장(`dailyStep`) | 레슨과 같음, 저장은 늘 지금 `app.save`에서 만듦 | 깨끗 |
+| 완료 | `#home` 단추, 축하 창·설치 안내(모달) | 모달은 닫을 때 정리 | 깨끗 |
+| 배지 | 탭 줄 | 화면째 사라짐 | 깨끗 |
+| 의상실 | 화면 안 단추(다시 그릴 때마다 새로) | 화면째 사라짐 | 깨끗 |
+| 설정 | 화면 안 단추, 오프라인 상태 확인 비동기, 가져오기 비동기 | 확인 결과는 `isConnected`로 버림, 가져오기는 모달 | 깨끗 |
+| 가게 | 화면 안 단추, 하루 계산(모듈에 하나 `inflight`), 재생 타이머 | `alive`, 재생 `stop()`, 계산 중 떠나면 저장 한 번 + 돌아와 알림(v0.3) | 깨끗 |
+| **칸 편집기** | **`#app`에 click 묶음**, 시험 실행 비동기, 되돌리기 알림 | **편집기를 닫을 때(`finish`)만 뗌 — 가게 화면이 떠나도 남음** | **고침**(지금 UI에는 편집기가 열린 채 화면이 바뀌는 길이 없어 실제로 닿지는 않았던 잠재 문제. 시험에서 강제로 바꾸면 남은 편집기 3개 + 새 편집기가 「저장」 한 번에 저장 알림 4개) |
+| 설치 안내 | body 창, `document` keydown | 닫을 때 뗌 | 깨끗 |
+| 확인 창·축하 창·「쓸 표 보기」·알림 | body, `document` keydown, 표 채우기, 알림 타이머 | 닫을 때 뗌·멈춤 | 깨끗 |
+| 튜토리얼(새) | 화면 안 요소에만, 실행기 상태 구독, 실행 비동기 | 구독 끊음, `alive`로 늦은 결과 버림 | 깨끗 |
+| 앱 전체 | `window` 설치 신호 2개, `document` visibilitychange, 소리 잠금 해제 2개, (새) 자리 관찰기 | 앱을 열 때 한 번만 담 | 깨끗 |
+
+**XSS 점검**: 바깥 값이 HTML이 되는 길을 하나씩 따라감 — 이름(설정 입력칸 `value`는 `esc`, 대사 속 이름은 `escCode`), 지금 레슨·복습 개념·퀘스트·배지·의상 id(표에 있는 것만 쓰거나 `esc`), 가게 저장(`cleanStall`이 숫자·표 id만 남김, 어제 장부 줄은 `esc`, 진열 id는 아는 물건만), 결과 표 칸·열 이름(`table.js`가 모두 `esc`), sql.js 오류 글(`esc`, 설명 문장 속 이름은 `escCode`), 재생 줄·말풍선(`textContent`), 주소 매개변수(쓰지 않음). 진짜 구멍 0건. 리아에서 나온 3건(노드 번호·조건 숫자·작업자 줄 번호)과 같은 꼴(바깥 숫자를 그대로 속성에)은 두억이에 없음: 가게 장부 SQL을 만드는 쪽도 정수만 넣음(`Number.isInteger`).
+
+**CSP 고른 것과 까닭**
+
+```
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-…' 'sha256-…'; style-src 'sha256-…';
+img-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'
+```
+
+- 인라인 스크립트는 파일로 빼지 않고 **지문(sha256)**으로: 배포물이 「HTML 한 장」이라는 규칙을 지키고 요청이 늘지 않음. 지문은 빌드가 완성된 글자로 매번 계산(`--build-id` 빌드도 시험).
+- `style-src`도 `<style>` 한 덩어리의 지문만. `'unsafe-inline'`이 필요 없도록 style 속성 6곳을 없앰.
+- `'wasm-unsafe-eval'`: WebAssembly 컴파일만 허용(JS `eval`은 아님). 작업자는 자기 응답의 정책을 따르지만, 문서 정책을 작업자에도 적용하던 옛 사파리에서도 sql.js가 돌게 남김.
+- `frame-ancestors`는 `<meta>`에서는 무시되어 넣지 않음(GitHub Pages는 응답 머리글을 못 바꿈).
+- 효과 확인: 시험이 일부러 넣은 `on…`·`style` 속성은 돌지 않고 `script-src-attr`·`style-src-attr` 위반으로 잡힘.
+
+**시험 먼저(빨강 → 초록)**
+
+- 다시 들어오기: `test_reentry_stall` 고치기 전 실패 — `재고 채우기 칸을 저장했어요…` 알림 4개(기대 1). 고친 뒤 통과. `test_reentry_screens`·`test_reentry_tutorial`은 처음부터 통과(깨끗한 화면 지킴이).
+- XSS: `test_xss_save_fields`·`test_xss_query_results`는 처음부터 통과(구멍 없음). 지킴이가 잡는지 보려고 결과 표 칸과 어제 장부 줄의 `esc`를 잠깐 빼자 둘 다 실패(`{'xss': 1, 'imgs': 1, …}`, `{'xss': 2, …}`) → 되돌림.
+- CSP: `test_csp_meta`·`test_csp_build_id_and_hash_rebuild` 「no <meta http-equiv="Content-Security-Policy">」로 실패, `test_csp_and_no_foreign_requests` 「CSP meta missing」으로 실패 → 구현 뒤 통과.
+- 튜토리얼: 단위 시험(`tutorial.test.js`·`save.test.js` 3개)이 모듈·칸 없음으로 실패한 뒤 구현.
+- 옛 저장 시험 2개(`save.test.js` 「full current save passes through」·「store round trip」)는 XP가 있는데 `tutorial: null`인 저장이라 새 규칙으로 "done"이 됨 → 지금 판 저장처럼 `tutorial`을 채워 고침. 화면 시험 도우미(`App.start`, build_test `home`)는 튜토리얼을 「건너뛰기」로 건너게.
+
+**화면 다듬기**: 아이폰 SE에서 카드 3의 말풍선이 「카드를 눌러 / SQL을 / 조립해요」로 잘게 갈라져, 카드 1~3은 두억이 위·말풍선 아래로. 성공 뒤 빈 카드 더미 자리는 접음. 카드 2 문구는 브리프의 「가로 한 줄이 물건(가게) 하나」를 그림(가게 표)에 맞춰 「가로 한 줄이 가게 하나」로.
+
+### 결과 표
+
+| 항목 | 고친 뒤 | 고치기 전 |
+|---|---|---|
+| 칸 편집기가 열린 채 화면이 바뀐 뒤 다시 와서 「저장」 한 번 | 저장 알림 1개, 저장 1번 | 알림 4개(남은 편집기 3개 + 새 편집기) |
+| 배포 HTML의 CSP | 위 정책(지문 3개) | 없음 |
+| 첫 레슨 1-1 + 가게 하루 + 칸 시험 실행 동안 CSP 위반 / 바깥 요청 | 0 / 0 | (정책 없음) / 0 |
+| HTML이 든 저장·가져온 저장·SQL 결과·오류 글 | 요소 0, 스크립트 0 | 같음(구멍 없었음) |
+| 새 저장 「시작하기」 뒤 | 두억이 카드 4장 → 진짜 SQL 실행 | 바로 홈 |
+| 첫 HTML | 386.2KB (gzip 124.2KB) | 372.4KB (gzip 120.0KB) |
+
+### 검증
+
+| 확인 | 결과 |
+|---|---|
+| `npm test` | 712 통과, 실패 0 (새 7: `tutorial.test.js` 4, `save.test.js` 튜토리얼 칸 3) |
+| `node tests/content.js --full 17` | 장 17개, 레슨 85, 문제 1112, 심화 18레슨·224문제, 문제점 0 |
+| `python3 tests/engine_browser.py` | OK 5/5 |
+| `python3 build.py && python3 tests/build_test.py` | 34 통과, 실패 0 (새 `test_csp_meta`·`test_csp_build_id_and_hash_rebuild`, 오프라인 시험에 CSP 위반 0 확인: 「offline CSP meta True, violations []」), 판 v0.3.3, index.html raw 386.2 KB (limit 650 KB), gzip 124.2 KB |
+| `python3 tests/flow.py` | 55 통과, 실패 0, 건너뜀 0 (582초). 새 11개: `test_reentry_screens`·`test_reentry_stall`·`test_reentry_tutorial`·`test_xss_save_fields`·`test_xss_query_results`·`test_csp_and_no_foreign_requests`·`test_tutorial_flow`·`test_tutorial_to_lesson_and_skip`·`test_tutorial_old_save_and_dev_go_home`·`test_tutorial_replay_from_settings`·`test_tutorial_screens`. 「first lesson: 4 requests (…), foreign [], violations []」, 「stall day + slot test: 3 requests, foreign [], violations []」 |
+| `node tests/sim/economy.js` | 하루 엽전 중앙값 40.8 (목표 40~50), 첫 의상 3.5일째 — v0.3.2와 같음(튜토리얼은 엽전을 주지 않음) |
+| `node tests/sim/stall.js` | 판정 14/14 OK |
+| `node tests/stall_requests.js` | 의뢰 15/15 통과 |
+| `python3 tools/readme_gen.py --check` | 어긋남 0 |
+| `python3 -m pytest tests/py -q` | 15 통과 |
+
+시험 도구 고침: 기존 화면 시험 중 새 저장으로 「시작하기」를 누르던 곳(`App.start`, `test_install_android`, build_test의 `home`)은 튜토리얼을 「건너뛰기」로 건넘. `test_stall_day`의 「쓸 표 보기」 측정이 창이 올라오는 0.22초 동안 재어 「닫기」를 화면 밖으로 잡던 것(전체 실행에서 두 번 재현, v0.3.2 코드에서는 통과 — 까닭은 타이밍으로 보이나 확정 못 함) → 움직임이 끝난 뒤 재도록.
+
+화면 캡처(아이폰 17·SE: 튜토리얼 카드 1~4, 틀린 실행, 성공, 설정 「사용법 다시 보기」 줄) — `.superpowers/sdd/v0.3.3/shots/`에서 직접 보고 확인.
+
+### 남은 문제
+
+- 실제 아이폰 사파리 확인(확인 목록 42~45): 튜토리얼 화면, CSP를 넣은 뒤 실행기·오프라인(특히 옛 사파리가 문서 정책을 작업자에 적용하는지), 여러 번 드나든 뒤 동작. 사파리(WebKit)는 이 환경에서 시험하지 못했어요.
+- 이미 홈 화면 앱으로 쓰는 학습자는 업데이트 뒤 새 `index.html`이 오기 전까지 옛 판(정책 없음)이 열릴 수 있음(서비스 작업자 규칙 그대로).
+- 튜토리얼은 실행기를 받아야 「실행」이 됨. 못 받으면 안내와 「홈으로」로 나감(막지 않음).
+- 개발판(`tools/dev.py`, src를 그대로 여는 판)에는 CSP가 없음(배포판만).
 
 ---
 

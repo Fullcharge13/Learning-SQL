@@ -2,6 +2,7 @@
 import { dueogiSVG } from "../dueogi.js";
 import { FACES } from "../say.js";
 import { esc } from "./dom.js";
+import { shouldShowTutorial } from "../tutorial.js";
 
 export function render(root, ctx) {
   const line = ctx.say("greet");
@@ -29,6 +30,7 @@ export function render(root, ctx) {
   };
   paint(ctx.sql ? ctx.sql.status : "loading");
   const off = ctx.sql ? ctx.sql.listen((s) => paint(s)) : () => {};
-  root.querySelector("#go").addEventListener("click", () => ctx.show("home"));
+  // 새 저장이면 두억이 카드 4장(v0.3.3 튜토리얼) 먼저. 기록 있는 저장·개발자 모드는 바로 홈
+  root.querySelector("#go").addEventListener("click", () => ctx.show(shouldShowTutorial(ctx.save, { dev: ctx.dev }) ? "tutorial" : "home"));
   return off;
 }

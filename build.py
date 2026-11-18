@@ -33,6 +33,7 @@
   (dueogi-engine-<sql.js 판>)에 sql-wasm.wasm. 크기 상한: 첫 HTML 650KB(설계 §10).
 """
 import argparse
+import base64
 import gzip
 import hashlib
 import json
@@ -338,6 +339,47 @@ window.DUEOGI_CHAPTER_FILES = {chapter_files};
 </script>"""
 
 
+# 콘텐츠 보안 정책(v0.3.3). GitHub Pages는 응답 머리글을 못 바꾸므로 index.html의 <meta>로 건다(head 맨 앞, 어떤 script·style보다 먼저).
+# - script-src: 'self' + 이 빌드의 인라인 <script> 두 개(설정·앱)의 sha256 지문. 'unsafe-inline'·'unsafe-eval' 없음
+#   (sql.js는 작업자 묶음 안에 들어 있어 실행 중 글자를 코드로 바꾸지 않음 — check_worker).
+#   'wasm-unsafe-eval': WebAssembly 컴파일만 허용(JS eval은 아님). 작업자는 자기 응답의 정책을 따르지만, 문서의 정책을
+#   작업자에게도 적용하던 옛 사파리에서도 sql-wasm.wasm이 돌게 둔다.
+# - style-src: 인라인 <style> 한 덩어리의 지문만. 화면 코드는 style 속성 대신 data-lay-*와 CSSOM을 쓴다(ui/dom.js applyLayout)
+# - img-src 'self' data:(아이콘), connect-src 'self'(장 파일·wasm), worker-src 'self'(작업자·서비스 작업자), manifest-src 'self'
+# - object-src·base-uri·form-action 'none'. frame-ancestors는 <meta>에서 무시되므로 넣지 않는다
+def csp_hash(text):
+    return "'sha256-%s'" % base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode()
+
+
+def content_security_policy(html):
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    styles = re.findall(r"<style>(.*?)</style>", html, re.S)
+    if re.search(r"<script\b(?![^>]*\ssrc=)[^>]+>", html):
+        raise SystemExit("build: inline <script> with attributes is not hashed for CSP")
+    if len(styles) != 1:
+        raise SystemExit("build: expected one inline <style> for CSP, got %d" % len(styles))
+    return "; ".join([
+        "default-src 'self'",
+        "script-src 'self' 'wasm-unsafe-eval' " + " ".join(csp_hash(x) for x in scripts),
+        "style-src " + " ".join(csp_hash(x) for x in styles),
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "worker-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'none'",
+    ])
+
+
+def add_csp(html):
+    meta = '<meta http-equiv="Content-Security-Policy" content="%s">' % html_attr(content_security_policy(html))
+    head = '<meta charset="utf-8">\n'
+    if head not in html:
+        raise SystemExit("build: <meta charset> not found for CSP")
+    return html.replace(head, head + meta + "\n", 1)
+
+
 def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
     need_node()
     with open(os.path.join(SRC, "app.js"), encoding="utf-8") as f:
@@ -358,6 +400,7 @@ def build(out, update_docs_icons=False, build_id="", lessons_dir=None):
         raise SystemExit("build: marker CONFIG not found in src/index.html")
     html = html.replace("<!-- RIA:CONFIG -->", config, 1)
     html = replace_block(html, "SCRIPT", "<script>" + inline_script(b["app"]) + "</script>")
+    html = add_csp(html)   # 마지막에: 지문은 완성된 인라인 script·style 글자로
     check_output(html)
     check_worker(b["worker"])
     check_no_lesson_text(html, split["tasks"])

@@ -50,6 +50,11 @@
 - test_stall_tab(v0.3.2): 탭 5칸, 3장 평가 전 잠김(aria-disabled·알림만), 실제 3-5 통과 → 열림·점, 「<」는 들어온 화면으로, 점 규칙 (a)(b)(c)
 - test_dev_install_hint_and_flight(v0.3.2 고침 1): 개발자 모드 첫 레슨은 「홈 화면에 추가」 안내를 쓰지 않음, 가게 하루 계산 중 개발자 모드를 바꾸면 결과 버림, 가져오기 문구
 - test_stall_slot_clear(v0.3.2): 「비우기」 확인 창(처음 초점 그만두기), 지우기·되돌리기·5초 뒤 사라짐·다른 편집이면 사라짐·빈 칸이면 흐림, 전체 조립 칸
+- test_reentry_screens / test_reentry_stall / test_reentry_tutorial(v0.3.3): 화면마다 10번 드나든 뒤 한 번 누르면 한 번만·저장도 한 번.
+  칸 편집기가 열린 채 화면이 바뀐 경우(옛 편집기가 #app 눌림을 계속 받던 문제)도
+- test_xss_save_fields / test_xss_query_results(v0.3.3): 저장·가져온 저장의 글자 칸, SQL 결과 칸·열 이름·오류 글에 HTML → 요소·스크립트 0
+- test_csp_and_no_foreign_requests(v0.3.3): 배포 CSP 메타로 첫 레슨·가게 하루·칸 시험 실행 → 위반 0·바깥 요청 0, 넣은 on…/style 속성은 막힘
+- test_tutorial_*(v0.3.3): 첫 사용 튜토리얼 카드 4장·직접 해 보기·건너뛰기·옛 저장/개발자 모드는 바로 홈·설정 다시 보기·아이폰 17/SE 화면
 """
 
 import atexit
@@ -285,6 +290,11 @@ class App:
 
     def start(self):
         self.page.click("#go")
+        # v0.3.3: 새 저장이면 튜토리얼이 먼저 뜬다. 이 도우미는 홈까지 가는 길이므로 「건너뛰기」로 건넌다
+        # (튜토리얼 자체를 보는 시험은 _tut_open으로 따로 간다)
+        self.page.wait_for_selector("#app[data-screen=home] .screen.home, #app[data-screen=tutorial] .screen.tutorial")
+        if self.page.query_selector("#app[data-screen=tutorial]"):
+            self.page.click("#tut-skip")
         self.page.wait_for_selector("#app[data-screen=home] .screen.home")
         self.page.wait_for_timeout(200)
         self.dismiss()
@@ -2472,10 +2482,7 @@ def test_install_android():
     """v0.3.1 (사용자 요청): 안드로이드 크롬에서도 「홈 화면에 추가」 안내 — 설정 단추는 ⋮ 메뉴 3단계(사파리 공유·7일 경고 없음),
     크롬이 설치 신호를 주면 「바로 설치하기」 단추가 설치 창을 띄움, 첫 레슨을 끝내면 한 번 자동 안내, 넘침 없음·터치 44px."""
     with App("Pixel 7") as a:
-        a.page.click("#go")
-        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
-        a.page.wait_for_timeout(200)
-        a.dismiss()
+        a.start()   # v0.3.3: 새 저장의 튜토리얼은 건너뜀
         a.page.click('[data-go="settings"]')
         a.page.wait_for_selector(".screen.settings")
         assert "인터넷이 없어도" in a.page.inner_text(".screen.settings")
@@ -2508,6 +2515,8 @@ def test_install_android():
     # 3) 첫 레슨을 끝내면 안드로이드에도 한 번 자동 안내(android 종류)
     with App("Pixel 7") as a:
         a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=tutorial] .screen.tutorial")
+        a.page.click("#tut-skip")   # v0.3.3 튜토리얼 건너뛰기(설치 안내는 뜨지 않음: 아래 dismiss 없이)
         a.page.wait_for_selector("#app[data-screen=home] .screen.home")
         a.page.click("#continue")
         a.page.wait_for_selector(".screen.lesson")
@@ -2593,6 +2602,8 @@ def _stall_tab(a):
 
 def _stall_measure(a, name, fails):
     a.page.wait_for_timeout(120)
+    # 창이 아래에서 올라오는 0.22초 동안 재면 단추가 화면 밖으로 잡힌다(v0.3.3 전체 실행에서 타이밍에 따라 드러남) → 움직임이 끝난 뒤 잰다
+    a.page.wait_for_function("() => document.getAnimations().every((x) => x.playState !== 'running' || x.effect?.getTiming().iterations === Infinity)")
     m = measure(a, name)
     for p in m["problems"]:
         fails.append("%s/%s: %s" % (a.device, name, p))
@@ -3496,6 +3507,705 @@ def test_dev_install_hint_and_flight():
         body = a.page.inner_text(".modal-back")
         assert "개발자 모드 기록만 바뀌어요" in body, body
         a.page.click(".modal .btn.ghost")
+        assert not a.errors, a.errors
+
+
+# ---------------------------------------------------------------- v0.3.3 다시 들어오기 점검
+
+REENTER_N = 10
+
+
+def _v033_shot_dir():
+    d = os.path.join(ROOT, ".superpowers", "sdd", "v0.3.3", "shots")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _modal_pick(a, i):
+    """떠 있는 확인 창의 i번째 단추를 누르고 창이 닫힐 때까지"""
+    a.page.click('.modal-back .modal button[data-i="%d"]' % i)
+    a.page.wait_for_selector(".modal-back", state="detached")
+
+
+def _toasts(a, needle):
+    return a.js("(t) => [...document.querySelectorAll('#toasts .toast')].filter((x) => x.innerText.includes(t)).length", needle)
+
+
+def _reentry_seed():
+    s = _stall_seed(True)
+    s["yeopjeon"] = 500
+    s["tutorial"] = "done"
+    return s
+
+
+def test_reentry_screens():
+    """v0.3.3: 탭 화면(학습·배지·의상실·설정)·설치 안내·레슨·매일 도전을 10번씩 드나든 뒤 한 번 누르면 한 번만 일어나고 저장도 한 번"""
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        # 탭 화면 10바퀴
+        for _ in range(REENTER_N):
+            for t in ("badges", "closet", "settings", "home"):
+                _go_tab(a, t)
+        # 의상실: 기록 보호권 한 번 사기 → 엽전 -200 한 번, 보호권 1
+        _go_tab(a, "closet")
+        y0 = a.save()["yeopjeon"]
+        a.page.click("#freeze")
+        a.page.wait_for_timeout(300)
+        s = a.save()
+        assert s["freezes"] == 1 and s["yeopjeon"] == y0 - 200, (s["freezes"], y0, s["yeopjeon"])
+        assert _toasts(a, "기록 보호권을 샀어요") == 1
+        # 설정: 소리 스위치 한 번 → 한 번만 바뀜
+        _go_tab(a, "settings")
+        assert a.save()["settings"]["sound"] is True
+        a.page.click("#snd")
+        a.page.wait_for_timeout(200)
+        assert a.save()["settings"]["sound"] is False
+        assert a.page.get_attribute("#snd", "aria-checked") == "false"
+        # 설치 안내 10번 열고 닫기 → 한 번 더 열면 창 하나
+        for _ in range(REENTER_N):
+            a.page.click("#install")
+            a.page.wait_for_selector(".modal.install")
+            a.page.click("#ins-ok")
+            a.page.wait_for_selector(".modal.install", state="detached")
+        a.page.click("#install")
+        a.page.wait_for_selector(".modal.install")
+        assert a.js("() => document.querySelectorAll('.modal.install').length") == 1
+        a.page.keyboard.press("Escape")
+        a.page.wait_for_selector(".modal.install", state="detached")
+        # 레슨: 들어갔다 「그만두기」 10번(확인 창 「계속 풀기」도 섞어) → 「다음 카드」 한 번 = 한 장만 넘어감
+        _go_tab(a, "home")
+        lid = a.js("() => window.__dueogi.ctx.currentLessonId()")
+        cards = a.lesson(lid)["cards"]
+        norm = lambda v: " ".join(str(v or "").split())
+        for k in range(REENTER_N):
+            a.page.click("#continue")
+            a.page.wait_for_selector(".screen.lesson .card-view")
+            a.page.click("#quit")
+            a.page.wait_for_selector(".modal-back")
+            if k % 3 == 0:   # 「계속 풀기」로 닫았다가 다시 「그만두기」
+                _modal_pick(a, 0)
+                a.page.click("#quit")
+                a.page.wait_for_selector(".modal-back")
+            _modal_pick(a, 1)
+            a.page.wait_for_selector(".screen.home")
+        a.page.click("#continue")
+        a.page.wait_for_selector(".screen.lesson .card-view")
+        assert norm(a.page.inner_text(".card-view .bubble")) == norm(cards[0]["say"])
+        a.page.click("#act")
+        a.page.wait_for_timeout(300)
+        assert norm(a.page.inner_text(".card-view .bubble")) == norm(cards[1]["say"]), "one tap must move exactly one card"
+        a.page.click("#quit")
+        _modal_pick(a, 1)
+        a.page.wait_for_selector(".screen.home")
+        # 매일 도전: 10번 드나든 뒤 한 문제 → 저장의 푼 문제 하나
+        for _ in range(REENTER_N):
+            a.page.click("#daily")
+            a.page.wait_for_selector("article.item", timeout=ENGINE_READY_MS)
+            a.page.click("#quit")
+            _modal_pick(a, 1)
+            a.page.wait_for_selector(".screen.home")
+        assert a.save()["daily"]["done"] == [], a.save()["daily"]
+        a.page.click("#daily")
+        _daily_answer_one(a, {})
+        a.page.wait_for_timeout(300)
+        d = a.save()["daily"]
+        assert d["done"] == [0], d
+        assert not a.errors, a.errors
+
+
+EDITOR_RUNS_JS = r"""() => { const sql = window.__dueogi.ctx.sql; if (sql.__counted) return;
+  const orig = sql.runLedger.bind(sql); sql.__counted = true; window.__ledgerRuns = 0;
+  sql.runLedger = (...x) => { window.__ledgerRuns++; return orig(...x); }; }"""
+
+
+def _editor_once(a, before_slot):
+    """칸 편집기에서 「시험 실행」 한 번 → 장부 실행 한 번, 「저장」 한 번 → 알림 하나·저장 한 번"""
+    a.js(EDITOR_RUNS_JS)
+    a.js("() => { window.__ledgerRuns = 0; }")
+    a.page.click("#sp-test")
+    a.page.wait_for_selector(".sp-result .rtable, .sp-result .err-panel", timeout=ENGINE_READY_MS)
+    a.page.wait_for_timeout(400)
+    runs = a.js("() => window.__ledgerRuns")
+    assert runs == 1, "one 시험 실행 tap ran the ledger %d times" % runs
+    n0 = len(_placed(a, "where"))
+    a.page.click(".sp-picker [data-c]:not([disabled])")
+    a.page.wait_for_timeout(200)
+    assert len(_placed(a, "where")) == n0 + 1, "one card tap must place one card"
+    a.page.click("#sp-save")
+    a.page.wait_for_selector(".screen.stall")
+    a.page.wait_for_timeout(300)
+    saved = a.save()["stall"]["slots"]["restock"]["parts"]["where"]
+    assert len(saved) == len(before_slot["parts"]["where"]) + 1, (before_slot, saved)
+    assert _toasts(a, "칸을 저장했어요") == 1, a.page.inner_text("#toasts")
+
+
+def test_reentry_stall():
+    """v0.3.3: 가게·칸 편집기 10번씩 드나든 뒤 한 번 누르면 한 번만(하루 한 번, 시험 실행 한 번, 저장 한 번).
+    칸 편집기가 열린 채 다른 화면으로 바뀐 뒤(지금 UI에는 길이 없지만 막아 둠) 다시 와도 같음"""
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        for _ in range(REENTER_N):
+            _to_stall(a)
+            a.page.click("#stall-close")
+            a.page.wait_for_selector(".screen.home")
+        _to_stall(a)
+        # 칸 편집기 10번 열고 닫기
+        for _ in range(REENTER_N):
+            _to_editor(a, "restock")
+            a.page.click("#sp-close")
+            a.page.wait_for_selector(".screen.stall")
+        a.wait_engine()
+        _to_editor(a, "restock")
+        _editor_once(a, a.save()["stall"]["slots"]["restock"])
+        # 하루 한 번
+        xp0 = a.save()["xp"]
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay, .settle", timeout=30_000)
+        if a.page.is_visible("#skip"):
+            a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        a.page.wait_for_timeout(300)
+        s = a.save()
+        assert s["stall"]["day"] == 2, s["stall"]["day"]
+        assert s["xp"] - xp0 in (0, 5), (xp0, s["xp"])   # 첫 의뢰는 칸 SQL에 따라(아래 두 번째 판에서 정확히 셈)
+        assert not a.errors, a.errors
+    # 칸 편집기가 열린 채 화면이 바뀜(예: 앞으로 생길 다른 길) → 가게로 다시 와서 편집기를 열면 옛 편집기는 눌림을 받지 않는다
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        a.wait_engine()
+        for _ in range(3):
+            _to_editor(a, "restock")
+            a.js("() => window.__dueogi.ctx.show('home')")
+            a.page.wait_for_selector(".screen.home")
+            _to_stall(a)
+        _to_editor(a, "restock")
+        _editor_once(a, a.save()["stall"]["slots"]["restock"])
+        assert not a.errors, a.errors
+
+
+# ---------------------------------------------------------------- v0.3.3 보안 점검
+
+XSS = '<img src=x onerror="window.__xss=(window.__xss||0)+1"><b class="xss-b">B</b>'
+XSS_CHECK_JS = r"""() => ({ xss: window.__xss === undefined ? null : window.__xss,
+  imgs: document.querySelectorAll('img[src="x"], img[src$="/x"]').length, b: document.querySelectorAll('b.xss-b').length,
+  onerror: document.querySelectorAll('[onerror]').length })"""
+
+
+def _xss_ok(a, where):
+    r = a.js(XSS_CHECK_JS)
+    assert r == {"xss": None, "imgs": 0, "b": 0, "onerror": 0}, "%s: %s" % (where, r)
+
+
+def _xss_save():
+    """문자열 칸마다 HTML이 든 저장(손으로 고친 저장·가져온 저장 흉내). 끝낸 레슨 id는 가져오기 검사를 통과하는 것만"""
+    s = _seed_through(8)
+    s.update({
+        "yeopjeon": 500, "tutorial": "done",
+        "current_lesson": XSS, "review_queue": [XSS, "select"], "weak_concepts": {XSS: 3},
+        "outfit": XSS, "outfits": ["basic", XSS], "badges": [XSS],
+        "last_active_at": XSS, "submission_logs": [{"lesson": XSS, "pass": XSS}],
+        "quests": {"date": today(), "ids": [XSS], "progress": {XSS: 1}, "done": [XSS], "chest": False},
+        "settings": {"sound": False, "dailyGoal": 20, "name": XSS},
+        "streak": {"days": 2, "best": 3, "lastGoalDate": XSS, "todayDate": XSS, "todayXp": 0},
+        "seen_updates": {XSS: XSS},
+        "daily": {"date": XSS, "picks": [{"kind": XSS}], "done": [XSS], "streak": 1, "best": 1, "last_done_date": XSS},
+        "stall": {"v": 1, "seed": 7, "day": 3, "money": 120, "opened": True, "upgrades": [XSS],
+                  "items": [{"item_id": 1, "price": 12, "stock": 5}, {"item_id": XSS, "price": XSS, "stock": XSS}],
+                  "slots": {"restock": {"on": True, "mode": "frame", "parts": {"where": [{"c": XSS}]}}},
+                  "orders": [{"order_id": XSS, "customer_id": XSS, "day": 2, "items": [{"item_id": XSS, "qty": XSS}]}],
+                  "order": {"idx": 0, "done": [XSS], "progress": {XSS: XSS}},
+                  "log": [{"day": XSS, "profit": XSS}],
+                  "last": {"summary": {"day": XSS, "customers": XSS, "sold": XSS, "missed": XSS, "revenue": XSS, "bought": XSS,
+                                       "fees": XSS, "profit": XSS, "trend": XSS, "missBy": {"price": XSS, "shelf": XSS}},
+                           "slots": {"restock": {"ids": [XSS, 1], "n": XSS}}, "rested": {"restock": XSS}},
+                  "seenOrder": XSS, "seenBuy": [XSS]},
+    })
+    return s
+
+
+def test_xss_save_fields():
+    """v0.3.3 보안: 저장의 글자 칸(이름·지금 레슨·퀘스트·가게 장부 등)에 HTML을 넣어도 요소가 생기지 않고 스크립트가 돌지 않음.
+    localStorage에 바로 넣은 판과 설정 「저장 가져오기」로 들인 판 둘 다"""
+    with App("iPhone 17", save=_xss_save(), url=real_url()) as a:
+        _xss_ok(a, "splash")
+        a.start()
+        _xss_ok(a, "home")
+        for t in ("badges", "closet", "settings", "home"):
+            _go_tab(a, t)
+            _xss_ok(a, t)
+        _to_stall(a)
+        _xss_ok(a, "stall")
+        assert "어제 장부" in a.page.inner_text(".stall-body")
+        _to_editor(a, "restock")
+        _xss_ok(a, "slot editor")
+        a.page.click("#sp-close")
+        a.page.wait_for_selector(".screen.stall")
+        a.page.click("#stall-tables")
+        a.page.wait_for_selector(".tables-sheet")
+        a.page.wait_for_timeout(500)
+        _xss_ok(a, "ledger tables")
+        a.page.keyboard.press("Escape")
+        assert not a.errors, a.errors
+    # 가져오기: 같은 글자 칸을 든 파일 → 확인 창 → 바꾸기 → 홈·가게
+    imp = _xss_save()
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        _go_tab(a, "settings")
+        a.page.set_input_files("#import", files=[{"name": "dueogi-sql-save.json", "mimeType": "application/json",
+                                                  "buffer": json.dumps(imp).encode()}])
+        a.page.wait_for_selector(".modal-back")
+        _xss_ok(a, "import confirm")
+        _modal_pick(a, 1)
+        a.page.wait_for_selector(".screen.home")
+        a.page.wait_for_timeout(300)
+        _xss_ok(a, "home after import")
+        assert a.save()["settings"]["name"] == XSS, "name is kept as text (shown escaped)"
+        _go_tab(a, "settings")
+        assert a.page.input_value("#name") == XSS
+        _to_stall(a)
+        _xss_ok(a, "stall after import")
+        assert not a.errors, a.errors
+
+
+def test_xss_query_results():
+    """v0.3.3 보안: SQL 결과 칸·열 이름·sql.js 오류 글이 HTML이어도 글자로만 보임(조립 문제 「실행」·「제출」, 칸 편집기 시험 실행, 장 열기)"""
+    bad = {"columns": [XSS, "name"], "rows": [[XSS, XSS], [1, None]], "truncated": False}
+    with App("iPhone 17") as a:
+        a.start()
+        a.page.click("#continue")
+        _to_build(a, "1-1")
+        a.wait_engine()
+        a.tap_card(a.bank_texts()[0])
+        # 학습자 질의가 HTML 글자를 돌려준 셈(예: SELECT '<img …>')
+        # 다음 「실행」·「제출」의 첫 질의(학습자 SQL)만 r을 돌려줌. 정답 SQL(기대 결과)은 진짜 실행기로
+        bad_next = "(r) => { const s = window.__dueogi.ctx.sql; if (!s.__orig) s.__orig = s.run.bind(s); window.__bad = r; " \
+                   "s.run = async (q) => { const x = window.__bad; window.__bad = null; return x || s.__orig(q); }; }"
+        a.js(bad_next, bad)
+        a.build_press("run")
+        assert "onerror" in a.page.inner_text("#console")
+        _xss_ok(a, "build run result")
+        a.js(bad_next, bad)
+        a.build_press("submit")
+        _xss_ok(a, "build submit compare")
+        # sql.js 오류 글에 HTML(이름 자리 → 설명 문장 안에도 들어감)
+        err = {"columns": [], "rows": [], "error": "no such column: " + XSS, "truncated": False}
+        a.js(bad_next, err)
+        a.build_press("run")
+        assert "no such column" in a.page.inner_text("#console")
+        _xss_ok(a, "build error")
+        a.js(bad_next, err)
+        a.build_press("submit")
+        _xss_ok(a, "build submit error")
+        assert not a.errors, a.errors
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        _to_stall(a)
+        a.wait_engine()
+        _to_editor(a, "restock")
+        a.js("(r) => { window.__dueogi.ctx.sql.runLedger = async (l, q) => ({ results: q.map(() => r) }); }", bad)
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .rtable")
+        _xss_ok(a, "slot test table")
+        a.js("(e) => { window.__dueogi.ctx.sql.runLedger = async (l, q) => ({ results: q.map(() => ({ columns: [], rows: [], error: e })) }); }",
+             "near \"" + XSS + "\": syntax error")
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .err-panel")
+        _xss_ok(a, "slot test error")
+        a.page.click("#sp-close")
+        if a.page.query_selector(".modal-back"):
+            _modal_pick(a, 1)
+        a.page.wait_for_selector(".screen.stall")
+        # 장 열기: 칸 질의가 HTML 글자를 돌려줌
+        a.js("(r) => { window.__dueogi.ctx.sql.runLedger = async (l, q) => ({ results: q.map(() => r) }); }",
+             {"columns": ["item_id", "name", "value"], "rows": [[1, XSS, XSS], [XSS, XSS, XSS]], "truncated": False})
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay, .settle", timeout=30_000)
+        _xss_ok(a, "stall replay")
+        if a.page.is_visible("#skip"):
+            a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        _xss_ok(a, "stall settle")
+        assert not a.errors, a.errors
+
+
+CSP_LISTEN_JS = r"""(() => { window.__csp = [];
+  document.addEventListener('securitypolicyviolation', (e) => {
+    window.__csp.push({ dir: e.effectiveDirective || e.violatedDirective, uri: e.blockedURI, sample: e.sample || '', line: e.lineNumber });
+  }); })();"""
+BARS_JS = r"""() => [...document.querySelectorAll('.bar[role=progressbar]')].filter((b) => b.offsetParent).map((b) => {
+  const s = b.firstElementChild, max = +b.getAttribute('aria-valuemax'), now = +b.getAttribute('aria-valuenow');
+  const want = max > 0 ? Math.min(1, now / max) : 0;
+  const got = s.getBoundingClientRect().width / b.clientWidth;
+  return { cls: b.className, want: Math.round(want * 100), got: Math.round(got * 100) }; })"""
+LAYOUT_JS = r"""() => { const n = document.querySelector('.path .node-wrap'), p = document.querySelector('.path');
+  if (!n || !p) return null; const cs = getComputedStyle(n);
+  return { pos: cs.position, left: n.style.left, top: n.style.top, pw: p.style.width, ph: p.style.height }; }"""
+
+
+class _Watch:
+    """CSP 위반(securitypolicyviolation)과 앱 밖 주소로 나간 요청을 모은다"""
+
+    def __init__(self, a):
+        self.a = a
+        self.origin = a.page.url.split("/", 3)[:3]
+        self.foreign = []
+        self.requests = 0
+        self.paths = []
+        a.context.on("request", self._on)
+
+    def _on(self, req):
+        self.requests += 1
+        u = req.url
+        self.paths.append(u.split("?")[0].split("/", 3)[-1] if "//" in u else u[:20])
+        if u.startswith(("data:", "blob:")):
+            return
+        if u.split("/", 3)[:3] != self.origin:
+            self.foreign.append(u)
+
+    def violations(self):
+        return self.a.js("() => window.__csp || null")
+
+
+def _csp_app(device="iPhone 17", **kw):
+    """CSP 위반 듣기를 건 뒤 처음부터 다시 연 앱(요청도 문서·작업자·wasm부터 셈). 돌려줌 (app, watch)"""
+    a = App(device, **kw)
+    a.page.add_init_script(CSP_LISTEN_JS)
+    w = _Watch(a)
+    a.page.reload()
+    a.page.wait_for_selector(".screen.splash #go", timeout=20_000)
+    return a, w
+
+
+def _bars_ok(a, where):
+    bars = a.js(BARS_JS)
+    bad = [b for b in bars if abs(b["want"] - b["got"]) > 2]
+    assert not bad, "%s: bars %s" % (where, bad)
+    return bars
+
+
+def test_csp_and_no_foreign_requests():
+    """v0.3.3 보안: 배포판(엄격한 CSP 메타)으로 새 저장 첫 레슨 1-1 끝까지 + 가게 하루 + 칸 시험 실행 → CSP 위반 0, 앱 밖 주소 요청 0.
+    style 속성 대신 넣은 막대·학습 길 자리(data-lay-*)가 실제로 그려짐"""
+    a, w = _csp_app(url=real_url())
+    with a:
+        csp = a.js("() => document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]')?.content || null")
+        assert csp and "script-src" in csp, "CSP meta missing in the deployed index.html: %r" % csp
+        a.start()
+        _bars_ok(a, "home")
+        lay = a.js(LAYOUT_JS)
+        assert lay and lay["pos"] == "absolute" and lay["left"].endswith("px") and lay["pw"].endswith("px"), lay
+        a.page.click("#continue")
+        a.play("1-1")
+        a.dismiss()
+        a.page.click("#home")
+        a.page.wait_for_selector(".screen.home")
+        a.dismiss()
+        _bars_ok(a, "home after 1-1")
+        assert "1-1" in a.save()["completed_lessons"]
+        v = w.violations()
+        print("    first lesson: %d requests (%s), foreign %s, violations %s" % (w.requests, ", ".join(sorted(set(w.paths))), w.foreign, v))
+        assert any(p.endswith("worker.js") for p in w.paths) and any(p.endswith("sql-wasm.wasm") for p in w.paths), w.paths
+        assert v == [], v
+        assert w.foreign == [], w.foreign
+        assert not a.errors, a.errors
+        # 정책이 실제로 막는가: 누군가 HTML을 그대로 넣었다고 치면 on… 속성·style 속성은 돌지 않고 위반으로 잡힘
+        a.js("""() => { const d = document.createElement('div');
+          d.innerHTML = '<img src="data:," onerror="window.__xss=1"><span id="csp-st" style="color: rgb(1, 2, 3)">x</span>';
+          document.body.appendChild(d); }""")
+        a.page.wait_for_timeout(300)
+        got = a.js("() => ({ xss: window.__xss || null, color: getComputedStyle(document.getElementById('csp-st')).color, v: window.__csp.map((x) => x.dir) })")
+        print("    injected handler/style: %s" % got)
+        assert got["xss"] is None and got["color"] != "rgb(1, 2, 3)", got
+        assert "script-src-attr" in got["v"] and "style-src-attr" in got["v"], got
+        a.errors = [e for e in a.errors if "Content Security Policy" not in e]
+    a, w = _csp_app(save=_reentry_seed(), url=real_url())
+    with a:
+        a.start()
+        _to_stall(a)
+        a.wait_engine()
+        _to_editor(a, "restock")
+        a.page.click("#sp-test")
+        a.page.wait_for_selector(".sp-result .rtable, .sp-result .err-panel", timeout=ENGINE_READY_MS)
+        a.page.click("#sp-close")
+        a.page.wait_for_selector(".screen.stall")
+        a.page.click("#open-day")
+        a.page.wait_for_selector(".replay .replay-log li", timeout=30_000)
+        a.page.wait_for_timeout(1600)
+        a.page.click("#skip")
+        a.page.wait_for_selector(".settle")
+        a.page.click("#stall-tables")
+        a.page.wait_for_function("() => document.querySelectorAll('.tables-sheet .sql-result[data-filled]').length === 4", timeout=30_000)
+        a.page.keyboard.press("Escape")
+        a.page.click("#stall-close")
+        a.page.wait_for_selector(".screen.home")
+        _go_tab(a, "settings")
+        a.page.click("#install")
+        a.page.wait_for_selector(".modal.install")
+        a.page.keyboard.press("Escape")
+        v = w.violations()
+        print("    stall day + slot test: %d requests, foreign %s, violations %s" % (w.requests, w.foreign, v))
+        assert v == [], v
+        assert w.foreign == [], w.foreign
+        assert not a.errors, a.errors
+
+
+# ---------------------------------------------------------------- v0.3.3 첫 사용 튜토리얼
+
+TUT_CARD1 = "안녕! 나는 두억이, 도깨비 장터의 장부지기야."
+
+
+def _tut_open(a):
+    """「시작하기」 → 튜토리얼 첫 카드"""
+    a.page.click("#go")
+    a.page.wait_for_selector("#app[data-screen=tutorial] .screen.tutorial", timeout=10_000)
+
+
+def _tut_to_last(a, shots=None, fails=None):
+    """카드 1~3을 넘겨 카드 4(직접 해 보기)까지. shots: 이름 앞붙이(캡처·측정)"""
+    for k in range(3):
+        a.page.wait_for_selector(".tut-dots span:nth-child(%d).on" % (k + 1))
+        if shots:
+            _measure_ok(a, "tutorial-%d" % (k + 1), fails)
+            _keep(a, "%s-%d.png" % (shots, k + 1), _v033_shot_dir())
+        a.page.click("#tut-next")
+    a.page.wait_for_selector(".tut-card.last #tut-bank")
+
+
+def _tut_bank(a):
+    return a.js("() => [...document.querySelectorAll('#tut-bank button.bcard')].map((b) => b.dataset.text)")
+
+
+def _tut_line(a):
+    return a.js("() => [...document.querySelectorAll('#tut-line button.bcard .bc-text')].map((b) => b.textContent)")
+
+
+def _tut_tap(a, text):
+    h = a.page.evaluate_handle("(t) => [...document.querySelectorAll('#tut-bank button.bcard')].find((b) => b.dataset.text === t) || null", text)
+    assert h.as_element(), "card %r not in %s" % (text, _tut_bank(a))
+    h.as_element().click()
+
+
+def _tut_run(a):
+    a.wait_engine()
+    a.page.wait_for_selector("#tut-run:not([disabled])")
+    a.page.click("#tut-run")
+    a.page.wait_for_function("() => { const b = document.getElementById('tut-run'); return !b || b.hidden || !b.disabled; }")
+    a.page.wait_for_timeout(150)
+
+
+def _progress_of(save):
+    keep = dict(save)
+    for k in ("tutorial", "last_active_at", "submission_logs"):
+        keep.pop(k, None)
+    return keep
+
+
+def test_tutorial_flow():
+    """새 저장 → 시작하기 → 카드 4장(인사·작은 표·카드 예·직접 해 보기) → 틀린 차례 두 번(오류 설명 + 안내) → 「정답 보기」 →
+    「실행」 → 진짜 결과 표 8행 「잘했어요!」 → 「홈으로」 → tutorial "done", XP·엽전·진도·퀘스트는 그대로. 다시 열면 바로 홈"""
+    with App("iPhone 17") as a:
+        before = _progress_of(a.js("() => window.__dueogi.ctx.save"))
+        _tut_open(a)
+        assert a.save() is None or a.save().get("tutorial") is None
+        assert TUT_CARD1 in a.page.inner_text(".tut-card .bubble")
+        assert a.page.is_visible("#tut-skip")
+        a.page.click("#tut-next")
+        assert "장부는 표예요" in a.page.inner_text(".tut-card .bubble")
+        assert a.js("() => document.querySelectorAll('.tut-table tbody tr').length") == 3
+        assert "도깨비 국밥집" in a.page.inner_text(".tut-table")
+        a.page.click("#tut-next")
+        assert "타자는 필요 없어요" in a.page.inner_text(".tut-card .bubble")
+        assert a.js("() => [...document.querySelectorAll('.tut-demo .bc-text')].map((e) => e.textContent)") == ["SELECT", "*", "FROM", "shops"]
+        a.page.click("#tut-next")
+        a.page.wait_for_selector("#tut-bank button.bcard")
+        bank = _tut_bank(a)
+        assert sorted(bank) == sorted(["SELECT", "*", "FROM", "shops"]) and bank != ["SELECT", "*", "FROM", "shops"], bank
+        assert a.page.is_hidden("#tut-answer")
+        # 1) 두 장만 → 「카드 4장을 모두 놓아 봐요」
+        _tut_tap(a, bank[0])
+        _tut_tap(a, bank[1])
+        assert _tut_line(a) == bank[:2]
+        _tut_run(a)
+        assert "카드 4장을 모두 놓아 봐요" in a.page.inner_text("#tut-out")
+        assert a.page.is_hidden("#tut-answer")
+        # 2) 섞인 차례 그대로 4장 → 진짜 실행 오류 + 설명 + 「SELECT로 시작해요」, 이제 「정답 보기」
+        _tut_tap(a, bank[2])
+        _tut_tap(a, bank[3])
+        assert _tut_line(a) == bank
+        _tut_run(a)
+        out = a.page.inner_text("#tut-out")
+        print("    wrong order %s → %r" % (bank, " ".join(out.split())[:160]))
+        assert "SELECT로 시작해요" in out and a.page.query_selector("#tut-out .err-orig"), out
+        assert a.page.is_visible("#tut-answer")
+        # 놓은 카드를 누르면 빠짐
+        a.page.click("#tut-line button.bcard")
+        assert len(_tut_line(a)) == 3
+        a.page.click("#tut-answer")
+        assert _tut_line(a) == ["SELECT", "*", "FROM", "shops"]
+        _tut_run(a)
+        a.page.wait_for_selector("#tut-out .rtable")
+        rows = a.js("() => document.querySelectorAll('#tut-out .rtable tbody tr').length")
+        text = a.page.inner_text("#tut-out")
+        print("    pass: %d rows, %r" % (rows, text.split("\n")[0]))
+        assert rows == 8 and "잘했어요!" in text, (rows, text[:200])
+        assert a.page.is_visible("#tut-lesson") and a.page.is_visible("#tut-home")
+        assert a.page.is_hidden("#tut-run") and a.page.is_hidden("#tut-answer")
+        a.page.click("#tut-home")
+        a.page.wait_for_selector(".screen.home")
+        s = a.save()
+        assert s["tutorial"] == "done", s["tutorial"]
+        assert s["xp"] == 0 and s["yeopjeon"] == 0 and s["completed_lessons"] == [] and s["stats"]["lessons"] == 0, s
+        after = _progress_of(s)
+        assert after["quests"] == before["quests"] and after["badges"] == before["badges"] and after["streak"] == before["streak"], (before, after)
+        a.page.reload()
+        a.page.wait_for_selector(".screen.splash #go")
+        a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
+        assert not a.errors, a.errors
+
+
+def test_tutorial_to_lesson_and_skip():
+    """성공 뒤 「첫 레슨 시작」 → 1-1. 「건너뛰기」는 카드 1에서도 카드 4에서도 → "skipped"·홈"""
+    with App("iPhone 17") as a:
+        _tut_open(a)
+        _tut_to_last(a)
+        for t in ["SELECT", "*", "FROM", "shops"]:
+            _tut_tap(a, t)
+        _tut_run(a)
+        a.page.wait_for_selector("#tut-out .rtable")
+        a.page.click("#tut-lesson")
+        a.page.wait_for_selector(".screen.lesson")
+        assert a.page.inner_text(".lesson-tag").strip() == "1-1"
+        assert a.save()["tutorial"] == "done"
+        assert not a.errors, a.errors
+    with App("iPhone 17") as a:
+        _tut_open(a)
+        a.page.click("#tut-skip")
+        a.page.wait_for_selector(".screen.home")
+        assert a.save()["tutorial"] == "skipped"
+    with App("iPhone 17") as a:
+        _tut_open(a)
+        _tut_to_last(a)
+        _tut_tap(a, _tut_bank(a)[0])
+        a.page.click("#tut-skip")
+        a.page.wait_for_selector(".screen.home")
+        s = a.save()
+        assert s["tutorial"] == "skipped" and s["xp"] == 0, s
+        assert not a.errors, a.errors
+
+
+def test_tutorial_old_save_and_dev_go_home():
+    """기록 있는 옛 저장(tutorial 칸 없음) → 바로 홈, 정리 뒤 "done". 개발자 모드 저장 → 바로 홈"""
+    with App("iPhone 17", save={"saveVer": 1, "xp": 30, "yeopjeon": 5, "completed_lessons": ["1-1"]}) as a:
+        a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
+        assert not a.page.query_selector(".screen.tutorial")
+        assert a.save()["tutorial"] == "done", a.save().get("tutorial")
+    with App("iPhone 17") as a:
+        a.js("() => window.__dueogi.ctx.setDev(true)")
+        a.page.click("#go")
+        a.page.wait_for_selector("#app[data-screen=home] .screen.home")
+        assert not a.page.query_selector(".screen.tutorial")
+        assert not a.errors, a.errors
+
+
+def test_tutorial_replay_from_settings():
+    """설정 「사용법 다시 보기」 → 같은 카드(「닫기」) → 성공 뒤 「홈으로」만 → 홈, tutorial·XP·엽전 그대로"""
+    with App("iPhone 17", save={"saveVer": 1, "xp": 40, "yeopjeon": 12, "completed_lessons": ["1-1", "1-2"], "tutorial": "skipped"}) as a:
+        a.start()
+        _go_tab(a, "settings")
+        before = a.save()
+        assert "사용법 다시 보기" in a.page.inner_text(".tut-again")
+        a.page.click("#tut-replay")
+        a.page.wait_for_selector("#app[data-screen=tutorial] .screen.tutorial")
+        assert a.page.inner_text("#tut-skip").strip() == "닫기"
+        _tut_to_last(a)
+        for t in ["SELECT", "*", "FROM", "shops"]:
+            _tut_tap(a, t)
+        _tut_run(a)
+        a.page.wait_for_selector("#tut-out .rtable")
+        assert not a.page.query_selector("#tut-lesson"), "replay has no 첫 레슨 button"
+        a.page.click("#tut-home")
+        a.page.wait_for_selector(".screen.home")
+        after = a.save()
+        assert after["tutorial"] == "skipped" and after["xp"] == 40 and after["yeopjeon"] == 12, after
+        assert _progress_of(after) == _progress_of(before), "replay must not touch the save"
+        # 「닫기」로 나가도 그대로
+        _go_tab(a, "settings")
+        a.page.click("#tut-replay")
+        a.page.wait_for_selector(".screen.tutorial")
+        a.page.click("#tut-skip")
+        a.page.wait_for_selector(".screen.home")
+        assert a.save()["tutorial"] == "skipped"
+        assert not a.errors, a.errors
+
+
+def test_tutorial_screens():
+    """아이폰 17·SE: 카드 4장(+ 결과 표)·설정 「사용법 다시 보기」 줄 — 가로 넘침 0, 화면 밖 단추 0, 터치 44px 이상. 캡처는 v0.3.3/shots.
+    움직임 줄이기: 카드 넘김 애니메이션 없음"""
+    fails = []
+    for dev in ["iPhone 17", "iPhone SE"]:
+        tag = slug(dev)
+        with App(dev) as a:
+            _tut_open(a)
+            _tut_to_last(a, shots="tutorial-%s" % tag, fails=fails)
+            _measure_ok(a, "tutorial-4", fails)
+            _keep(a, "tutorial-%s-4.png" % tag, _v033_shot_dir(), full=True)
+            bank = _tut_bank(a)
+            for t in bank:
+                _tut_tap(a, t)
+            _tut_run(a)
+            _measure_ok(a, "tutorial-4-wrong", fails)
+            _keep(a, "tutorial-%s-4-wrong.png" % tag, _v033_shot_dir(), full=True)
+            _tut_run(a)   # 두 번째 틀린 실행 → 「정답 보기」
+            a.page.click("#tut-answer")
+            _tut_run(a)
+            a.page.wait_for_selector("#tut-out .rtable")
+            _measure_ok(a, "tutorial-4-pass", fails)
+            _keep(a, "tutorial-%s-4-pass.png" % tag, _v033_shot_dir(), full=True)
+            a.page.click("#tut-home")
+            a.page.wait_for_selector(".screen.home")
+            _go_tab(a, "settings")
+            a.page.eval_on_selector(".tut-again", "e => e.scrollIntoView({ block: 'center' })")
+            _measure_ok(a, "settings-tutorial-row", fails)
+            _keep(a, "settings-%s-tutorial-row.png" % tag, _v033_shot_dir())
+            assert not a.errors, a.errors
+    with App("iPhone 17", reduced=True) as a:
+        _tut_open(a)
+        anim = a.js("() => getComputedStyle(document.querySelector('.tut-card')).animationName")
+        print("    reduced motion: .tut-card animation %r" % anim)
+        assert anim == "none", anim
+    assert not fails, "\n".join(fails)
+
+
+def test_reentry_tutorial():
+    """v0.3.3: 「사용법 다시 보기」를 10번 열고 닫은 뒤(카드 4까지 갔다가 나가기 섞어) 카드 한 번 = 한 장, 「실행」 한 번 = 한 번"""
+    with App("iPhone 17", save=_reentry_seed(), url=real_url()) as a:
+        a.start()
+        _go_tab(a, "settings")
+        for k in range(REENTER_N):
+            a.page.click("#tut-replay")
+            a.page.wait_for_selector(".screen.tutorial")
+            if k % 2:
+                _tut_to_last(a)
+                _tut_tap(a, _tut_bank(a)[0])
+            a.page.click("#tut-skip")
+            a.page.wait_for_selector(".screen.home")
+            _go_tab(a, "settings")
+        a.page.click("#tut-replay")
+        _tut_to_last(a)
+        a.js(r"""() => { const s = window.__dueogi.ctx.sql; const o = s.run.bind(s); window.__runs = 0;
+          s.run = (...x) => { window.__runs++; return o(...x); }; }""")
+        _tut_tap(a, "SELECT")
+        assert _tut_line(a) == ["SELECT"], _tut_line(a)
+        for t in ["*", "FROM", "shops"]:
+            _tut_tap(a, t)
+        _tut_run(a)
+        a.page.wait_for_selector("#tut-out .rtable")
+        assert a.js("() => window.__runs") == 1
+        assert a.js("() => document.querySelectorAll('#tut-out .rtable').length") == 1
+        assert a.save()["tutorial"] == "done" and a.save()["xp"] == 300
         assert not a.errors, a.errors
 
 

@@ -18,7 +18,7 @@ import { loadDevChapters } from "./lessondev.js";
 import { createSound } from "./sound.js";
 import { SqlRun } from "./sqlrun.js";
 import MARKET_SQL from "../data/market.sql";   // esbuild가 글자로 묶음(build.py·tools/dev.py: loader .sql=text)
-import { toast } from "./ui/dom.js";
+import { toast, applyLayout } from "./ui/dom.js";
 import { statusBar } from "./ui/nav.js";
 import { installHintKind, installSheetKind, isAndroid, INSTALL_HINT_KEY } from "./install.js";
 import { openInstallSheet } from "./ui/installsheet.js";
@@ -30,9 +30,10 @@ import * as badges from "./ui/badges.js";
 import * as closet from "./ui/closet.js";
 import * as settings from "./ui/settings.js";
 import * as stall from "./ui/stall.js";
+import * as tutorial from "./ui/tutorial.js";
 
-export const VERSION = "v0.3.2";
-const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall };
+export const VERSION = "v0.3.3";
+const SCREENS = { splash, home, lesson, done, badges, closet, settings, stall, tutorial };
 
 // ---- 저장소 (사파리 사생활 보호 모드 등에서 localStorage 접근이 막혀도 앱은 돈다) ----
 function pickStorage() {
@@ -109,9 +110,23 @@ function commit(next) {
   if (bar) {
     const t = document.createElement("template");
     t.innerHTML = statusBar(next).trim();
-    bar.replaceWith(t.content.firstElementChild);
+    const fresh = t.content.firstElementChild;
+    bar.replaceWith(fresh);
+    applyLayout(fresh);
   }
   return ok;
+}
+
+// ---- 자리·크기(v0.3.3 CSP) ----
+// 화면이 innerHTML로 다시 그린 부분(의상실 다시 그리기·창·알림 등)의 data-lay-*도 빠짐없이: 새로 붙은 요소마다 applyLayout.
+// 관찰 콜백은 그리기 전에 돌아 막대가 한 번 꽉 찼다가 줄어드는 깜빡임이 없다
+function watchLayout() {
+  try {
+    const mo = new MutationObserver((list) => {
+      for (const m of list) for (const n of m.addedNodes) if (n.nodeType === 1) applyLayout(n);
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  } catch { /* 관찰을 못 하는 환경: show()·commit()의 직접 부르기만 */ }
 }
 
 // ---- 화면 전환 ----
@@ -127,6 +142,7 @@ function show(name, params = {}) {
   window.scrollTo(0, 0);
   const out = SCREENS[name].render(root, ctx, params);
   if (typeof out === "function") app.cleanup = out;
+  applyLayout(root);   // data-lay-* 자리·크기(CSP: style 속성 대신)
   const h = root.querySelector("h1, [data-autofocus]");
   if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
 }
@@ -349,6 +365,7 @@ async function boot() {
     const after = app.save.quests.date + "|" + app.save.streak.lastGoalDate;
     if (app.screen === "home" && (before !== after || app.greetOverride)) show("home");
   });
+  watchLayout();
   root.removeAttribute("aria-busy");
   // 시험 도구가 상태를 볼 수 있게
   window.__dueogi = { app, ctx };

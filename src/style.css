@@ -948,3 +948,58 @@ input[type="text"]:focus { border-color: var(--teal-ink); outline: 3px solid var
 .sp-preview-code { flex: none; white-space: nowrap; color: #F4EEDD; font-size: 13px; line-height: 1.5; }
 .sp-live { margin: 0 0 4px; min-height: 1.3em; font-size: .8rem; font-weight: 700; color: var(--teal-deep); text-align: center; }
 .sp-block { margin: 0 0 6px; text-align: center; font-size: .9rem; font-weight: 800; color: var(--coral-ink); }
+
+/* ---------- 첫 사용 튜토리얼 (v0.3.3): 두억이 카드 4장 + 직접 해 보기 ---------- */
+.tutorial { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; gap: 14px;
+  padding: calc(var(--sat) + 12px) calc(16px + var(--sar)) calc(var(--sab) + 16px) calc(16px + var(--sal)); }
+.tut-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tut-top .btn.small { min-height: 44px; }
+.tut-dots { display: flex; gap: 8px; }
+.tut-dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--paper-2); border: 2px solid var(--line); }
+.tut-dots span.seen { background: var(--teal-soft); border-color: var(--teal); }
+.tut-dots span.on { background: var(--teal-ink); border-color: var(--teal-ink); }
+.tut-card { flex: 1; display: flex; flex-direction: column; gap: 14px; justify-content: center; animation: tut-in .25s ease; }
+.tut-card.last { justify-content: flex-start; }
+@keyframes tut-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.tut-say { align-items: center; }
+/* 카드 1~3: 두억이 위, 말풍선 아래(좁은 SE에서도 말풍선이 한 줄에 몇 글자만 들어가지 않게) */
+.tut-card:not(.last) .tut-say { flex-direction: column; gap: 12px; }
+.tut-card:not(.last) .tut-say .bubble { flex: none; width: 100%; text-align: center; border-radius: 18px; }
+.tut-say .bubble { font-size: 1.05rem; }
+.tut-foot .btn { min-height: 52px; }
+/* 카드 2: 작은 장부 표 — 가로 한 줄(해 노랑)·세로 한 칸(청록) */
+.tut-fig { margin: 0; }
+.tut-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 2px solid var(--line); border-radius: 14px; overflow: hidden; font-size: .92rem; }
+.tut-table th, .tut-table td { padding: 8px 8px; text-align: left; border-bottom: 1.5px solid var(--line); }
+.tut-table tbody tr:last-child td { border-bottom: 0; }
+.tut-table th { background: var(--paper-2); vertical-align: bottom; }
+.tut-table th .col-en { display: block; font-family: var(--mono); font-size: .8rem; }
+.tut-table th .col-ko { display: block; font-size: .72rem; font-weight: 600; color: var(--ink-2); }
+.tut-table tr.row-on td { background: var(--sun-soft); font-weight: 800; }
+.tut-table .col-on { box-shadow: inset 3px 0 0 var(--teal), inset -3px 0 0 var(--teal); background: var(--teal-soft); }
+.tut-table tr.row-on td.col-on { background: #D7EDC9; }
+.tut-legend { display: grid; gap: 4px; margin-top: 10px; font-size: .9rem; font-weight: 700; }
+.tut-legend span { display: flex; align-items: center; gap: 8px; }
+.tut-legend .sw { width: 18px; height: 14px; border-radius: 4px; flex: none; }
+.tut-legend .sw.row { background: var(--sun-soft); border: 2px solid var(--sun-deep); }
+.tut-legend .sw.col { background: var(--teal-soft); border: 2px solid var(--teal); }
+/* 카드 3: 카드 조립 예 */
+.tut-demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 12px; border: 2px dashed var(--line); border-radius: 16px; }
+.tut-note { margin: 0; }
+/* 카드 4: 직접 해 보기 */
+.tut-build .bline { min-height: 64px; }
+.tut-build.passed .tut-bank-label, .tut-build.passed .bbank { display: none; }
+.tut-build .btn.wide { margin-bottom: 10px; }
+.tut-out:empty { display: none; }
+.tut-out { margin-bottom: 10px; }
+.tut-out .err-panel { margin-bottom: 0; }
+.tut-out .rt-scroll { max-height: 42vh; overflow-y: auto; overscroll-behavior: contain; }
+.tut-hint { display: flex; gap: 6px; align-items: flex-start; font-weight: 700; color: var(--ink); margin: 0; }
+.tut-hint .ic { flex: none; width: 20px; height: 20px; color: var(--sun-ink); }
+.tut-after, .tut-wait { display: grid; gap: 10px; }
+.tut-card [hidden], .tut-build [hidden] { display: none !important; }
+.tut-again .row { padding: 0; }
+.tut-again .btn.small { min-height: 44px; min-width: 64px; flex: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tut-card { animation: none !important; transition: none !important; }
+}

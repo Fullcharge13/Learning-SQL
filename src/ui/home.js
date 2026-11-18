@@ -3,7 +3,7 @@ import { QUESTS } from "../../data/quests.js";
 import { CONCEPTS } from "../../data/concepts.js";
 import { dueogiSVG } from "../dueogi.js";
 import { FACES } from "../say.js";
-import { esc, icon, bar, dueogiSays, dialog, toast } from "./dom.js";
+import { esc, icon, bar, dueogiSays, dialog, toast, applyLayout } from "./dom.js";
 import { tabBar, bindTabs, statusBar, stallTabOf } from "./nav.js";
 import { pathEndText } from "../curriculum.js";
 import { hasNewContent } from "../newcontent.js";
@@ -51,11 +51,11 @@ function advBranch(ctx, chapter, ex, ey) {
     const x = cx - span / 2 + i * STAR_GAP;
     const stateKo = { locked: "잠김, 장 평가를 통과하면 열려요", open: "열림", done: "완료", perfect: "실수 없이 완료" }[st];
     const fresh = hasNewContent(l, ctx.save);
-    return `<button class="star-node ${st}" style="left:${x - STAR / 2}px;top:${sy - STAR / 2}px" data-lesson="${esc(l.id)}"
+    return `<button class="star-node ${st}" data-lay-l="${x - STAR / 2}" data-lay-t="${sy - STAR / 2}" data-lesson="${esc(l.id)}"
       aria-label="${esc(`심화 ${l.id} ${l.title}, ${stateKo}${fresh ? `, ${NEW_LABEL}` : ""}`)}">${starGlyph(k, st)}</button>${fresh
-      ? `<span class="new-dot-at" style="left:${x + STAR / 2 - 14}px;top:${sy - STAR / 2 - 10}px">${newDot(l.id, " star")}</span>` : ""}`;
+      ? `<span class="new-dot-at" data-lay-l="${x + STAR / 2 - 14}" data-lay-t="${sy - STAR / 2 - 10}">${newDot(l.id, " star")}</span>` : ""}`;
   }).join("");
-  const cap = `<span class="adv-cap${opened ? " open" : ""}" style="top:${sy + STAR / 2 + 6}px">심화 ${doneN}/${adv.length}${opened ? "" : " · 장 평가 뒤 열림"}</span>`;
+  const cap = `<span class="adv-cap${opened ? " open" : ""}" data-lay-t="${sy + STAR / 2 + 6}">심화 ${doneN}/${adv.length}${opened ? "" : " · 장 평가 뒤 열림"}</span>`;
   return { links, nodes: stars + cap };
 }
 
@@ -149,7 +149,7 @@ function pathSection(ctx, chapter, startIndex, currentId) {
     const stateKo = { locked: "잠김", open: cur ? "지금 할 레슨" : "열림", done: "완료", perfect: "실수 없이 완료" }[st];
     const side = p.x > W / 2 ? "left" : "right";
     const fresh = hasNewContent(l, ctx.save);
-    return `<div class="node-wrap" style="left:${p.x - NODE / 2}px;top:${p.y - NODE / 2}px">
+    return `<div class="node-wrap" data-lay-l="${p.x - NODE / 2}" data-lay-t="${p.y - NODE / 2}">
       <button class="node ${st}${cur ? " current" : ""}" data-lesson="${esc(l.id)}" aria-label="${esc(`${l.id} ${l.title}, ${stateKo}${fresh ? `, ${NEW_LABEL}` : ""}`)}">${glyph}</button>
       ${fresh ? newDot(l.id) : ""}
       <span class="node-label">${l.isExam && !/평가/.test(l.title) ? '<em>장 평가</em>' : ""}${esc(l.title)}</span>
@@ -161,7 +161,7 @@ function pathSection(ctx, chapter, startIndex, currentId) {
   const advAll = hasAdv && chapter.advanced.every((l) => ["done", "perfect"].includes(ctx.lessonState(l.id)));
   return `<section class="chapter" aria-label="${esc(`${chapter.id}장 ${chapter.title}`)}">
     <h2 class="chapter-title"><span class="ch-no">${chapter.id}장</span>${esc(chapter.title)}${advAll ? `<span class="ch-star" title="심화 모두 완료">${icon("star", "fill")}<span class="sr">심화 모두 완료</span></span>` : ""}</h2>
-    <div class="path" style="width:${W}px;height:${H}px">
+    <div class="path" data-lay-w="${W}" data-lay-h="${H}">
       <svg class="snake" viewBox="0 ${-30} ${W} ${H + 30}" width="${W}" height="${H + 30}" aria-hidden="true">
         ${br.links}
         <path d="${full}" class="snake-bed"/>
@@ -224,6 +224,7 @@ export function render(root, ctx) {
     }
     ctx.show("lesson", { id });
   }));
+  applyLayout(root);   // 학습 길 자리(data-lay-*)를 넣은 뒤에 스크롤(v0.3.3 CSP)
   // 지금 레슨이 화면 안에 오게
   const curNode = root.querySelector(".node.current");
   // 오늘의 도전이 남아 있으면 맨 위 카드가 보이게 그대로 둔다(v0.9)

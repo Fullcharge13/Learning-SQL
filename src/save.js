@@ -33,6 +33,7 @@ export function newSave() {
     seen_updates: {},  // v0.7.1 「새 내용」 점: { 레슨 id: 끝까지 다시 본 판 "v0.7.1" }. saveVer 그대로, 없으면 {}
     daily: newDaily(), // v0.9 매일 도전 { date, picks, done, streak, best, last_done_date }. saveVer 그대로, 없으면 기본값
     stall: null,       // v0.3 두억이의 가게. 없으면 null(처음 열 때 만듦), 있으면 cleanStall로 정리. saveVer 그대로
+    tutorial: null,    // v0.3.3 첫 사용 튜토리얼 null(아직)|"done"|"skipped". saveVer 그대로, 없거나 이상하면 migrate의 기록 규칙
   };
 }
 
@@ -135,6 +136,10 @@ export function migrate(raw) {
   delete s.bytes;
   migrateBadges(s);
   migrateOutfits(s);   // 리아 시절 saveVer 1→2 옷 옮기기·환불은 이 앱에 없다(처음부터 saveVer 1)
+  // 튜토리얼(v0.3.3): "done"·"skipped"는 그대로. 그 밖(칸 없음·이상한 값)은 기록이 하나라도 있으면(레슨·XP·엽전·가게) 본 것으로 → 바로 홈
+  if (s.tutorial !== "done" && s.tutorial !== "skipped") {
+    s.tutorial = s.completed_lessons.length > 0 || s.xp > 0 || s.yeopjeon > 0 || s.stall !== null ? "done" : null;
+  }
   s.saveVer = ver > SAVE_VER ? ver : SAVE_VER;
   return s;
 }

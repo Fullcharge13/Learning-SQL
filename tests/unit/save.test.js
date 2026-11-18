@@ -31,6 +31,7 @@ const LEDGER_SHAPE = {
   seen_updates: {}, // v0.7.1: 「새 내용」 점 — 다시 본 판 { 레슨 id: "v0.7.1" } (saveVer 그대로)
   daily: { date: null, picks: [], done: [], streak: 0, best: 0, last_done_date: null }, // v0.9 매일 도전(saveVer 그대로)
   stall: null, // v0.3 두억이의 가게(없으면 null, 처음 열 때 만듦)
+  tutorial: null, // v0.3.3 첫 사용 튜토리얼 null(아직)|"done"|"skipped"
 };
 
 test("constants", () => {
@@ -85,6 +86,7 @@ test("migrate: fills missing nested fields, keeps existing values", () => {
 test("migrate: full current (v2) save passes through unchanged", () => {
   const full = newSave();
   full.xp = 99;
+  full.tutorial = "done";   // v0.3.3: 기록이 있는 지금 판 저장은 튜토리얼을 지난 저장
   full.grading_results = { "1-1": { perfect: true, attempts: 1 } };
   assert.deepEqual(migrate(JSON.parse(JSON.stringify(full))), full);
 });
@@ -133,7 +135,7 @@ test("cap", () => {
 test("store: round trip", () => {
   const st = fakeStorage();
   const s = newSave();
-  s.xp = 42; s.outfits.push("merchant");
+  s.xp = 42; s.outfits.push("merchant"); s.tutorial = "skipped";
   store(st, s);
   assert.deepEqual(load(st), s);
 });
@@ -389,4 +391,26 @@ test("migrate badges: 옛 저장으로 배지 판정 — first_query를 두 번 
   const { checkBadges } = await import("../../src/badges.js");
   const s = migrate({ saveVer: 1, completed_lessons: ["1-1"], badges: ["first_print", "ch1"] });
   assert.deepEqual(checkBadges(s, { hour: 12 }), []);
+});
+
+// ---- v0.3.3 첫 사용 튜토리얼 칸 ----
+test("tutorial: new save has not seen it", () => {
+  assert.equal(newSave().tutorial, null);
+  assert.equal(migrate({}).tutorial, null);
+  assert.equal(migrate({ yeopjeon: 0, xp: 0, completed_lessons: [] }).tutorial, null);
+});
+
+test("tutorial: an old save with any progress counts as done (goes straight home)", () => {
+  assert.equal(migrate({ xp: 30 }).tutorial, "done");
+  assert.equal(migrate({ completed_lessons: ["1-1"] }).tutorial, "done");
+  assert.equal(migrate({ yeopjeon: 5 }).tutorial, "done");
+  assert.equal(migrate({ stall: { opened: true } }).tutorial, "done");
+});
+
+test("tutorial: done/skipped kept, anything else follows the progress rule", () => {
+  assert.equal(migrate({ tutorial: "skipped" }).tutorial, "skipped");
+  assert.equal(migrate({ tutorial: "done", xp: 0 }).tutorial, "done");
+  assert.equal(migrate({ tutorial: "<img src=x>" }).tutorial, null);
+  assert.equal(migrate({ tutorial: true, xp: 9 }).tutorial, "done");
+  assert.equal(migrate({ tutorial: null, xp: 0 }).tutorial, null);
 });

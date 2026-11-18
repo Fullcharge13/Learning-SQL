@@ -7,7 +7,7 @@
    - first html ≤ 650KB: dist/index.html 한 장, 바깥 <script src>·<link rel="stylesheet"> 없음, 압축 전 650KB 이하
    - wasm present: dist/sql-wasm.wasm이 node_modules/sql.js/dist의 것과 같은 바이트. worker.js는 sql.js를 묶어 넣은
      한 파일(실행 중 글자를 코드로 바꾸지 않음: new Function·eval·importScripts 없음 → 엄격한 CSP에서도 돎)
-   - version v0.3.2 shown: index.html·sw.js에 판 표시, 첫 화면 .ver에도(브라우저 시험)
+   - version v0.3.3 shown: index.html·sw.js에 판 표시, 첫 화면 .ver에도(브라우저 시험)
    - no pyodide/codemirror strings: 배포 파일 어디에도 리아 시절 이름이 없음
    - sw deletes only dueogi- caches: sw.js의 지우기 조건 검사 + sw.js를 Node에서 돌려 activate가 ria- 저장본을 남기는지
    - manifest·아이콘, licenses.txt(sql.js MIT 전문, SQLite 퍼블릭 도메인 문구), 빌드 폴더 청소, node 없음 안내
@@ -102,7 +102,7 @@ def _dist_text_files(folder=DIST):
 # ---------------------------------------------------------------- 정적 검사
 
 def test_html_static():
-    """first html ≤ 650KB, version v0.3.2 shown (글자), 바깥 파일 없음"""
+    """first html ≤ 650KB, version v0.3.3 shown (글자), 바깥 파일 없음"""
     out = _build()
     html = _read(os.path.join(DIST, "index.html"))
     raw = len(html.encode("utf-8"))
@@ -112,15 +112,85 @@ def test_html_static():
     assert raw <= MAX_RAW, "first html too big: %d bytes > %d" % (raw, MAX_RAW)
     assert not re.search(r"<script\b[^>]*\ssrc\s*=", html, re.I), "external <script src> in index.html"
     assert 'rel="stylesheet"' not in html, "CSS must be inlined"
-    assert APP_VERSION == "v0.3.2", APP_VERSION
-    assert '<meta name="dueogi-version" content="v0.3.2">' in html
-    assert 'window.DUEOGI_VERSION = "v0.3.2";' in html
+    assert APP_VERSION == "v0.3.3", APP_VERSION
+    assert '<meta name="dueogi-version" content="v0.3.3">' in html
+    assert 'window.DUEOGI_VERSION = "v0.3.3";' in html
     assert "<title>두억이와 SQL!</title>" in html, re.search(r"<title>.*?</title>", html).group(0)
     assert "/node_modules/" not in html
     assert '<link rel="manifest" href="manifest.webmanifest">' in html
     assert 'rel="apple-touch-icon"' in html
     assert re.search(r"index\.html raw [\d.]+ KB", out) and re.search(r"sql-wasm\.wasm [\d.]+ KB", out) \
         and re.search(r"worker\.js [\d.]+ KB", out), "build.py must print the sizes (first html, wasm, worker)"
+
+
+CSP_META_RE = re.compile(r'<meta http-equiv="Content-Security-Policy" content="([^"]+)">')
+
+
+def _csp(html):
+    m = CSP_META_RE.search(html)
+    assert m, "no <meta http-equiv=\"Content-Security-Policy\"> in index.html"
+    out = {}
+    for part in m.group(1).split(";"):
+        words = part.split()
+        if words:
+            assert words[0] not in out, "directive %s twice" % words[0]
+            out[words[0]] = words[1:]
+    return m, out
+
+
+def _b64sha256(text):
+    import base64
+    return "'sha256-%s'" % base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode()
+
+
+def test_csp_meta():
+    """v0.3.3: 배포 index.html에 엄격한 CSP 메타. 스크립트는 'self' + 인라인 스크립트 지문(sha256)만, 'unsafe-eval'·'unsafe-inline'·* 없음.
+    스타일은 <style> 한 덩어리의 지문만(style 속성 없음). 메타는 head에서 어떤 script·style보다 먼저"""
+    _build()
+    html = _read(os.path.join(DIST, "index.html"))
+    m, d = _csp(html)
+    print("    CSP: %s" % m.group(1)[:400])
+    first_code = min(i for i in (html.find("<script"), html.find("<style")) if i >= 0)
+    assert m.start() < first_code, "CSP meta must come before any <script>/<style>"
+    assert m.start() < html.find("</head>")
+    assert "*" not in m.group(1), "no wildcard"
+    assert "'unsafe-eval'" not in m.group(1)
+    assert d["default-src"] == ["'self'"], d
+    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+    styles = re.findall(r"<style>(.*?)</style>", html, re.S)
+    assert len(scripts) == 2 and len(styles) == 1, (len(scripts), len(styles))
+    assert not re.search(r"<script\b(?![^>]*\ssrc=)[^>]*\S[^>]*>", html.replace("<script>", "")), "inline script with attributes"
+    want_script = ["'self'", "'wasm-unsafe-eval'"] + [_b64sha256(s) for s in scripts]
+    assert sorted(d["script-src"]) == sorted(want_script), (d["script-src"], want_script)
+    assert d["style-src"] == [_b64sha256(styles[0])], d["style-src"]
+    assert d["img-src"] == ["'self'", "data:"], d
+    assert d["connect-src"] == ["'self'"], d
+    assert d["worker-src"] == ["'self'"], d
+    assert d["manifest-src"] == ["'self'"], d
+    assert d["object-src"] == ["'none'"] and d["base-uri"] == ["'none'"] and d["form-action"] == ["'none'"], d
+    # style 속성·on… 속성은 CSP가 막으므로 배포 HTML(인라인 스크립트 밖)과 앱 코드가 만들지 않아야 함
+    body = re.sub(r"<script>.*?</script>|<style>.*?</style>", "", html, flags=re.S)
+    assert not re.search(r"\sstyle\s*=", body), "style attribute in index.html"
+    assert not re.search(r"\son[a-z]+\s*=", body), "inline event handler in index.html"
+    for dp, _, fs in os.walk(os.path.join(ROOT, "src")):
+        for f in fs:
+            if f.endswith(".js"):
+                src = _read(os.path.join(dp, f))
+                assert not re.search(r"""\sstyle=["'$]""", src), "style attribute in markup: src/%s" % f
+                assert not re.search(r"""\son(click|error|load|input|change)=""", src), "inline handler in markup: src/%s" % f
+
+
+def test_csp_build_id_and_hash_rebuild():
+    """빌드 표시(--build-id)를 넣어도 지문이 그 빌드의 인라인 스크립트와 맞음"""
+    out = os.path.join(OUT, "dist-csp")
+    r = _run_build("--out", out, "--build-id", "2026-11-18a")
+    assert r.returncode == 0, r.stdout + r.stderr
+    html = _read(os.path.join(out, "index.html"))
+    _, d = _csp(html)
+    for s in re.findall(r"<script>(.*?)</script>", html, re.S):
+        assert _b64sha256(s) in d["script-src"]
+    for s in re.findall(r"<style>(.*?)</style>", html, re.S):
+        assert _b64sha256(s) in d["style-src"]
 
 
 def test_no_ria_names_in_build():
@@ -215,8 +285,8 @@ def test_sw_static():
     _build()
     sw = _read(os.path.join(DIST, "sw.js"))
     assert "__DUEOGI_" not in sw and "__DUEOGI_" not in sw, "placeholders left in sw.js"
-    assert 'const VERSION = "v0.3.2";' in sw
-    assert re.search(r'const GAME_CACHE = "dueogi-game-v0\.3\.2-[0-9a-f]{10}";', sw), sw[:600]
+    assert 'const VERSION = "v0.3.3";' in sw
+    assert re.search(r'const GAME_CACHE = "dueogi-game-v0\.3\.3-[0-9a-f]{10}";', sw), sw[:600]
     assert 'const ENGINE_CACHE = "%s";' % ENGINE_CACHE in sw and ENGINE_CACHE == "dueogi-engine-1.15.2", ENGINE_CACHE
     engine = json.loads(re.search(r"const ENGINE_FILES = (\[[^\]]*\]);", sw).group(1))
     assert engine == ["sql-wasm.wasm"], engine
@@ -482,6 +552,10 @@ class _Browser:
         pg.wait_for_selector(".screen.splash #go", timeout=20_000)
         assert APP_VERSION in pg.inner_text(".screen.splash .ver")
         pg.click("#go")
+        # v0.3.3: 새 저장은 튜토리얼이 먼저 → 「건너뛰기」로 홈(튜토리얼 자체는 flow.py가 시험)
+        pg.wait_for_selector("#app[data-screen=home], #app[data-screen=tutorial]", timeout=10_000)
+        if pg.query_selector("#app[data-screen=tutorial]"):
+            pg.click("#tut-skip")
         pg.wait_for_selector("#app[data-screen=home]", timeout=10_000)
 
     def wait_controlled(self):
@@ -575,6 +649,9 @@ def test_browser_offline():
     b = _Browser(DIST)
     try:
         pg = b.page
+        # v0.3.3: CSP 위반을 모은다(온라인·서비스 작업자가 준 오프라인 판 둘 다 0이어야)
+        b.context.add_init_script("window.__csp = []; document.addEventListener('securitypolicyviolation', (e) => "
+                                  "window.__csp.push(e.effectiveDirective + ' ' + e.blockedURI));")
         b.seed_ria()
         # 1) 온라인: 홈 화면, 실행기 준비, SQL 한 줄
         pg.goto(b.url)
@@ -593,7 +670,7 @@ def test_browser_offline():
         keys = b.cache_keys()
         print("    caches: %s" % keys)
         assert [k for k in keys if k.startswith("dueogi-")] == sorted([k for k in keys if k.startswith("dueogi-game-")] + [ENGINE_CACHE]), keys
-        # 3) 오프라인 → 새로고침 → 첫 화면 v0.3.2 → 1-1 첫 조립 문제 「실행」
+        # 3) 오프라인 → 새로고침 → 첫 화면 v0.3.3 → 1-1 첫 조립 문제 「실행」
         b.context.set_offline(True)
         resp = pg.reload()
         assert resp is not None and resp.from_service_worker, "offline page not served by sw.js"
@@ -601,6 +678,9 @@ def test_browser_offline():
         heads, rows = _run_first_build(pg, "1-1")
         print("    offline 1-1 build 「실행」: heads %s, %d rows" % (heads, rows))
         assert heads and rows > 0, (heads, rows)
+        csp = pg.evaluate("() => [document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]') !== null, window.__csp]")
+        print("    offline CSP meta %s, violations %s" % tuple(csp))
+        assert csp == [True, []], csp
         pg.screenshot(path=os.path.join(OUT, "build_offline_run.png"))
         # 설정: 「오프라인 준비 완료」
         pg.evaluate("() => window.__dueogi.ctx.show('settings')")

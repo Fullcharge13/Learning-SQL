@@ -122,7 +122,25 @@ export function toast(msg, kind = "", { action = null, ms = 4200 } = {}) {
 /** 진행 막대 */
 export function bar(value, max, cls = "", label = "") {
   const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-  return `<div class="bar ${cls}" role="progressbar" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${Math.min(value, max)}"${label ? ` aria-label="${esc(label)}"` : ""}><span style="width:${pct}%"></span></div>`;
+  return `<div class="bar ${cls}" role="progressbar" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${Math.min(value, max)}"${label ? ` aria-label="${esc(label)}"` : ""}><span data-lay-pct="${pct}"></span></div>`;
+}
+
+// 자리·크기 (v0.3.3 CSP): 엄격한 CSP(style-src에 'unsafe-inline' 없음)에서는 HTML 글자 속 style 속성이 막힌다.
+// 그래서 화면 글자에는 data-lay-l·t·w·h(px)·pct(%)로 숫자만 적고, 그린 뒤 applyLayout이 CSSOM(el.style)으로 넣는다(CSSOM은 CSP가 막지 않음).
+// app.js가 #app·body를 지켜보다(MutationObserver) 새로 붙은 요소에 부르고, show()·홈(스크롤 전)도 바로 부른다. 숫자가 아니면 넣지 않는다
+const LAY = [["layL", "left", "px"], ["layT", "top", "px"], ["layW", "width", "px"], ["layH", "height", "px"], ["layPct", "width", "%"]];
+export function applyLayout(root) {
+  if (!root || typeof root.querySelectorAll !== "function") return;
+  const list = [...root.querySelectorAll("[data-lay-l],[data-lay-t],[data-lay-w],[data-lay-h],[data-lay-pct]")];
+  if (root.dataset && LAY.some(([k]) => root.dataset[k] !== undefined)) list.push(root);
+  for (const e of list) {
+    for (const [k, prop, unit] of LAY) {
+      const v = e.dataset[k];
+      if (v === undefined || v === "") continue;
+      const n = Number(v);
+      if (Number.isFinite(n)) e.style[prop] = n + unit;
+    }
+  }
 }
 
 /** 코드 보기 블록 */

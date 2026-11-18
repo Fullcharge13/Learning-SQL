@@ -1,5 +1,7 @@
 // 칸 편집기(v0.3 작업 8): 자동화 칸의 SQL을 카드로 조립하는 화면. 설계 docs/specs/2026-11-11-두억이의-가게-설계.md §3·§6-4.
-//   const saved = await openSlotEditor(ctx, slotId, { root })   // 저장하면 true, 그냥 나가면 false
+//   const saved = await openSlotEditor(ctx, slotId, { root, bindClose })   // 저장하면 true, 그냥 나가면 false
+//   bindClose(close)(v0.3.3): 편집기를 바로 닫는 함수를 받는다(묻지 않고 버림 → false). 가게 화면이 떠날 때 불러
+//   root(#app, 화면이 바뀌어도 그대로인 요소)에 단 눌림 묶음을 꼭 뗀다(떠난 편집기가 다음 화면의 눌림을 받지 않게)
 // - 틀 칸은 틀 줄(고정 낱말 + 빈자리 [ ])로 보인다. 빈자리를 누르면 그 자리가 「고르는 자리」, 고르기 창의 카드를 누르면 그 자리 끝에 붙고,
 //   놓인 카드를 누르면 빠진다. 숫자 카드는 −/+(0~30).
 // - 「오늘 장부로 시험 실행」: 지금 SQL을 오늘 아침 장부(ledgerSql)에 돌려 결과 표(앞 20행) + 한 줄 풀이(acceptRows). 하루는 안 지나감.
@@ -188,7 +190,7 @@ const cardText = (def, t) => (def.kind === "num" ? String(Number.isInteger(t && 
 
 // ---------------------------------------------------------------- 화면
 
-export function openSlotEditor(ctx, slotId, { root } = {}) {
+export function openSlotEditor(ctx, slotId, { root, bindClose = null } = {}) {
   const def = SLOTS.find((s) => s.id === slotId);
   if (!def || !root) return Promise.resolve(false);
   return new Promise((resolve) => {
@@ -501,6 +503,7 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
       if (!alive) return;
       const b = e.target.closest("button");
       if (!b || b.disabled || !root.contains(b)) return;
+      if (!b.closest(".screen.slot-editor")) return;   // 두 번째 안전장치(v0.3.3): 편집기 화면 밖의 단추는 받지 않음
       if (b.id === "sp-close") { leave(); return; }
       if (b.id === "sp-test") { runTest(); return; }
       if (b.id === "sp-mode") { toggleMode(); return; }
@@ -536,6 +539,7 @@ export function openSlotEditor(ctx, slotId, { root } = {}) {
     }
 
     root.addEventListener("click", onClick);
+    if (typeof bindClose === "function") bindClose(() => finish(false));
     paint();
     try { window.scrollTo(0, 0); } catch { /* 화면 없음 */ }
     const first = root.querySelector("#sp-close");

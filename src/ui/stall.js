@@ -59,6 +59,7 @@ export function render(root, ctx, params = {}) {
   let day = null;          // 마지막으로 연 하루 { before, stall, events, summary, completed, timedOut }
   let replay = null;
   let editing = false;     // 칸 편집기가 이 화면 자리를 쓰는 중(그동안 가게 화면은 다시 그리지 않음)
+  let closeEditor = null;  // 열린 칸 편집기를 바로 닫는 함수(v0.3.3): 화면을 떠날 때 편집기의 #app 눌림 묶음을 뗀다
 
   const stall = () => ctx.save.stall;
 
@@ -225,7 +226,7 @@ export function render(root, ctx, params = {}) {
     if (inflight || view === "replay" || editing) return;
     editing = true;
     let saved = false;
-    try { saved = await openSlotEditor(ctx, id, { root }); } finally { editing = false; }
+    try { saved = await openSlotEditor(ctx, id, { root, bindClose: (fn) => { closeEditor = fn; } }); } finally { editing = false; closeEditor = null; }
     if (!alive) return;
     if (saved) say = null;
     paint();
@@ -329,5 +330,6 @@ export function render(root, ctx, params = {}) {
   return () => {
     alive = false;
     if (replay) { replay.stop(); replay = null; }
+    if (closeEditor) { const c = closeEditor; closeEditor = null; c(); }   // 편집기가 열린 채 떠남: 고친 것은 버림
   };
 }

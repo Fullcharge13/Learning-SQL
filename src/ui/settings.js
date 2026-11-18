@@ -83,6 +83,12 @@ export function render(root, ctx) {
           <input id="name" type="text" maxlength="9" autocomplete="nickname" autocapitalize="off" value="${esc(s.settings.name || "")}" placeholder="예: 지민">
         </div>
       </section>
+      <section class="panel tut-again">
+        <div class="row">
+          <p class="row-label" id="tut-label">사용법 다시 보기<small>처음 본 두억이 카드 4장. 다시 봐도 XP·엽전·진도는 그대로예요</small></p>
+          <button class="btn ghost small" id="tut-replay" aria-describedby="tut-label">보기</button>
+        </div>
+      </section>
       <section class="panel">
         <h2>저장</h2>
         <p class="muted">진행은 이 브라우저에만 저장돼요. 휴대폰을 바꾸거나 기록이 지워질까 걱정되면 파일로 내보내 두세요.</p>
@@ -177,6 +183,7 @@ export function render(root, ctx) {
   });
 
   root.querySelector("#install").addEventListener("click", () => ctx.showInstallSheet());
+  root.querySelector("#tut-replay").addEventListener("click", () => ctx.show("tutorial", { replay: true }));
   root.querySelector("#export").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(ctx.save, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
